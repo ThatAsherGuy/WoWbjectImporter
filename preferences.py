@@ -29,7 +29,7 @@ def get_name():
 
 def get_prefs():
     # return bpy.context.preferences.addons[get_name()].preferences
-    return bpy.context.preferences.addons['Wowbjectifier'].preferences
+    return bpy.context.preferences.addons[__package__].preferences
 
 class wowbjectAddonPrefs(bpy.types.AddonPreferences):
     bl_idname = __package__
