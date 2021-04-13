@@ -39,8 +39,9 @@ def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *ar
     mat.pass_index = 1
 
     blend_flag = mat_flags.get('blendingMode')
-    # print(blend_flag)  
-    set_blend(mat, blend_flag)     
+    # print(blend_flag)
+    downmix = None
+    set_blend(mat, blend_flag, downmix)     
 
     render_flags = read_render_flags(mat_flags['flags'])
 
@@ -92,7 +93,7 @@ def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *ar
     mixer.location += Vector((-500.0, 50.0))
     mixer.inputs[1].default_value = 1.0
 
-    fmix, main_shader = get_output_nodes(mat, mixer, outNode, override, base_shader)
+    fmix, main_shader = get_output_nodes(mat, mixer, outNode, override, base_shader, downmix)
 
     tree.links.new(baseColor.outputs[0], mixer.inputs[0])
     # tree.links.new(main_shader.outputs[0], outNode.inputs[0])
@@ -166,7 +167,7 @@ def get_utility_group(name):
     return bpy.data.node_groups[name]
 
 
-def get_output_nodes(mat, combiner, output, override, base, *args):
+def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
     '''Sets up the shader node & mix shader (if needed)'''
     prefs = preferences.get_prefs()
     base = prefs.get_base_shader(base)
@@ -184,14 +185,16 @@ def get_output_nodes(mat, combiner, output, override, base, *args):
             shader = nodes.new('ShaderNodeGroup')
             shader.node_tree = get_utility_group(name=base)
 
+    # TODO: This doesn't work for materials with specular output below 0.5
     if len(combiner.outputs) > 2:
-        mixer = nodes.new('ShaderNodeMixRGB')
+        mixer = nodes.new('ShaderNodeGroup')
+        mixer.node_tree = get_utility_group('SpecDownmix')
         mixer.location += Vector((-200.0, 0.0))
-        mixer.blend_type = 'OVERLAY'
-        mixer.inputs[0].default_value = 1
 
-        tree.links.new(combiner.outputs[0], mixer.inputs[1])
-        tree.links.new(combiner.outputs[2], mixer.inputs[2])
+        # mixer.inputs[0].default_value = 1
+
+        tree.links.new(combiner.outputs[0], mixer.inputs[0])
+        tree.links.new(combiner.outputs[2], mixer.inputs[1])
         tree.links.new(mixer.outputs[0], shader.inputs[0])
         tree.links.new(shader.outputs[0], output.inputs[0])
     else:
@@ -244,7 +247,7 @@ def read_render_flags(flags):
     return ops
 
 
-def set_blend(mat, flags):
+def set_blend(mat, flags, downmix):
     flag_values = (
         'BLEND',
         'CLIP',
@@ -255,6 +258,17 @@ def set_blend(mat, flags):
         'BLEND',
         'BLEND'
     )
+    downmix_values = (
+        'MULIPLY',
+        'MULIPLY',
+        'DECAL',
+        'ADD',
+        'MUL2',
+        'FADE',
+        'MUL2',
+        'ADD'
+    )
+    downmix = downmix_values[flags]
     mat.blend_method = flag_values[flags]
 
 
