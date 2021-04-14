@@ -24,125 +24,7 @@ import json
 import bmesh
 from math import radians
 from .node_groups import build_shader
-
-# Pulled directly from the 8.0.1 table: https://wowdev.wiki/M2/.skin
-# Note that there are repeats; you can (theoretically)
-# hash the full combos in order to treat it as a set,
-# but you can't rely on just pixel shaders for unique keys
-shader_table =( 
-   ("PS_Combiners_Opaque_Mod2xNA_Alpha",           "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_AddAlpha",                "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_AddAlpha_Alpha",          "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_Mod2xNA_Alpha_Add",       "VS_Diffuse_T1_Env_T1",      "HS_T1_T2_T3", "DS_T1_T2_T3", 3),
-   ("PS_Combiners_Mod_AddAlpha",                   "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_AddAlpha",                "VS_Diffuse_T1_T1",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Mod_AddAlpha",                   "VS_Diffuse_T1_T1",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Mod_AddAlpha_Alpha",             "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_Alpha_Alpha",             "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_Mod2xNA_Alpha_3s",        "VS_Diffuse_T1_Env_T1",      "HS_T1_T2_T3", "DS_T1_T2_T3", 3),
-   ("PS_Combiners_Opaque_AddAlpha_Wgt",            "VS_Diffuse_T1_T1",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Mod_Add_Alpha",                  "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_ModNA_Alpha",             "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Mod_AddAlpha_Wgt",               "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Mod_AddAlpha_Wgt",               "VS_Diffuse_T1_T1",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_AddAlpha_Wgt",            "VS_Diffuse_T1_T2",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_Mod_Add_Wgt",             "VS_Diffuse_T1_Env",         "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_Mod2xNA_Alpha_UnshAlpha", "VS_Diffuse_T1_Env_T1",      "HS_T1_T2_T3", "DS_T1_T2_T3", 3),
-   ("PS_Combiners_Mod_Dual_Crossfade",             "VS_Diffuse_T1",             "HS_T1",       "DS_T1"      , 1),
-   ("PS_Combiners_Mod_Depth",                      "VS_Diffuse_EdgeFade_T1",    "HS_T1",       "DS_T1"      , 2),
-   ("PS_Combiners_Opaque_Mod2xNA_Alpha_Alpha",     "VS_Diffuse_T1_Env_T2",      "HS_T1_T2_T3", "DS_T1_T2_T3", 3),
-   ("PS_Combiners_Mod_Mod",                        "VS_Diffuse_EdgeFade_T1_T2", "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Mod_Masked_Dual_Crossfade",      "VS_Diffuse_T1_T2",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_Alpha",                   "VS_Diffuse_T1_T1",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Opaque_Mod2xNA_Alpha_UnshAlpha", "VS_Diffuse_T1_Env_T2",      "HS_T1_T2_T3", "DS_T1_T2_T3", 3),
-   ("PS_Combiners_Mod_Depth",                      "VS_Diffuse_EdgeFade_Env",   "HS_T1",       "DS_T1"      , 1),
-   ("PS_Guild",                                    "VS_Diffuse_T1_T2_T1",       "HS_T1_T2_T3", "DS_T1_T2"   , 3),
-   ("PS_Guild_NoBorder",                           "VS_Diffuse_T1_T2",          "HS_T1_T2",    "DS_T1_T2_T3", 2),
-   ("PS_Guild_Opaque",                             "VS_Diffuse_T1_T2_T1",       "HS_T1_T2_T3", "DS_T1_T2"   , 3),
-   ("PS_Illum",                                    "VS_Diffuse_T1_T1",          "HS_T1_T2",    "DS_T1_T2"   , 2),
-   ("PS_Combiners_Mod_Mod_Mod_Const",              "VS_Diffuse_T1_T2_T3",       "HS_T1_T2_T3", "DS_T1_T2_T3", 3),
-   ("PS_Combiners_Mod_Mod_Mod_Const",              "VS_Color_T1_T2_T3",         "HS_T1_T2_T3", "DS_T1_T2_T3", 3),
-   ("PS_Combiners_Opaque",                         "VS_Diffuse_T1",             "HS_T1",       "DS_T1"      , 1),
-   ("PS_Combiners_Mod_Mod2x",                      "VS_Diffuse_EdgeFade_T1_T2", "HS_T1_T2",    "DS_T1_T2"   , 2),
-);
-
-# Based on M2GetPixelShaderID() from: https://wowdev.wiki/M2/.skin
-def get_shadereffects(shaderID, op_count = 2):
-    if shaderID == 0:
-        print("WotLK Asset; uses a runtime shader selector")
-    if shaderID & 0x8000:
-        shaderID &= (~0x8000)
-        ind = shaderID.bit_length()
-        if not shader_table[ind][4] == op_count:
-            return shader_table[ind+1][0]
-        else:
-            return shader_table[ind][0]
-    else:
-        if op_count == 1:
-            if shaderID & 0x70:
-                return "PS_Combiners_Mod"
-            else:
-                return "PS_Combiners_Opaque"
-        else:
-            lower = shaderID & 7
-
-            if shaderID & 0x70:
-                if lower == 0:
-                    return "PS_Combiners_Mod_Opaque"
-                elif lower == 3:
-                    return "PS_Combiners_Mod_Add"
-                elif lower == 4:
-                    return "PS_Combiners_Mod_Mod2x"
-                elif lower == 6:
-                    return "PS_Combiners_Mod_Mod2xNA"
-                elif lower == 7:
-                    return "PS_Combiners_Mod_AddNA"
-                else:
-                    return "PS_Combiners_Mod_Mod"
-            else:
-                if lower == 0:
-                    return "PS_Combiners_Opaque_Opaque"
-                elif lower == 3:
-                    return "PS_Combiners_Opaque_AddAlpha"
-                elif lower == 4:
-                    return "PS_Combiners_Opaque_Mod2x"
-                elif lower == 6:
-                    return "PS_Combiners_Opaque_Mod2xNA"
-                elif lower == 7:
-                    return "PS_Combiners_Opaque_AddAlpha"
-                else:
-                    return "PS_Combiners_Opaque_Mod"
-
-
-def get_vertex_shader(shader_id, op_count = 2):
-    if shader_id & 0x8000:
-        shader_id &= (~0x8000)
-        ind = shader_id.bit_length()
-        return shader_table[ind+1][1]
-    else:
-        if op_count == 1:
-            if shader_id & 0x80:
-                return "VS_Diffuse_Env"
-            else:
-                if shader_id & 0x4000:
-                    return "VS_Diffuse_T2"
-                else:
-                    return "VS_Diffuse_T1"
-        else:
-            if shader_id & 0x80:
-                if shader_id & 0x8:
-                    return "VS_Diffuse_Env_Env"
-                else:
-                    return "VS_Diffuse_Env_T1"
-            else:
-                if shader_id & 0x8:
-                    return "VS_Diffuse_T1_Env"
-                else:
-                    if shader_id & 0x4000:
-                        return "VS_Diffuse_T1_T2"
-                    else:
-                        return "VS_Diffuse_T1_T1"
-
+from .lookup_funcs import get_vertex_shader, get_shadereffects
 
 class meshComponent:
     def __init__(self):
@@ -250,16 +132,24 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
         m2_dict = m2_struct.__dict__
 
         md21_chunk = None
+        uv_anim_chunk = None
+        texTransform_chunk = None
 
         for entry, item in m2_dict.items():
             if entry == "chunks":
                 for chunk in item:
                     if chunk.chunk_type == "MD21":
                         md21_chunk = chunk.data.data
+                        break
 
         if md21_chunk:
             tex_iterable = md21_chunk.textures.__dict__
-            print(tex_iterable)
+            uv_anim_chunk = md21_chunk.texture_transform_combos
+            texTransform_chunk = md21_chunk.texture_transforms
+            # print(tex_iterable)
+
+            anim_chunk_combos = uv_anim_chunk.items
+            print(anim_chunk_combos)
 
 
     # Flatten the JSON data.
@@ -274,12 +164,12 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
         with open(config_path) as p:
             asset_data = json.load(p)
 
-            textures = asset_data.get("textures")
-            texture_combos = asset_data.get("textureCombos")
-            texture_units = asset_data.get("skin", {}).get("textureUnits")
+            asset_textures = asset_data.get("textures")
+            asset_tex_combos = asset_data.get("textureCombos")
+            asset_tex_units = asset_data.get("skin", {}).get("textureUnits")
 
-            materials = asset_data.get("materials")
-            submeshes = asset_data.get("skin", {}).get("subMeshes")
+            asset_mats = asset_data.get("materials")
+            asset_submeshes = asset_data.get("skin", {}).get("subMeshes")
 
 
     # A lot of this code is from WoW Export
@@ -382,7 +272,7 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
     orphaned_textures = []
     used_texture_files = []
 
-    for tex in textures:
+    for tex in asset_textures:
         texID = tex.get("fileDataID")
         match = False
 
@@ -414,24 +304,14 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
         else:
             print("Too many orphaned textures to finesse")
 
-    for unit in texture_units:
-
-        texCount = unit.get("textureCount")
-        texOffset = unit.get("textureComboIndex")
+    for unit in asset_tex_units:
         texAnim = unit.get("textureTransformComboIndex")
-
-        texIndicies = texture_combos[texOffset:texOffset+texCount]
-        unitTextures = [textures[i] for i in texIndicies]
-
         material = newObj.material_slots[unit.get("skinSectionIndex")].material
         tree = material.node_tree
 
         # Lazy check to avoid re-building existing materials
-        if len(tree.nodes.items()) == 2:
-            shader_type = get_shadereffects(unit.get("shaderID"),  unit.get("textureCount"))
-            uv_type = get_vertex_shader(unit.get("shaderID"),  unit.get("textureCount"))
-            mat_flags = materials[unit.get("materialIndex")]
-            build_shader(material, unitTextures, shader_type, uv_type, mat_flags, base_shader)
+        if len(tree.nodes.items()) == 2:        
+            build_shader(unit, material, asset_mats, asset_textures, asset_tex_combos, base_shader, anim_combos=anim_chunk_combos)
 
         # This bit doesn't work yet. 
         # Tried to do some glorifies spear fishing

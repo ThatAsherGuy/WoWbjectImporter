@@ -21,11 +21,32 @@
 import bpy
 from mathutils import Vector
 from . import preferences
+from .lookup_funcs import get_vertex_shader, get_shadereffects, get_uv_anim
 import os
 import json
 
+anim_table = (-1, 2, -1, 1, -1, -1, 0)
 
-def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *args):
+def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs):
+# def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, unit, texture_combos, *args):
+    texCount = unit.get("textureCount")
+    texOffset = unit.get("textureComboIndex")
+
+    texIndicies = asset_tex_combos[texOffset:texOffset+texCount]
+    textures = [asset_textures[i] for i in texIndicies]
+
+    uvAnimOffset = unit.get("textureTransformComboIndex")
+    accurate_offsets = kwargs.get("anim_combos", [])
+    if not accurate_offsets == []:
+        texAnimIndicies = accurate_offsets[uvAnimOffset:uvAnimOffset+texCount]
+    else:
+        texAnimIndicies = anim_table[uvAnimOffset:uvAnimOffset+texCount]
+
+    mat_flags = asset_mats[unit.get("materialIndex")]
+    
+    blend_type = get_shadereffects(unit.get("shaderID"),  unit.get("textureCount"))
+    uv_type = get_vertex_shader(unit.get("shaderID"),  unit.get("textureCount"))
+
     tree = mat.node_tree
     nodes = tree.nodes
 
@@ -37,14 +58,13 @@ def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *ar
     # I'm arbitrarily breaking things out into different material passes
     # so they can be composited later. Only matters for Cycles.
     mat.pass_index = 1
+    mat.use_backface_culling = True
 
     blend_flag = mat_flags.get('blendingMode')
-    # print(blend_flag)
     downmix = None
     set_blend(mat, blend_flag, downmix)     
 
     render_flags = read_render_flags(mat_flags['flags'])
-
     for flag in render_flags:
         if flag == "UNLIT":
             override = "ShaderNodeEmission"
@@ -60,6 +80,8 @@ def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *ar
         elif flag == "ACLIP":
             mat.blend_method = 'CLIP'
             mat.pass_index = 6
+        else:
+            print("NOFLAG")
 
     blend_seq = blend_type.split('_')
     if blend_seq[2] == 'Opaque':
@@ -121,7 +143,7 @@ def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *ar
             uv_map.uv_map = uv_channel
         elif uv_channel == 'Env':
             uv_map = nodes.new('ShaderNodeGroup')
-            uv_map.node_tree = get_utility_group(name="SphereMap")
+            uv_map.node_tree = get_utility_group(name="SphereMap_Simple")
             uv_map.label = "Sphere Map"
         else:
             uv_map = nodes.new('ShaderNodeUVMap')
@@ -129,9 +151,20 @@ def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *ar
             uv_map.label = "REPLACE WITH EDGE FADE"
 
         uv_map.location += Vector((-1600.0, (300 - i * 325.0)))
+        texAnim = get_uv_anim(unit.get("textureTransformComboIndex") + i)
 
-        map_node = nodes.new('ShaderNodeMapping')
-        map_node.vector_type = 'TEXTURE'
+        if not texAnimIndicies[i] in {-1, 65535 }:
+            if not texAnimIndicies[i] == 2:
+                map_node = nodes.new('ShaderNodeGroup')
+                map_node.node_tree = get_utility_group(name="TexturePanner")
+                map_node.inputs[texAnimIndicies[i] + 1].default_value = 0.2
+            else:
+                map_node = nodes.new('ShaderNodeMapping')
+                map_node.vector_type = 'TEXTURE'
+        else:
+            map_node = nodes.new('ShaderNodeMapping')
+            map_node.vector_type = 'TEXTURE'
+
         map_node.location += Vector((-1400.0, (300 - i * 325.0)))
 
         tree.links.new(uv_map.outputs[0], map_node.inputs[0])
@@ -155,6 +188,8 @@ def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, *ar
 
         tex_nodes.append(t_node)
 
+    print("\n\n")
+
 
 def get_utility_group(name):
     '''Appends a node group from the bundled .blend file'''
@@ -169,6 +204,7 @@ def get_utility_group(name):
 
 def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
     '''Sets up the shader node & mix shader (if needed)'''
+    # print(base)
     prefs = preferences.get_prefs()
     base = prefs.get_base_shader(base)
 
@@ -176,14 +212,16 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
     nodes = tree.nodes
     mixer = None
 
-    if not base == "ASHER":
+    # print(base)
+
+    if not base == "Experimental":
         shader = nodes.new(base)
     else:
         if not override == "":
             shader = nodes.new(override)
         else:
             shader = nodes.new('ShaderNodeGroup')
-            shader.node_tree = get_utility_group(name=base)
+            shader.node_tree = get_utility_group(name="TheStumpFargothHidTheRingIn")
 
     # TODO: This doesn't work for materials with specular output below 0.5
     if len(combiner.outputs) > 2:
@@ -202,6 +240,8 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
         if base == 'ShaderNodeBsdfPrincipled':
             tree.links.new(combiner.outputs[1], shader.inputs[19])
             tree.links.new(shader.outputs[0], output.inputs[0])
+            shader.inputs[5].default_value = 0.025
+            shader.inputs[7].default_value = 0.95
         else:
             # TODO: Setup a mix node for transparency.
             shader.location += Vector((-200.0, 0.0))
@@ -215,6 +255,11 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
             tree.links.new(transparent.outputs[0], mix_shader.inputs[1])
             tree.links.new(shader.outputs[0], mix_shader.inputs[2])
             tree.links.new(mix_shader.outputs[0], output.inputs[0])
+
+        if base == 'ShaderNodeEeveeSpecular':
+            shader.inputs[2].default_value = 0.95
+        elif base == 'ShaderNodeBsdfDiffuse':
+            shader.inputs[1].default_value = 0.95
     
 
     if base in {'EMIT', 'SPEC', 'DIFF'}:
@@ -359,7 +404,7 @@ def generate_nodegroups(path):
         node_dict = json.load(data)
 
         for name, group_def in node_dict.items():
-            print("\n\n +++++ \n\n")
+            # print("\n\n +++++ \n\n")
             ng = bpy.data.node_groups.new(name, 'ShaderNodeTree')
 
             nodes = group_def.get('nodes')

@@ -22,6 +22,7 @@ import bpy
 import os
 from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
+from .utilties import do_import
 
 
 class WOWBJ_OT_Import(bpy.types.Operator):
@@ -78,7 +79,6 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
 
     def execute(self, context):
-        from .utilties import do_import
         do_import(self.files, self.directory, self.reuse_materials, self.base_shader)
         return {'FINISHED'}
 
