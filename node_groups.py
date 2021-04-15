@@ -25,7 +25,6 @@ from .lookup_funcs import get_vertex_shader, get_shadereffects, get_uv_anim
 import os
 import json
 
-anim_table = (-1, 2, -1, 1, -1, -1, 0)
 
 def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs):
 # def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, unit, texture_combos, *args):
@@ -40,7 +39,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     if not accurate_offsets == []:
         texAnimIndicies = accurate_offsets[uvAnimOffset:uvAnimOffset+texCount]
     else:
-        texAnimIndicies = anim_table[uvAnimOffset:uvAnimOffset+texCount]
+        texAnimIndicies = []
 
     mat_flags = asset_mats[unit.get("materialIndex")]
     
@@ -153,11 +152,15 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         uv_map.location += Vector((-1600.0, (300 - i * 325.0)))
         texAnim = get_uv_anim(unit.get("textureTransformComboIndex") + i)
 
-        if not texAnimIndicies[i] in {-1, 65535 }:
-            if not texAnimIndicies[i] == 2:
-                map_node = nodes.new('ShaderNodeGroup')
-                map_node.node_tree = get_utility_group(name="TexturePanner")
-                map_node.inputs[texAnimIndicies[i] + 1].default_value = 0.2
+        if not texAnimIndicies == []:
+            if not texAnimIndicies[i] in {-1, 65535 }:
+                if not texAnimIndicies[i] == 2:
+                    map_node = nodes.new('ShaderNodeGroup')
+                    map_node.node_tree = get_utility_group(name="TexturePanner")
+                    map_node.inputs[texAnimIndicies[i] + 1].default_value = 0.2
+                else:
+                    map_node = nodes.new('ShaderNodeMapping')
+                    map_node.vector_type = 'TEXTURE'
             else:
                 map_node = nodes.new('ShaderNodeMapping')
                 map_node.vector_type = 'TEXTURE'

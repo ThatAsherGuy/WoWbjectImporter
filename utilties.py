@@ -124,6 +124,7 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
         else:
             print("Unhandled File Type")
 
+    use_m2_data = False
     if raw_file:
         from .kaitai import m2_handler
         from .kaitai.m2 import M2
@@ -150,7 +151,7 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
 
             anim_chunk_combos = uv_anim_chunk.items
             print(anim_chunk_combos)
-
+            use_m2_data = True
 
     # Flatten the JSON data.
     # Makes it easier to pull out sub-dicts later on
@@ -310,8 +311,11 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
         tree = material.node_tree
 
         # Lazy check to avoid re-building existing materials
-        if len(tree.nodes.items()) == 2:        
-            build_shader(unit, material, asset_mats, asset_textures, asset_tex_combos, base_shader, anim_combos=anim_chunk_combos)
+        if len(tree.nodes.items()) == 2:
+            if use_m2_data:        
+                build_shader(unit, material, asset_mats, asset_textures, asset_tex_combos, base_shader, anim_combos=anim_chunk_combos)
+            else:
+                build_shader(unit, material, asset_mats, asset_textures, asset_tex_combos, base_shader)
 
         # This bit doesn't work yet. 
         # Tried to do some glorifies spear fishing
