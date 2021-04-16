@@ -28,6 +28,7 @@ import os
 import platform
 import site
 import subprocess
+from ..lookup_funcs import get_interpolation_type
 
 enc = sys.getdefaultencoding()
 
@@ -117,20 +118,89 @@ def update_sys_path(usersitepackagespath):
         print("\nAdded %s to sys.path" % (usersitepackagespath))
 
 
+def load_kaitai():
+    kaitai_module = importlib.util.find_spec('kaitaistruct')
+    if kaitai_module == None:
+        print("Installing Kaitai...")
+        pythonbinpath, pythonlibpath, ensurepippath, modulespaths, sitepackagespath, usersitepackagespath, _, _ = get_python_paths()
+        pip = do_pip(pythonbinpath, ensurepippath)
+        if pip:
+            kai = do_kaitai(pythonbinpath)
+            update_sys_path(usersitepackagespath)
+            bpy.utils.refresh_script_paths()
+        else:
+            print("Failed to Install Pip!")
 
-kaitai_module = importlib.util.find_spec('kaitaistruct')
-if kaitai_module == None:
-    print("Installing Kaitai...")
-    pythonbinpath, pythonlibpath, ensurepippath, modulespaths, sitepackagespath, usersitepackagespath, _, _ = get_python_paths()
-    pip = do_pip(pythonbinpath, ensurepippath)
-    if pip:
-        kai = do_kaitai(pythonbinpath)
-        update_sys_path(usersitepackagespath)
-        bpy.utils.refresh_script_paths()
-    else:
-        print("Failed to Install Pip!")
+    kaitai_module = importlib.util.find_spec('kaitaistruct')
+    if kaitai_module == None:
+        print("MODULE HARD FAIL")
 
-kaitai_module = importlib.util.find_spec('kaitaistruct')
-if kaitai_module == None:
-    print("MODULE HARD FAIL")
 
+def read_m2(directory, file):
+    print("reading m2")
+    from .m2 import M2
+    m2_struct = M2.from_file(os.path.join(directory, file))
+    m2_globals = m2_struct.Md20GlobalFlags
+    m2_dict = m2_struct.__dict__
+
+    md21_chunk = None
+    uv_anim_chunk = None
+    texTransform_chunk = None
+
+    for entry, item in m2_dict.items():
+        if entry == "chunks":
+            for chunk in item:
+                if chunk.chunk_type == "MD21":
+                    md21_chunk = chunk.data.data
+                    break
+
+    if md21_chunk:
+        tex_iterable = md21_chunk.textures.__dict__
+        uv_anim_chunk = md21_chunk.texture_transform_combos
+        
+        # print(tex_iterable)
+
+        anim_chunk_combos = uv_anim_chunk.items
+        print(anim_chunk_combos)
+        use_m2_data = True
+
+        texTransforms = md21_chunk.texture_transforms.items
+
+        unpacked_transforms = []
+
+        for transform in texTransforms:
+            transform_container = {}
+            
+            translation = transform.translation
+            rotation = transform.rotation
+            scaling = transform.scaling
+
+            do_translate, translate_interp = read_track(translation)
+            do_rotate, rotate_interp = read_track(rotation)
+            do_scale, scale_interp = read_track(scaling)
+
+            if do_translate:
+                print("Translation interp: " + translate_interp)
+                translate_vectors = translation.values.items
+
+            if do_rotate:
+                print("Rotation interp: " + rotate_interp)
+                rotate_vectors = rotation.values.items
+
+            if do_scale:
+                print("Scale interp: " + scale_interp)
+                scale_vectors = scaling.values.items
+
+            unpacked_transforms.append(transform_container)
+
+
+        return (True, anim_chunk_combos)
+
+    return (False, None)
+
+
+def read_track(track):
+    track_type = get_interpolation_type(track.interpolation_type)
+    has_values = True if len(track.timestamps.items) > 0 else False
+
+    return (has_values, track_type)

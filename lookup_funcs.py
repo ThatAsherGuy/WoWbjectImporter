@@ -138,14 +138,12 @@ def get_vertex_shader(shader_id, op_count = 2):
                     else:
                         return "VS_Diffuse_T1_T1"
 
-# Tex Transform Table Stuff
-# -1 == Static
-# 0 == Texture 1 moves
-# 1 == Texture 2 moves
 
-# table for sword = [-1, 0, -1, 1]
-# table for staff = [-1, 2, -1, 1, -1, -1, 0]
-
-def get_uv_anim(index):
-    anim_table = (-1, 2, -1, 1, -1, -1, 0)
-    return anim_table[index]
+def get_interpolation_type(index):
+    types = (
+        'CONST',
+        'LINEAR',
+        'BEZIER',
+        'HERMITE'
+    )
+    return types[index]

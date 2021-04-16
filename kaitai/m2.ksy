@@ -410,6 +410,7 @@ types:
               m2track_types::fixed16: m2array(m2array_types::fixed16)
               m2track_types::float: m2array(m2array_types::float)
               m2track_types::c3vector: m2array(m2array_types::c3vector)
+              m2track_types::c4quaternion: m2array(m2array_types::c4quaternion)
 
     m2array_todo:
         seq:

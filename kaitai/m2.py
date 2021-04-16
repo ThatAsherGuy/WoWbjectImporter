@@ -252,6 +252,8 @@ class M2(KaitaiStruct):
                     self._m_items[i] = M2.Todo(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2event:
                     self._m_items[i] = M2.M2event(self._io, self, self._root)
+                elif _on == M2.M2arrayTypes.c4quaternion:
+                    self._m_items[i] = M2.C4quaternion(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2texturetransform:
                     self._m_items[i] = M2.M2texturetransform(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.c3vector:
@@ -764,10 +766,12 @@ class M2(KaitaiStruct):
             _on = self.m2track_type
             if _on == M2.M2trackTypes.uint8:
                 self.values = M2.M2array(M2.M2arrayTypes.uint8, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.fixed16:
-                self.values = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
+            elif _on == M2.M2trackTypes.c4quaternion:
+                self.values = M2.M2array(M2.M2arrayTypes.c4quaternion, self._io, self, self._root)
             elif _on == M2.M2trackTypes.float:
                 self.values = M2.M2array(M2.M2arrayTypes.float, self._io, self, self._root)
+            elif _on == M2.M2trackTypes.fixed16:
+                self.values = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
             elif _on == M2.M2trackTypes.c3vector:
                 self.values = M2.M2array(M2.M2arrayTypes.c3vector, self._io, self, self._root)
 
@@ -1048,7 +1052,7 @@ class M2(KaitaiStruct):
             self.bone = self._io.read_u2le()
             self.unknown = self._io.read_u2le()
             self.position = M2.C4vector(self._io, self, self._root)
-            self.animate_attached = M2.M2track(M2.M2trackTypes.uint8, self._io, self, self._root) # FIXME
+            self.animate_attached = M2.M2track(M2.M2trackTypes.uint8, self._io, self, self._root)
 
 
     class M2ribbon(KaitaiStruct):

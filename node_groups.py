@@ -21,13 +21,12 @@
 import bpy
 from mathutils import Vector
 from . import preferences
-from .lookup_funcs import get_vertex_shader, get_shadereffects, get_uv_anim
+from .lookup_funcs import get_vertex_shader, get_shadereffects
 import os
 import json
 
 
 def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs):
-# def build_shader(mat, textures, blend_type, uv_type, mat_flags, base_shader, unit, texture_combos, *args):
     texCount = unit.get("textureCount")
     texOffset = unit.get("textureComboIndex")
 
@@ -49,12 +48,11 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     tree = mat.node_tree
     nodes = tree.nodes
 
-    # Create new Principled BSDF and Image Texture nodes.
     principled = None
     outNode = None
     override = ""
 
-    # I'm arbitrarily breaking things out into different material passes
+    # Arbitrarily breaking things out into different material passes
     # so they can be composited later. Only matters for Cycles.
     mat.pass_index = 1
     mat.use_backface_culling = True
@@ -126,6 +124,8 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         t_node = nodes.new('ShaderNodeTexImage')
         t_node.location += Vector((-1200.0, (200 - i * 300.0)))
 
+        i = min(i, len(mapping) - 1)
+
         if mapping[i] == 'T1':
             uv_channel = 'UVMap'
         elif mapping[i] == 'T2':
@@ -150,27 +150,25 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
             uv_map.label = "REPLACE WITH EDGE FADE"
 
         uv_map.location += Vector((-1600.0, (300 - i * 325.0)))
-        texAnim = get_uv_anim(unit.get("textureTransformComboIndex") + i)
 
         if not texAnimIndicies == []:
             if not texAnimIndicies[i] in {-1, 65535 }:
-                if not texAnimIndicies[i] == 2:
-                    map_node = nodes.new('ShaderNodeGroup')
-                    map_node.node_tree = get_utility_group(name="TexturePanner")
-                    map_node.inputs[texAnimIndicies[i] + 1].default_value = 0.2
-                else:
-                    map_node = nodes.new('ShaderNodeMapping')
-                    map_node.vector_type = 'TEXTURE'
+                sb = 1
+                map_node = nodes.new('ShaderNodeGroup')
+                map_node.node_tree = get_utility_group(name="TexturePanner")
+                map_node.inputs[2].default_value = 0.2
             else:
+                sb = 0
                 map_node = nodes.new('ShaderNodeMapping')
                 map_node.vector_type = 'TEXTURE'
         else:
+            sb = 0
             map_node = nodes.new('ShaderNodeMapping')
             map_node.vector_type = 'TEXTURE'
 
         map_node.location += Vector((-1400.0, (300 - i * 325.0)))
 
-        tree.links.new(uv_map.outputs[0], map_node.inputs[0])
+        tree.links.new(uv_map.outputs[0], map_node.inputs[0+sb])
         tree.links.new(map_node.outputs[0], t_node.inputs[0])
 
         if not textures[i].get("name") in bpy.data.images:
@@ -190,8 +188,6 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         tree.links.new(t_node.outputs[1], mixer.inputs[socket_index+1])
 
         tex_nodes.append(t_node)
-
-    print("\n\n")
 
 
 def get_utility_group(name):
@@ -407,7 +403,6 @@ def generate_nodegroups(path):
         node_dict = json.load(data)
 
         for name, group_def in node_dict.items():
-            # print("\n\n +++++ \n\n")
             ng = bpy.data.node_groups.new(name, 'ShaderNodeTree')
 
             nodes = group_def.get('nodes')

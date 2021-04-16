@@ -32,7 +32,6 @@ import bmesh
 from math import radians
 from bpy_extras.io_utils import unpack_list
 from bpy_extras.image_utils import load_image
-from bpy_extras.wm_utils.progress_report import ProgressReport
 
 class meshComponent:
     def __init__(self):
@@ -54,7 +53,7 @@ class meshObject:
         self.uv2 = []
         self.components = []
 
-def initialize_mesh(mesh_path, progress):
+def initialize_mesh(mesh_path):
     '''Essentially a straight rip from the add-on'''
     obj = meshObject()
     meshIndex = -1
@@ -110,95 +109,94 @@ def initialize_mesh(mesh_path, progress):
     return obj
 
 def import_obj(file, directory, *args):
-    with ProgressReport(bpy.context.window_manager) as progress:
-        progress.enter_substeps(1, "Importing OBJ %r..." % file)
+    # A lot of this code is from WoW Export
+    mesh_name, mesh_type = file.split('.')
+    if mesh_name in bpy.data.objects:
+        objIndex = 1
+        newName = mesh_name
+        while(newName in bpy.data.objects):
+            newName = mesh_name + '.' + str(objIndex).rjust(3, '0')
+            objIndex += 1
+        mesh_name = newName
 
-        # A lot of this code is from WoW Export
-        mesh_name, mesh_type = file.split('.')
-        if mesh_name in bpy.data.objects:
-            objIndex = 1
-            newName = mesh_name
-            while(newName in bpy.data.objects):
-                newName = mesh_name + '.' + str(objIndex).rjust(3, '0')
-                objIndex += 1
-            mesh_name = newName
+    if bpy.ops.object.select_all.poll():
+        bpy.ops.object.select_all(action='DESELECT')
 
-        if bpy.ops.object.select_all.poll():
-            bpy.ops.object.select_all(action='DESELECT')
+    mesh_data = initialize_mesh(os.path.join(directory, file))
+    newMesh = bpy.data.meshes.new(mesh_name)
+    newObj = bpy.data.objects.new(mesh_name, newMesh)
 
-        mesh_data = initialize_mesh(os.path.join(directory, file), progress)
-        newMesh = bpy.data.meshes.new(mesh_name)
-        newObj = bpy.data.objects.new(mesh_name, newMesh)
+    bm = bmesh.new()
 
-        bm = bmesh.new()
+    for i, v in enumerate(mesh_data.verts):
+        vert = bm.verts.new(v)
+        vert.normal = mesh_data.normals[i]
 
-        for i, v in enumerate(mesh_data.verts):
-            vert = bm.verts.new(v)
-            vert.normal = mesh_data.normals[i]
+    bm.verts.ensure_lookup_table()
+    bm.verts.index_update()
 
-        bm.verts.ensure_lookup_table()
-        bm.verts.index_update()
+    for i, component in enumerate(mesh_data.components):
+        exampleFaceSet = False
 
-        for i, component in enumerate(mesh_data.components):
-            exampleFaceSet = False
+        mat_name = mesh_name + "_" + component.name + "_mat"
+        mat = bpy.data.materials.new(name=mat_name)
+        mat.use_nodes = True
+        newObj.data.materials.append(mat)
 
-            mat_name = mesh_name + "_" + component.name + "_mat"
-            mat = bpy.data.materials.new(name=mat_name)
-            mat.use_nodes = True
-            newObj.data.materials.append(mat)
+        for face in component.faces:
+            try:
+                if exampleFaceSet == False:
+                    bm.faces.new((
+                        bm.verts[face[0] - 1],
+                        bm.verts[face[1] - 1],
+                        bm.verts[face[2] - 1]
+                    ))
+                    bm.faces.ensure_lookup_table()
 
-            for face in component.faces:
-                try:
-                    if exampleFaceSet == False:
-                        bm.faces.new((
-                            bm.verts[face[0] - 1],
-                            bm.verts[face[1] - 1],
-                            bm.verts[face[2] - 1]
-                        ))
-                        bm.faces.ensure_lookup_table()
+                    # This only works the first time the operator runs, for some reason.
+                    bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
 
-                        # This only works the first time the operator runs, for some reason.
-                        bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
+                    bm.faces[-1].smooth = True
+                    exampleFace = bm.faces[-1]
+                    exampleFaceSet = True
+                else:
+                    ## Use example face if set to speed up material copy!
+                    bm.faces.new((
+                        bm.verts[face[0] - 1],
+                        bm.verts[face[1] - 1],
+                        bm.verts[face[2] - 1]
+                    ), exampleFace)
+            except ValueError:
+                print("Error?")
+                pass
 
-                        bm.faces[-1].smooth = True
-                        exampleFace = bm.faces[-1]
-                        exampleFaceSet = True
-                    else:
-                        ## Use example face if set to speed up material copy!
-                        bm.faces.new((
-                            bm.verts[face[0] - 1],
-                            bm.verts[face[1] - 1],
-                            bm.verts[face[2] - 1]
-                        ), exampleFace)
-                except ValueError:
-                    print("Error?")
-                    pass
+    uv_layer = bm.loops.layers.uv.new()
+    for face in bm.faces:
+        for loop in face.loops:
+            loop[uv_layer].uv = mesh_data.uv[loop.vert.index]
 
-        uv_layer = bm.loops.layers.uv.new()
+    if len(mesh_data.uv2) > 0:
+        uv2_layer = bm.loops.layers.uv.new('UV2Map')
         for face in bm.faces:
             for loop in face.loops:
-                loop[uv_layer].uv = mesh_data.uv[loop.vert.index]
+                loop[uv2_layer].uv = mesh_data.uv2[loop.vert.index]
 
-        if len(mesh_data.uv2) > 0:
-            uv2_layer = bm.loops.layers.uv.new('UV2Map')
-            for face in bm.faces:
-                for loop in face.loops:
-                    loop[uv2_layer].uv = mesh_data.uv2[loop.vert.index]
+    bm.to_mesh(newMesh)
+    bm.free()
 
-        bm.to_mesh(newMesh)
-        bm.free()
+    createVertexGroups = True
+    # needed to have a mesh before we can create vertex groups, so do that now
+    if createVertexGroups:
+        for i, component in enumerate(sorted(mesh_data.components, key=lambda m: m.name.lower())):
+            vg = newObj.vertex_groups.new(name=f"{component.name}")
+            vg.add(list(component.verts), 1.0, "REPLACE")
 
-        createVertexGroups = True
-        # needed to have a mesh before we can create vertex groups, so do that now
-        if createVertexGroups:
-            for i, component in enumerate(sorted(mesh_data.components, key=lambda m: m.name.lower())):
-                vg = newObj.vertex_groups.new(name=f"{component.name}")
-                vg.add(list(component.verts), 1.0, "REPLACE")
+    ## Rotate object the right way
+    newObj.rotation_euler = [0, 0, 0]
+    newObj.rotation_euler.x = radians(90)
 
-        ## Rotate object the right way
-        newObj.rotation_euler = [0, 0, 0]
-        newObj.rotation_euler.x = radians(90)
+    # Defaults to master collection if no collection exists.
+    bpy.context.view_layer.active_layer_collection.collection.objects.link(newObj)
+    newObj.select_set(True)
 
-        # Defaults to master collection if no collection exists.
-        bpy.context.view_layer.active_layer_collection.collection.objects.link(newObj)
-        newObj.select_set(True)
+    return newObj
