@@ -30,7 +30,8 @@ from .kaitai.m2_handler import load_kaitai, read_m2
 from bpy_extras.wm_utils.progress_report import ProgressReport
 
 
-# Rather than pass everything individually or assign things to globals, I made this.
+# Rather than pass everything individually or assign stuff to globals, I made this... Thing.
+# The idea here is that I can then pass this object to the external functions it calls, in order to pull extra data from it.
 class import_container():
     def __init__(self):
         self.m2 = None
@@ -50,7 +51,50 @@ class import_container():
         }
         self.source_directory = ''
         self.use_m2 = False
-        self.base_shader
+        self.base_shader = None
+
+
+    def do_setup(self, files, directory, **kwargs):
+        with ProgressReport(bpy.context.window_manager) as progress:
+            progress.enter_substeps(4, "Importing Files From %r..." % directory)
+
+            self.source_directory = directory
+            for arg, val in kwargs.items():
+                if arg == 'base_shader':
+                    self.base_shader = val
+                elif arg == 'reuse_mats':
+                    self.reuse_mats = val
+
+            for file in files:
+                name = file.name.split('.')
+                if name[1] == 'png':
+                    self.source_files['texture'].append(file.name)
+                elif name[1] == 'obj':
+                    self.source_files['OBJ'].append(file.name)
+                elif name[1] == 'mtl':
+                    self.source_files['MTL'].append(file.name)
+                elif name[1] == 'json':
+                    self.source_files['config'].append(file.name)
+                elif name[1] == 'm2':
+                    self.source_files['M2'].append(file.name)
+                elif name[1] == 'blp':
+                    self.source_files['BLP'].append(file.name)
+                elif name[1] == 'skin':
+                    self.source_files['skin'].append(file.name)
+                else:
+                    print("Unhandled File Type")
+                    self.source_files['unhandled'].append(file.name)
+
+            progress.step("Setting up JSON Data")
+            self.setup_json_data()
+            progress.step("Unpacking Textures")
+            self.setup_textures()
+            progress.step("Initializing Object")
+            self.setup_bl_object()
+            self.unpack_m2()
+            progress.step("Generating Materials")
+            self.setup_materials()
+
 
     def unpack_m2(self):
         if self.m2 == None:
@@ -59,8 +103,22 @@ class import_container():
         load_kaitai()
         self.use_m2, self.anim_combos = read_m2(self.source_directory, self.m2)
 
-    def setup_json_data(self, config):
-        self.json_config = config
+
+    def setup_json_data(self, **kwargs):
+        if not kwargs.get('config') == None:
+            self.json_config = kwargs.get('config')
+        else:
+            source = self.source_files['config']
+
+            if len(source) > 1:
+                return False
+
+            if len(source) == 0:
+                return False
+
+            config_path = os.path.join(self.source_directory, source[0])
+            with open(config_path) as p:
+                self.json_config = json.load(p)
 
         self.json_textures = self.json_config.get("textures")
         self.json_tex_combos = self.json_config.get("textureCombos")
@@ -68,13 +126,24 @@ class import_container():
         self.json_mats = self.json_config.get("materials")
         self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes")
 
-        self.setup_textures()
 
-        return (self.json_textures, self.json_tex_combos, self.json_tex_units)
+    def setup_bl_object(self):
+        source = self.source_files['OBJ']
+
+        # Nothing to setup. TODO: Setup a report logging system here.
+        if len(source) == 0:
+            return False
+
+        # Haven't set up multi-object importing
+        if len(source) > 1:
+            return False
+
+        self.bl_obj = import_obj(source[0], self.source_directory)
+
 
     def setup_textures(self):
         directory = self.source_directory
-        source_textures = self.source_files.get('textures')
+        source_textures = self.source_files.get('texture')
         orphaned_textures = []
         used_texture_files = []
 
@@ -110,6 +179,7 @@ class import_container():
             else:
                 print("Too many orphaned textures to finesse")
 
+
     def setup_materials(self):
 
         for unit in self.json_tex_units:
@@ -139,28 +209,6 @@ class import_container():
                         self.base_shader,
                         import_container = self
                         )
-        
-
-
-class meshComponent:
-    def __init__(self):
-        self.usemtl = ''
-        self.name = ''
-        self.verts = set()
-        self.faces = []
-        self.uv = []
-
-class meshObject:
-    def __init__(self):
-        self.usemtl = ''
-        self.mtlfile = ''
-        self.name = ''
-        self.verts = []
-        self.faces = []
-        self.normals = []
-        self.uv = []
-        self.uv2 = []
-        self.components = []
 
 def debug_print(string):
     do_debug = False
@@ -168,133 +216,11 @@ def debug_print(string):
     if do_debug:
         print(string)
 
-
 def do_import(files, directory, reuse_mats, base_shader, *args):
-    with ProgressReport(bpy.context.window_manager) as progress:
-        progress.enter_substeps(1, "Importing Files From %r..." % directory)
-
-        box_of_trash = import_container()
-        
-        source_mesh = None
-        source_config = None
-
-        # Stubs for handling multi-import
-        source_meshes = []
-        source_textures = []
-        souce_shaders = []
-
-        # Raw files for debugging
-        blp_files = []
-        skin_files = []
-        raw_file = None
-
-        # Index what we've been handed so we can sanity-check
-        for file in files:
-            name = file.name.split('.')
-            if name[1] == 'png':
-                source_textures.append(file.name)
-                box_of_trash.source_files['texture'].append(file.name)
-            elif name[1] == 'obj':
-                source_mesh = file.name
-                source_meshes.append(file.name)
-                box_of_trash.source_files['OBJ'].append(file.name)
-            elif name[1] == 'mtl':
-                souce_shaders.append(file.name)
-                box_of_trash.source_files['MTL'].append(file.name)
-            elif name[1] == 'json':
-                source_config = file.name
-                box_of_trash.source_files['config'].append(file.name)
-            elif name[1] == 'm2':
-                raw_file = file.name
-                box_of_trash.source_files['M2'].append(file.name)
-            elif name[1] == 'blp':
-                blp_files.append(file.name)
-                box_of_trash.source_files['BLP'].append(file.name)
-            elif name[1] == 'skin':
-                skin_files.append(file.name)
-                box_of_trash.source_files['skin'].append(file.name)
-            else:
-                print("Unhandled File Type")
-                box_of_trash.source_files['unhandled'].append(file.name)
-
-        use_m2_data = False
-        if raw_file:
-            box_of_trash.m2 = raw_file
-            progress.enter_substeps(2, "Reading %r..." % raw_file)
-            load_kaitai()
-            use_m2_data, anim_chunk_combos = read_m2(directory, raw_file)
-            
-
-        # Flatten the JSON data.
-        # Makes it easier to pull out sub-dicts later on
-        if source_config:
-            config_path = os.path.join(directory, source_config)
-
-            if not os.path.isfile(config_path):
-                print("CONFIG NOT FOUND")
-                return False
-
-            with open(config_path) as p:
-                asset_data = json.load(p)
-                box_of_trash.json_config = asset_data
-
-                asset_textures = asset_data.get("textures")
-                asset_tex_combos = asset_data.get("textureCombos")
-                asset_tex_units = asset_data.get("skin", {}).get("textureUnits")
-
-                asset_mats = asset_data.get("materials")
-                asset_submeshes = asset_data.get("skin", {}).get("subMeshes")
-
-        newObj = import_obj(source_mesh, directory)
-        box_of_trash.bl_obj = newObj
-
-        # Some textures have ID-matchable names, but not all of them.
-        # Match where possible, list the ones we have to make guesses about.
-        orphaned_textures = []
-        used_texture_files = []
-
-        for tex in asset_textures:
-            texID = tex.get("fileDataID")
-            match = False
-
-            if not texID:
-                print("Texture ID Not Found")
-
-            for tex_file in source_textures:
-                if str(texID) in tex_file:
-                    tex["name"] = tex_file
-                    tex["path"] = os.path.join(directory, tex_file)
-                    used_texture_files.append(tex_file)
-                    match = True
-                    break
-            
-            if not match:
-                orphaned_textures.append(tex)
-            
-        if len(orphaned_textures) > 0:
-            print("Unable to Match Textures")
-            if len(orphaned_textures) == 1:
-                orphan = orphaned_textures[0]
-                temp_set = set(source_textures).difference(set(used_texture_files))
-                if len(temp_set) > 0:
-                    orphaned_file = list(temp_set)[0]
-                    orphan["name"] = orphaned_file
-                    orphan["path"] = os.path.join(directory, orphaned_file)
-                else:
-                    pass # TODO: Discard the texture so we don't try to use it down the road.
-            else:
-                print("Too many orphaned textures to finesse")
-
-        progress.enter_substeps(2, "Setting Up Materials...")
-        for unit in asset_tex_units:
-            texAnim = unit.get("textureTransformComboIndex")
-            material = newObj.material_slots[unit.get("skinSectionIndex")].material
-            tree = material.node_tree
-
-            # Lazy check to avoid re-building existing materials
-            if len(tree.nodes.items()) == 2:
-                if use_m2_data:        
-                    build_shader(unit, material, asset_mats, asset_textures, asset_tex_combos, base_shader, anim_combos=anim_chunk_combos)
-                else:
-                    build_shader(unit, material, asset_mats, asset_textures, asset_tex_combos, base_shader)
-
+    box_of_trash = import_container()
+    box_of_trash.do_setup(
+        files,
+        directory,
+        reuse_mats=reuse_mats,
+        base_shader=base_shader
+        )
