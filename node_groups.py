@@ -52,14 +52,15 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     outNode = None
     override = ""
 
+    import_container = kwargs.get("import_container", None)
+
     # Arbitrarily breaking things out into different material passes
     # so they can be composited later. Only matters for Cycles.
     mat.pass_index = 1
     mat.use_backface_culling = True
 
     blend_flag = mat_flags.get('blendingMode')
-    downmix = None
-    set_blend(mat, blend_flag, downmix)     
+    downmix = set_blend(mat, blend_flag)     
 
     render_flags = read_render_flags(mat_flags['flags'])
     for flag in render_flags:
@@ -142,7 +143,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
             uv_map.uv_map = uv_channel
         elif uv_channel == 'Env':
             uv_map = nodes.new('ShaderNodeGroup')
-            uv_map.node_tree = get_utility_group(name="SphereMap_Simple")
+            uv_map.node_tree = get_utility_group(name="SphereMap_Alt")
             uv_map.label = "Sphere Map"
         else:
             uv_map = nodes.new('ShaderNodeUVMap')
@@ -156,7 +157,8 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
                 sb = 1
                 map_node = nodes.new('ShaderNodeGroup')
                 map_node.node_tree = get_utility_group(name="TexturePanner")
-                map_node.inputs[2].default_value = 0.2
+                if import_container:
+                    setup_panner(map_node, texAnimIndicies[i], settings_container=import_container)
             else:
                 sb = 0
                 map_node = nodes.new('ShaderNodeMapping')
@@ -247,13 +249,21 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
 
             transparent = nodes.new("ShaderNodeBsdfTransparent")
             transparent.location += Vector((-200.0, 100.0))
-            mix_shader = nodes.new("ShaderNodeMixShader")
-            # mix_shader.location += Vector((-200.0, 0.0))
 
-            tree.links.new(combiner.outputs[1], mix_shader.inputs[0])
-            tree.links.new(transparent.outputs[0], mix_shader.inputs[1])
-            tree.links.new(shader.outputs[0], mix_shader.inputs[2])
-            tree.links.new(mix_shader.outputs[0], output.inputs[0])
+            print("Downmix: " + str(downmix))
+
+            if downmix in {'M2BLEND_NO_ALPHA_ADD', 'M2BLEND_ADD'}:
+                mix_shader = nodes.new("ShaderNodeAddShader")
+                tree.links.new(transparent.outputs[0], mix_shader.inputs[0])
+                tree.links.new(shader.outputs[0], mix_shader.inputs[1])
+                tree.links.new(mix_shader.outputs[0], output.inputs[0])
+                tree.links.new(combiner.outputs[1], shader.inputs[1])
+            else:
+                mix_shader = nodes.new("ShaderNodeMixShader")
+                tree.links.new(combiner.outputs[1], mix_shader.inputs[0])
+                tree.links.new(transparent.outputs[0], mix_shader.inputs[1])
+                tree.links.new(shader.outputs[0], mix_shader.inputs[2])
+                tree.links.new(mix_shader.outputs[0], output.inputs[0])
 
         if base == 'ShaderNodeEeveeSpecular':
             shader.inputs[2].default_value = 0.95
@@ -265,6 +275,27 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
         pass
 
     return (mixer, shader)
+
+
+def setup_panner(node, index, **kwargs):
+    settings_container = None
+    for arg, val in kwargs.items():
+        if arg == 'settings_container':
+            settings_container = val
+            break
+
+    if settings_container:
+        anim_transforms = settings_container.anim_transforms
+        panner_vectors = anim_transforms[min(index, len(anim_transforms))]
+        print(str(panner_vectors))
+        for item, val in panner_vectors.items():
+            if item == 'translate':
+                node.inputs[2].default_value = val[0]
+                node.inputs[3].default_value = val[1]
+            elif item == 'rotate':
+                node.inputs[4].default_value = 0.2
+    else:
+        node.inputs[3].default_value = 0.2
 
 
 def read_render_flags(flags):
@@ -291,29 +322,19 @@ def read_render_flags(flags):
     return ops
 
 
-def set_blend(mat, flags, downmix):
-    flag_values = (
-        'BLEND',
-        'CLIP',
-        'BLEND',
-        'CLIP',
-        'BLEND',
-        'BLEND',
-        'BLEND',
-        'BLEND'
+def set_blend(mat, flags):
+    blend_values = (
+        ('M2BLEND_OPAQUE', 'CLIP'),
+        ('M2BLEND_ALPHA_KEY', 'CLIP'),
+        ('M2BLEND_ALPHA', 'BLEND'),
+        ('M2BLEND_NO_ALPHA_ADD', 'BLEND'),
+        ('M2BLEND_ADD', 'BLEND'),
+        ('M2BLEND_MOD', 'BLEND'),
+        ('M2BLEND_MOD2X', 'BLEND'),
+        ('M2BLEND_BlendAdd', 'BLEND'),
     )
-    downmix_values = (
-        'MULIPLY',
-        'MULIPLY',
-        'DECAL',
-        'ADD',
-        'MUL2',
-        'FADE',
-        'MUL2',
-        'ADD'
-    )
-    downmix = downmix_values[flags]
-    mat.blend_method = flag_values[flags]
+    mat.blend_method = blend_values[flags][1]
+    return blend_values[flags][0]
 
 
 def socket_type_helper(sock_type):

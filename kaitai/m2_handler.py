@@ -137,70 +137,79 @@ def load_kaitai():
 
 
 def read_m2(directory, file):
-    print("reading m2")
     from .m2 import M2
-    m2_struct = M2.from_file(os.path.join(directory, file))
-    m2_globals = m2_struct.Md20GlobalFlags
-    m2_dict = m2_struct.__dict__
+    with M2.from_file(os.path.join(directory, file)) as m2_struct:
+        m2_globals = m2_struct.Md20GlobalFlags
+        m2_dict = m2_struct.__dict__
 
-    md21_chunk = None
-    uv_anim_chunk = None
-    texTransform_chunk = None
+        md21_chunk = None
+        uv_anim_chunk = None
+        texTransform_chunk = None
 
-    for entry, item in m2_dict.items():
-        if entry == "chunks":
-            for chunk in item:
-                if chunk.chunk_type == "MD21":
-                    md21_chunk = chunk.data.data
-                    break
+        for entry, item in m2_dict.items():
+            if entry == "chunks":
+                for chunk in item:
+                    if chunk.chunk_type == "MD21":
+                        md21_chunk = chunk.data.data
+                        break
 
-    if md21_chunk:
-        tex_iterable = md21_chunk.textures.__dict__
-        uv_anim_chunk = md21_chunk.texture_transform_combos
-        
-        # print(tex_iterable)
+        if md21_chunk:
+            uv_anim_chunk = md21_chunk.texture_transform_combos
 
-        anim_chunk_combos = uv_anim_chunk.items
-        print(anim_chunk_combos)
-        use_m2_data = True
+            anim_chunk_combos = uv_anim_chunk.values
 
-        texTransforms = md21_chunk.texture_transforms.items
+            texTransforms = md21_chunk.texture_transforms.values
 
-        unpacked_transforms = []
+            unpacked_transforms = []
 
-        for transform in texTransforms:
-            transform_container = {}
-            
-            translation = transform.translation
-            rotation = transform.rotation
-            scaling = transform.scaling
-
-            do_translate, translate_interp = read_track(translation)
-            do_rotate, rotate_interp = read_track(rotation)
-            do_scale, scale_interp = read_track(scaling)
-
-            if do_translate:
-                print("Translation interp: " + translate_interp)
-                translate_vectors = translation.values.items
-
-            if do_rotate:
-                print("Rotation interp: " + rotate_interp)
-                rotate_vectors = rotation.values.items
-
-            if do_scale:
-                print("Scale interp: " + scale_interp)
-                scale_vectors = scaling.values.items
-
-            unpacked_transforms.append(transform_container)
+            bones = md21_chunk.bones.values
+            bone_combos = md21_chunk.bone_combos.values
 
 
-        return (True, anim_chunk_combos)
+            for transform in texTransforms:
+                transform_container = {}
+                
+                translation = transform.translation
+                rotation = transform.rotation
+                scaling = transform.scaling
 
-    return (False, None)
+                do_translate, translate_interp = read_track(translation)
+                do_rotate, rotate_interp = read_track(rotation)
+                do_scale, scale_interp = read_track(scaling)
+
+                if do_translate:
+                    print("Translation interp: " + translate_interp)
+                    rate = translation.timestamps.values[0].values[1] / 1000 # TODO: Double-check time unit
+                    translate_vectors = translation.values.values[0].values[1]
+                    transform_container['translate'] = (translate_vectors.x / rate, translate_vectors.y / rate, translate_vectors.z / rate)
+                if do_rotate:
+                    print("Rotation interp: " + rotate_interp)
+                    rate = rotation.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
+                    rotate_vectors = rotation.values.values[0].values[1] / rate
+                    transform_container['rotate'] = rotate_vectors
+                if do_scale:
+                    print("Scale interp: " + scale_interp)
+                    rate = scaling.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
+                    scale_vectors = scaling.values.values[0].values[1] / rate
+                    transform_container['scale'] = (scale_vectors.x / rate, scale_vectors.y / rate, scale_vectors.z / rate)
+
+                unpacked_transforms.append(transform_container)
+
+            return (True, m2_dict, anim_chunk_combos, unpacked_transforms, bones)
+
+        return (False, None, None)
 
 
 def read_track(track):
     track_type = get_interpolation_type(track.interpolation_type)
-    has_values = True if len(track.timestamps.items) > 0 else False
+    has_values = True if len(track.timestamps.values) > 0 else False
+
+    if has_values:
+        stamps = track.timestamps.values
+        values = track.values.values
+
+        duration = stamps[0].values[1] / 100 # TODO: Double-check time unit
+        val = values[0].values[1]
+
 
     return (has_values, track_type)

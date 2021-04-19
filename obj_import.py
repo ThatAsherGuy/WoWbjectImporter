@@ -124,6 +124,8 @@ def import_obj(file, directory, *args):
 
     mesh_data = initialize_mesh(os.path.join(directory, file))
     newMesh = bpy.data.meshes.new(mesh_name)
+    newMesh.use_auto_smooth = True
+    newMesh.auto_smooth_angle = 1.0472
     newObj = bpy.data.objects.new(mesh_name, newMesh)
 
     bm = bmesh.new()
@@ -183,6 +185,8 @@ def import_obj(file, directory, *args):
 
     bm.to_mesh(newMesh)
     bm.free()
+
+    # newMesh.normals_split_custom_set_from_vertices(mesh_data.normals)
 
     createVertexGroups = True
     # needed to have a mesh before we can create vertex groups, so do that now

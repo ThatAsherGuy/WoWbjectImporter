@@ -61,6 +61,58 @@ shader_table =(
    ("PS_Combiners_Mod_Mod2x",                      "VS_Diffuse_EdgeFade_T1_T2", "HS_T1_T2",    "DS_T1_T2"   , 2),
 );
 
+    # Bone Flags
+    # ignoreParentTranslate = 0x1,
+    # ignoreParentScale = 0x2,
+    # ignoreParentRotation = 0x4,
+    # spherical_billboard = 0x8,
+    # cylindrical_billboard_lock_x = 0x10,
+    # cylindrical_billboard_lock_y = 0x20,
+    # cylindrical_billboard_lock_z = 0x40,
+    # transformed = 0x200,
+    # kinematic_bone = 0x400,       
+    # helmet_anim_scaled = 0x1000, 
+    # something_sequence_id = 0x2000, 
+
+def get_bone_flags(flags):
+    flag_list = []
+
+    if flags & 0x1:
+        flag_list.append("ignoreParentTranslate")
+
+    if flags & 0x2:
+        flag_list.append("ignoreParentScale")
+
+    if flags & 0x4:
+        flag_list.append("ignoreParentRotation")
+
+    if flags & 0x8:
+        flag_list.append("spherical_billboard")
+
+    if flags & 0x10:
+        flag_list.append("cylindrical_billboard_lock_x")
+
+    if flags & 0x20:
+        flag_list.append("cylindrical_billboard_lock_y")
+
+    if flags & 0x40:
+        flag_list.append("cylindrical_billboard_lock_z")
+
+    if flags & 0x200:
+        flag_list.append("transformed")
+
+    if flags & 0x400:
+        flag_list.append("kinematic_bone")
+
+    if flags & 0x1000:
+        flag_list.append("helmet_anim_scaled")
+
+    if flags & 0x2000:
+        flag_list.append("something_sequence_id")
+
+    return flag_list
+
+
 # Based on M2GetPixelShaderID() from: https://wowdev.wiki/M2/.skin
 def get_shadereffects(shaderID, op_count = 2):
     if shaderID == 0:

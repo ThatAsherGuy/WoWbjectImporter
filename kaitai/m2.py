@@ -11,14 +11,6 @@ if parse_version(kaitaistruct.__version__) < parse_version('0.9'):
 
 class M2(KaitaiStruct):
 
-    class WowVersions(Enum):
-        tbc = 260
-        wotlk = 264
-        cata = 265
-        mop = 272
-        wod = 273
-        legion = 274
-
     class M2arrayTypes(Enum):
         todo = 0
         uint8 = 1
@@ -48,7 +40,14 @@ class M2(KaitaiStruct):
         m2skinsection = 117
         m2batch = 118
         m2shadowbatch = 119
+        m2compquat = 120
         m2array_uint32 = 201
+        m2array_m2compquat = 202
+        m2array_c3vector = 203
+        m2array_c4quaternion = 204
+        m2array_fixed16 = 205
+        m2array_uint8 = 206
+        m2array_float = 207
 
     class M2trackTypes(Enum):
         todo = 0
@@ -57,6 +56,15 @@ class M2(KaitaiStruct):
         float = 5
         c3vector = 21
         c4quaternion = 22
+        m2compquat = 23
+
+    class WowVersions(Enum):
+        tbc = 260
+        wotlk = 264
+        cata = 265
+        mop = 272
+        wod = 273
+        legion = 274
     def __init__(self, _io, _parent=None, _root=None):
         self._io = _io
         self._parent = _parent
@@ -116,14 +124,14 @@ class M2(KaitaiStruct):
             self.chunk_type = (self._io.read_bytes(4)).decode(u"UTF-8")
             self.chunk_size = self._io.read_u4le()
             _on = self.chunk_type
-            if _on == u"MD21":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkMd21(_io__raw_data, self, self._root)
-            elif _on == u"LDV1":
+            if _on == u"LDV1":
                 self._raw_data = self._io.read_bytes(self.chunk_size)
                 _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
                 self.data = M2.ChunkLdv1(_io__raw_data, self, self._root)
+            elif _on == u"MD21":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = M2.ChunkMd21(_io__raw_data, self, self._root)
             elif _on == u"TXID":
                 self._raw_data = self._io.read_bytes(self.chunk_size)
                 _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
@@ -221,74 +229,88 @@ class M2(KaitaiStruct):
             self.offset = self._io.read_u4le()
 
         @property
-        def items(self):
-            if hasattr(self, '_m_items'):
-                return self._m_items if hasattr(self, '_m_items') else None
+        def values(self):
+            if hasattr(self, '_m_values'):
+                return self._m_values if hasattr(self, '_m_values') else None
 
             _pos = self._io.pos()
             self._io.seek(self.offset)
-            self._m_items = [None] * (self.num)
+            self._m_values = [None] * (self.num)
             for i in range(self.num):
                 _on = self.m2array_type
                 if _on == M2.M2arrayTypes.fixed16:
-                    self._m_items[i] = M2.Fixed16(self._io, self, self._root)
+                    self._m_values[i] = M2.Fixed16(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2ribbon:
-                    self._m_items[i] = M2.M2ribbon(self._io, self, self._root)
+                    self._m_values[i] = M2.M2ribbon(self._io, self, self._root)
+                elif _on == M2.M2arrayTypes.m2array_c4quaternion:
+                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.c4quaternion, self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2vertex:
-                    self._m_items[i] = M2.M2vertex(self._io, self, self._root)
+                    self._m_values[i] = M2.M2vertex(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2light:
-                    self._m_items[i] = M2.M2light(self._io, self, self._root)
+                    self._m_values[i] = M2.M2light(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2sequence:
-                    self._m_items[i] = M2.M2sequence(self._io, self, self._root)
+                    self._m_values[i] = M2.M2sequence(self._io, self, self._root)
+                elif _on == M2.M2arrayTypes.m2array_fixed16:
+                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
+                elif _on == M2.M2arrayTypes.m2array_c3vector:
+                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.c3vector, self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2loop:
-                    self._m_items[i] = M2.M2loop(self._io, self, self._root)
+                    self._m_values[i] = M2.M2loop(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2sequencefallback:
-                    self._m_items[i] = M2.M2sequencefallback(self._io, self, self._root)
+                    self._m_values[i] = M2.M2sequencefallback(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.uint8:
-                    self._m_items[i] = self._io.read_u1()
+                    self._m_values[i] = self._io.read_u1()
                 elif _on == M2.M2arrayTypes.uint32:
-                    self._m_items[i] = self._io.read_u4le()
+                    self._m_values[i] = self._io.read_u4le()
                 elif _on == M2.M2arrayTypes.todo:
-                    self._m_items[i] = M2.Todo(self._io, self, self._root)
+                    self._m_values[i] = M2.Todo(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2event:
-                    self._m_items[i] = M2.M2event(self._io, self, self._root)
+                    self._m_values[i] = M2.M2event(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.c4quaternion:
-                    self._m_items[i] = M2.C4quaternion(self._io, self, self._root)
+                    self._m_values[i] = M2.C4quaternion(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2texturetransform:
-                    self._m_items[i] = M2.M2texturetransform(self._io, self, self._root)
+                    self._m_values[i] = M2.M2texturetransform(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.c3vector:
-                    self._m_items[i] = M2.C3vector(self._io, self, self._root)
+                    self._m_values[i] = M2.C3vector(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2color:
-                    self._m_items[i] = M2.M2color(self._io, self, self._root)
+                    self._m_values[i] = M2.M2color(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2shadowbatch:
-                    self._m_items[i] = M2.M2shadowbatch(self._io, self, self._root)
+                    self._m_values[i] = M2.M2shadowbatch(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.float:
-                    self._m_items[i] = self._io.read_f4le()
+                    self._m_values[i] = self._io.read_f4le()
                 elif _on == M2.M2arrayTypes.m2texture:
-                    self._m_items[i] = M2.M2texture(self._io, self, self._root)
+                    self._m_values[i] = M2.M2texture(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.uint16:
-                    self._m_items[i] = self._io.read_u2le()
+                    self._m_values[i] = self._io.read_u2le()
+                elif _on == M2.M2arrayTypes.m2array_m2compquat:
+                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.m2compquat, self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2attachment:
-                    self._m_items[i] = M2.M2attachment(self._io, self, self._root)
+                    self._m_values[i] = M2.M2attachment(self._io, self, self._root)
+                elif _on == M2.M2arrayTypes.m2array_float:
+                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.float, self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2material:
-                    self._m_items[i] = M2.M2material(self._io, self, self._root)
+                    self._m_values[i] = M2.M2material(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2array_uint32:
-                    self._m_items[i] = M2.M2array(M2.M2arrayTypes.uint32, self._io, self, self._root)
+                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.uint32, self._io, self, self._root)
+                elif _on == M2.M2arrayTypes.m2compquat:
+                    self._m_values[i] = M2.M2compquat(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.ubyte4:
-                    self._m_items[i] = M2.Ubyte4(self._io, self, self._root)
+                    self._m_values[i] = M2.Ubyte4(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2camera:
-                    self._m_items[i] = M2.M2camera(self._io, self, self._root)
+                    self._m_values[i] = M2.M2camera(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2compbone:
-                    self._m_items[i] = M2.M2compbone(self._io, self, self._root)
+                    self._m_values[i] = M2.M2compbone(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2batch:
-                    self._m_items[i] = M2.M2batch(self._io, self, self._root)
+                    self._m_values[i] = M2.M2batch(self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2skinsection:
-                    self._m_items[i] = M2.M2skinsection(self._io, self, self._root)
+                    self._m_values[i] = M2.M2skinsection(self._io, self, self._root)
+                elif _on == M2.M2arrayTypes.m2array_uint8:
+                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.uint8, self._io, self, self._root)
                 elif _on == M2.M2arrayTypes.m2textureweight:
-                    self._m_items[i] = M2.M2textureweight(self._io, self, self._root)
+                    self._m_values[i] = M2.M2textureweight(self._io, self, self._root)
 
             self._io.seek(_pos)
-            return self._m_items if hasattr(self, '_m_items') else None
+            return self._m_values if hasattr(self, '_m_values') else None
 
 
     class M2textureweight(KaitaiStruct):
@@ -382,20 +404,6 @@ class M2(KaitaiStruct):
         def _read(self):
             self.origin = M2.C3vector(self._io, self, self._root)
             self.dir = M2.C3vector(self._io, self, self._root)
-
-
-    class Cimvector(KaitaiStruct):
-        def __init__(self, _io, _parent=None, _root=None):
-            self._io = _io
-            self._parent = _parent
-            self._root = _root if _root else self
-            self._read()
-
-        def _read(self):
-            self.b = self._io.read_u1()
-            self.g = self._io.read_u1()
-            self.r = self._io.read_u1()
-            self.a = self._io.read_u1()
 
 
     class C4plane(KaitaiStruct):
@@ -589,7 +597,7 @@ class M2(KaitaiStruct):
             self.submesh_id = self._io.read_u2le()
             self.bone_name_crc = self._io.read_u4le()
             self.translation = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.rotation = M2.M2track(M2.M2trackTypes.compquat, self._io, self, self._root)
+            self.rotation = M2.M2track(M2.M2trackTypes.m2compquat, self._io, self, self._root)
             self.scale = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
             self.pivot = M2.C3vector(self._io, self, self._root)
 
@@ -765,15 +773,19 @@ class M2(KaitaiStruct):
             self.timestamps = M2.M2array(M2.M2arrayTypes.m2array_uint32, self._io, self, self._root)
             _on = self.m2track_type
             if _on == M2.M2trackTypes.uint8:
-                self.values = M2.M2array(M2.M2arrayTypes.uint8, self._io, self, self._root)
+                self.values = M2.M2array(M2.M2arrayTypes.m2array_uint8, self._io, self, self._root)
             elif _on == M2.M2trackTypes.c4quaternion:
-                self.values = M2.M2array(M2.M2arrayTypes.c4quaternion, self._io, self, self._root)
+                self.values = M2.M2array(M2.M2arrayTypes.m2array_c4quaternion, self._io, self, self._root)
+            elif _on == M2.M2trackTypes.m2compquat:
+                self.values = M2.M2array(M2.M2arrayTypes.m2array_m2compquat, self._io, self, self._root)
             elif _on == M2.M2trackTypes.float:
-                self.values = M2.M2array(M2.M2arrayTypes.float, self._io, self, self._root)
+                self.values = M2.M2array(M2.M2arrayTypes.m2array_float, self._io, self, self._root)
             elif _on == M2.M2trackTypes.fixed16:
-                self.values = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
+                self.values = M2.M2array(M2.M2arrayTypes.m2array_fixed16, self._io, self, self._root)
+            elif _on == M2.M2trackTypes.todo:
+                self.values = M2.M2array(M2.M2arrayTypes.todo, self._io, self, self._root)
             elif _on == M2.M2trackTypes.c3vector:
-                self.values = M2.M2array(M2.M2arrayTypes.c3vector, self._io, self, self._root)
+                self.values = M2.M2array(M2.M2arrayTypes.m2array_c3vector, self._io, self, self._root)
 
 
     class Crange(KaitaiStruct):
@@ -858,10 +870,10 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.x = self._io.read_u2le()
-            self.y = self._io.read_u2le()
-            self.z = self._io.read_u2le()
-            self.w = self._io.read_u2le()
+            self.x = self._io.read_s2le()
+            self.y = self._io.read_s2le()
+            self.z = self._io.read_s2le()
+            self.w = self._io.read_s2le()
 
 
     class M2shadowbatch(KaitaiStruct):
@@ -1051,7 +1063,7 @@ class M2(KaitaiStruct):
             self.id = self._io.read_u4le()
             self.bone = self._io.read_u2le()
             self.unknown = self._io.read_u2le()
-            self.position = M2.C4vector(self._io, self, self._root)
+            self.position = M2.C3vector(self._io, self, self._root)
             self.animate_attached = M2.M2track(M2.M2trackTypes.uint8, self._io, self, self._root)
 
 
