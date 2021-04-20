@@ -25,7 +25,8 @@ from .lookup_funcs import get_vertex_shader, get_shadereffects
 import os
 import json
 
-
+# This function does a lot; likely too much.
+# A lot of the code here is rote node-connecting, though.
 def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs):
     texCount = unit.get("textureCount")
     texOffset = unit.get("textureComboIndex")
@@ -41,7 +42,6 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         texAnimIndicies = []
 
     mat_flags = asset_mats[unit.get("materialIndex")]
-    
     blend_type = get_shadereffects(unit.get("shaderID"),  unit.get("textureCount"))
     uv_type = get_vertex_shader(unit.get("shaderID"),  unit.get("textureCount"))
 
@@ -85,6 +85,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     if blend_seq[2] == 'Opaque':
         mat.blend_method = 'CLIP'
 
+    # TODO: this should use node.bl_idname instead of node.type
     for node in nodes:
         if not principled and node.type == 'BSDF_PRINCIPLED':
             principled = node
@@ -102,7 +103,8 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     # Nuke the defaul node, if it's there, so we can set up our own.
     if principled:
         nodes.remove(principled)
-    
+
+    # TODO: This should technically be derived from the vertex colors
     baseColor = nodes.new('ShaderNodeRGB')
     baseColor.location += Vector((-1200.0, 400.0))
     baseColor.outputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
@@ -116,7 +118,6 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     fmix, main_shader = get_output_nodes(mat, mixer, outNode, override, base_shader, downmix)
 
     tree.links.new(baseColor.outputs[0], mixer.inputs[0])
-    # tree.links.new(main_shader.outputs[0], outNode.inputs[0])
 
     mapping = uv_type.split("_")[2:]
     tex_nodes = []
@@ -185,7 +186,6 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         t_node.label = 'TEX ' + str(i)
 
         socket_index = i * 2 + 2
-
         tree.links.new(t_node.outputs[0], mixer.inputs[socket_index])
         tree.links.new(t_node.outputs[1], mixer.inputs[socket_index+1])
 
@@ -193,19 +193,61 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
 
 def get_utility_group(name):
-    '''Appends a node group from the bundled .blend file'''
+    '''
+    Appends a node group from the bundled .blend file
+    For whatever reason it appends the entire file, though.
+    '''
     if name in bpy.data.node_groups:
         return bpy.data.node_groups[name]
 
-    group_path = os.path.join(os.path.dirname(__file__), "BlendFunctions.blend"+"\\NodeTree")
-    bpy.ops.wm.append(filename=name, directory=group_path, link=False, autoselect=False)
+    addon_dir = os.path.dirname(__file__)
+    blend_file = addon_dir + "\\BlendFunctions.blend"
+    section = "\\NodeTree\\"
+
+    filepath = blend_file + section + name
+    directory = blend_file + section
+
+    bpy.ops.wm.append(
+        'EXEC_DEFAULT',
+        filepath=filepath,
+        directory=directory,
+        filename=name,
+        link=False,
+        autoselect=False,
+        set_fake=True,
+        use_recursive=True
+        )
+
+    # So it turns out, if you import a node with a driver on it,
+    # it imports all of its dependencies. Like the entire scene,
+    # and all of its contents. Which is bad. So we do this:
+    if name == 'TexturePanner':
+        print("setting up UV animation Driver")
+        panner = bpy.data.node_groups[name]
+
+        value_node = None
+        for node in panner.nodes:
+            print(node.bl_idname)
+            if node.bl_idname  == 'ShaderNodeValue':
+                value_node = node
+                break
+
+        if value_node:
+            fcurve = value_node.outputs[0].driver_add('default_value')
+            driver = fcurve.driver
+            var = driver.variables.new()
+            var.name = 'rate'
+            var.targets[0].id_type = 'SCENE'
+            var.targets[0].id = bpy.context.scene
+            var.targets[0].data_path = 'render.fps'
+            driver.expression = "frame/rate"
 
     return bpy.data.node_groups[name]
 
 
 def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
     '''Sets up the shader node & mix shader (if needed)'''
-    # print(base)
+
     prefs = preferences.get_prefs()
     base = prefs.get_base_shader(base)
 
@@ -213,7 +255,6 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
     nodes = tree.nodes
     mixer = None
 
-    # print(base)
 
     if not base == "Experimental":
         shader = nodes.new(base)
@@ -229,8 +270,6 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
         mixer = nodes.new('ShaderNodeGroup')
         mixer.node_tree = get_utility_group('SpecDownmix')
         mixer.location += Vector((-200.0, 0.0))
-
-        # mixer.inputs[0].default_value = 1
 
         tree.links.new(combiner.outputs[0], mixer.inputs[0])
         tree.links.new(combiner.outputs[2], mixer.inputs[1])
@@ -249,8 +288,6 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
 
             transparent = nodes.new("ShaderNodeBsdfTransparent")
             transparent.location += Vector((-200.0, 100.0))
-
-            print("Downmix: " + str(downmix))
 
             if downmix in {'M2BLEND_NO_ALPHA_ADD', 'M2BLEND_ADD'}:
                 mix_shader = nodes.new("ShaderNodeAddShader")
@@ -299,6 +336,7 @@ def setup_panner(node, index, **kwargs):
 
 
 def read_render_flags(flags):
+    '''A really hacky way to read a bitfield'''
     ops = []
 
     if flags & 0x01:
@@ -472,6 +510,3 @@ def generate_nodegroups(path):
                         break
 
                 ng.links.new(from_node.outputs[link_def.get('from_socket')], to_node.inputs[link_def.get('to_socket')])
-
-
-                
