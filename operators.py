@@ -24,17 +24,24 @@ from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .utilties import do_import
 
+class WOWBJ_OT_ToolTip(bpy.types.Operator):
+    """Use this operator to display inline tooltips."""
+    bl_idname = "wowbj.tool_tip"
+    bl_label = "WoWbject Tool Tip"
+    bl_description = "If you can read this, something is broken."
+
+    tooltip: bpy.props.StringProperty(default="")
+
+    @classmethod
+    def description(cls, context, properties):
+        return properties.tooltip
+
+    def execute(self, context):
+        return {'CANCELLED'}
+
 
 class WOWBJ_OT_Import(bpy.types.Operator):
-    """
-    So the intent here is that, on import, you select:
-
-    1: An OBJ File
-    2: A JSON config file
-    3: Whatever textures you need
-
-    It doesn't search sub-directories. Yet.
-    """
+    """Load a WoW .OBJ, with associated JSON and .m2 data"""
     bl_idname = 'wowbj.import'
     bl_label = 'WoWbject Import'
     bl_options = {'PRESET', 'UNDO'}
@@ -59,11 +66,11 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         default=False)
 
     base_shader_items = [
-                        ("EMIT", "Emission Shader", ""),
-                        ("DIFF", "Diffuse Shader", ""),
-                        ("SPEC", "Specular Shader", ""),
-                        ("PRIN", "Principled Shader", ""),
-                        ("EXPE", "Experimental", ""),
+                        ("EMIT", "Emission Shader", "Standard unlit look"),
+                        ("DIFF", "Diffuse Shader", "Lit look without additional specularity"),
+                        ("SPEC", "Specular Shader", "Lit look with extra downmixing for spec maps"),
+                        ("PRIN", "Principled Shader", "All the sliders"),
+                        ("EXPE", "Experimental", "Alright, look, you probably won't want to use this one"),
                       ]
 
     base_shader: bpy.props.EnumProperty(
@@ -88,7 +95,10 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         root = layout.column(align=True)
         root.use_property_split = False
 
-        root.prop(self, 'reuse_materials')
+        row = root.row(align=True)
+        row.prop(self, 'reuse_materials')
+        op = row.operator('wowbj.tool_tip', text='', icon='INFO')
+        op.tooltip = "INFORMATIVE STRING"
         root.label(text="Base Shader Type:")
         root.prop(self, 'base_shader', expand=True)
 

@@ -108,24 +108,18 @@ def initialize_mesh(mesh_path):
 
     return obj
 
-def import_obj(file, directory, *args):
-    # A lot of this code is from WoW Export
-    mesh_name, mesh_type = file.split('.')
-    if mesh_name in bpy.data.objects:
-        objIndex = 1
-        newName = mesh_name
-        while(newName in bpy.data.objects):
-            newName = mesh_name + '.' + str(objIndex).rjust(3, '0')
-            objIndex += 1
-        mesh_name = newName
 
+def import_obj(file, directory, reuse_mats, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all(action='DESELECT')
 
+    mesh_name = file.split('.')[0]
     mesh_data = initialize_mesh(os.path.join(directory, file))
+
     newMesh = bpy.data.meshes.new(mesh_name)
     newMesh.use_auto_smooth = True
     newMesh.auto_smooth_angle = 1.0472
+
     newObj = bpy.data.objects.new(mesh_name, newMesh)
 
     bm = bmesh.new()
@@ -138,39 +132,45 @@ def import_obj(file, directory, *args):
     bm.verts.index_update()
 
     for i, component in enumerate(mesh_data.components):
+        create_mat = True
         exampleFaceSet = False
-
         mat_name = mesh_name + "_" + component.name + "_mat"
-        mat = bpy.data.materials.new(name=mat_name)
-        mat.use_nodes = True
+
+        if reuse_mats:
+            for bl_mat in bpy.data.materials:
+                if bl_mat.name == mat_name:
+                    mat = bl_mat
+                    create_mat = False
+                    break
+
+        if create_mat:
+            mat = bpy.data.materials.new(name=mat_name)
+            mat.use_nodes = True
+            mat_name = mat.name
+
         newObj.data.materials.append(mat)
 
         for face in component.faces:
-            try:
-                if exampleFaceSet == False:
-                    bm.faces.new((
-                        bm.verts[face[0] - 1],
-                        bm.verts[face[1] - 1],
-                        bm.verts[face[2] - 1]
-                    ))
-                    bm.faces.ensure_lookup_table()
+            if exampleFaceSet == False:
+                bm.faces.new((
+                    bm.verts[face[0] - 1],
+                    bm.verts[face[1] - 1],
+                    bm.verts[face[2] - 1]
+                ))
+                bm.faces.ensure_lookup_table()
 
-                    # This only works the first time the operator runs, for some reason.
-                    bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
+                bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
 
-                    bm.faces[-1].smooth = True
-                    exampleFace = bm.faces[-1]
-                    exampleFaceSet = True
-                else:
-                    ## Use example face if set to speed up material copy!
-                    bm.faces.new((
-                        bm.verts[face[0] - 1],
-                        bm.verts[face[1] - 1],
-                        bm.verts[face[2] - 1]
-                    ), exampleFace)
-            except ValueError:
-                print("Error?")
-                pass
+                bm.faces[-1].smooth = True
+                exampleFace = bm.faces[-1]
+                exampleFaceSet = True
+            else:
+                ## Use example face if set to speed up material copy!
+                bm.faces.new((
+                    bm.verts[face[0] - 1],
+                    bm.verts[face[1] - 1],
+                    bm.verts[face[2] - 1]
+                ), exampleFace)
 
     uv_layer = bm.loops.layers.uv.new()
     for face in bm.faces:
@@ -186,14 +186,10 @@ def import_obj(file, directory, *args):
     bm.to_mesh(newMesh)
     bm.free()
 
-    # newMesh.normals_split_custom_set_from_vertices(mesh_data.normals)
-
-    createVertexGroups = True
     # needed to have a mesh before we can create vertex groups, so do that now
-    if createVertexGroups:
-        for i, component in enumerate(sorted(mesh_data.components, key=lambda m: m.name.lower())):
-            vg = newObj.vertex_groups.new(name=f"{component.name}")
-            vg.add(list(component.verts), 1.0, "REPLACE")
+    for i, component in enumerate(sorted(mesh_data.components, key=lambda m: m.name.lower())):
+        vg = newObj.vertex_groups.new(name=f"{component.name}")
+        vg.add(list(component.verts), 1.0, "REPLACE")
 
     ## Rotate object the right way
     newObj.rotation_euler = [0, 0, 0]

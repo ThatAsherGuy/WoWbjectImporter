@@ -34,12 +34,14 @@ bl_info = {
 import bpy
 import os
 
+from .operators import WOWBJ_OT_ToolTip
 from .operators import WOWBJ_OT_Import
 from .operators import WOWBJ_OT_SerializeNodeGroups
 from .operators import WOWBJ_OT_GenerateNodeGroups
 from .preferences import wowbjectAddonPrefs
 
 classes = (
+    WOWBJ_OT_ToolTip,
     WOWBJ_OT_Import,
     WOWBJ_OT_SerializeNodeGroups,
     WOWBJ_OT_GenerateNodeGroups,

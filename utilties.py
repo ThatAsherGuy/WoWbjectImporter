@@ -50,10 +50,11 @@ class import_container():
             "M2": []
         }
         self.source_directory = ''
+        self.tex_dir = ''
         self.use_m2 = False
         self.base_shader = None
         self.do_bones = False
-
+        self.reuse_mats = False
 
     def do_setup(self, files, directory, **kwargs):
         with ProgressReport(bpy.context.window_manager) as progress:
@@ -88,8 +89,10 @@ class import_container():
 
             progress.step("Setting up JSON Data")
             self.setup_json_data()
+
             progress.step("Unpacking Textures")
             self.setup_textures()
+
             progress.step("Initializing Object")
             self.setup_bl_object()
 
@@ -98,6 +101,7 @@ class import_container():
                 progress.step("Reading M2")
                 self.m2 = raw[0]
                 self.unpack_m2()
+
             progress.step("Generating Materials")
             self.setup_materials()
 
@@ -109,6 +113,7 @@ class import_container():
         load_kaitai()
         self.use_m2, self.m2_dict, self.anim_combos, self.anim_transforms, self.bones = read_m2(self.source_directory, self.m2)
 
+        # Bone/billboard debugging
         if self.do_bones:
             bone_markers = []
             for bone in self.bones:
@@ -154,28 +159,39 @@ class import_container():
 
 
     def setup_bl_object(self):
+        '''
+        Calls the actual OBJ importer and sets up an object in Blender.
+        Materials are assigned to face during this process, but the material setup happens later.
+        '''
         source = self.source_files['OBJ']
 
-        # Nothing to setup. TODO: Setup a report logging system here.
+        # TODO: Setup a report logging system here.
         if len(source) == 0:
             return False
 
-        # Haven't set up multi-object importing
+        # TODO: set up multi-object importing
         if len(source) > 1:
             return False
 
-        self.bl_obj = import_obj(source[0], self.source_directory)
+        self.bl_obj = import_obj(source[0], self.source_directory, self.reuse_mats)
 
 
     def setup_textures(self):
-        directory = self.source_directory
+        '''
+        Matches the fileIDs in the json_texutres dict to the actual image files.
+        Packs the related info back into that dict for later use.
+        '''
+
+        # sub-directory handling
+        if self.tex_dir == '':
+            directory = self.source_directory
+        else:
+            directory = os.path.join(self.source_directory, self.tex_dir) 
+
         source_textures = self.source_files.get('texture')
-        orphaned_textures = []
-        used_texture_files = []
 
         for tex in self.json_textures:
             texID = tex.get("fileDataID")
-            match = False
 
             if not texID:
                 print("Texture ID Not Found")
@@ -184,29 +200,14 @@ class import_container():
                 if str(texID) in tex_file:
                     tex["name"] = tex_file
                     tex["path"] = os.path.join(directory, tex_file)
-                    used_texture_files.append(tex_file)
-                    match = True
                     break
-            
-            if not match:
-                orphaned_textures.append(tex)
-            
-        if len(orphaned_textures) > 0:
-            print("Unable to Match Textures")
-            if len(orphaned_textures) == 1:
-                orphan = orphaned_textures[0]
-                temp_set = set(source_textures).difference(set(used_texture_files))
-                if len(temp_set) > 0:
-                    orphaned_file = list(temp_set)[0]
-                    orphan["name"] = orphaned_file
-                    orphan["path"] = os.path.join(directory, orphaned_file)
-                else:
-                    pass # TODO: Discard the texture so we don't try to use it down the road.
-            else:
-                print("Too many orphaned textures to finesse")
 
 
     def setup_materials(self):
+        '''
+        Generates a material for each texture unit in the JSON config.
+        Most of the work here happens in build_shader from node_groups.py
+        '''
 
         for unit in self.json_tex_units:
             bl_mat = self.bl_obj.material_slots[unit.get("skinSectionIndex")].material
@@ -237,6 +238,7 @@ class import_container():
                         )
 
 
+# Currently unused
 class mat_def():
     def __init__(self):
         self.tex_unit = None
@@ -248,6 +250,7 @@ class mat_def():
         self.parent = None
 
 
+# Currently unused
 def debug_print(string):
     do_debug = False
 
@@ -255,7 +258,11 @@ def debug_print(string):
         print(string)
 
 
-def do_import(files, directory, reuse_mats, base_shader, *args):
+def do_import(files, directory, reuse_mats, base_shader, **kwargs):
+    '''
+    The pre-sorting and initializing function called by the import operator.
+    Most of the actual data-handling is handled by an import_container object.
+    '''
 
     textures = []
     objects = []
@@ -285,19 +292,26 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
             do_search = True
             break
 
-
     if do_search:
         ref_name = ''
         if len(objects) == 1:
             ref_name = objects[0].split('.')[0]
 
-        dir_files = [file for file in os.listdir(directory) if os.path.isfile(os.path.join(directory, file))]
+        dir_files = []
+        subdirs = []
+        tex_dir = ''
+
+        for thing in os.listdir(directory):
+            if os.path.isfile(os.path.join(directory, thing)):
+                dir_files.append(thing)
+            elif os.path.isdir(os.path.join(directory, thing)):
+                subdirs.append(thing)
+                if thing == 'textures':
+                    tex_dir = thing
 
         config_found = False
         m2_found = False
         mtl_found = False
-
-        print(ref_name)
 
         for file in dir_files:
             name, ext = file.split('.')
@@ -325,29 +339,41 @@ def do_import(files, directory, reuse_mats, base_shader, *args):
             find_textures = True
 
         if find_textures:
-            if len(mtl) == 1:
+            if mtl_found == 1:
                 textures = read_mtl(directory, mtl[0])
+            elif config_found:
+                with open(os.path.join(directory, configs[0])) as p:
+                    json_config = json.load(p)
+                    tex_defs = json_config.get("textures")
+                    for tdef in tex_defs:
+                        tID = tdef.get("fileDataID")
+                        textures.append(tID + ".png")
 
     files = textures + objects + mtl + configs + m2
 
-    box_of_trash = import_container()
-    box_of_trash.do_setup(
+    import_obj = import_container()
+    import_obj.tex_dir = tex_dir
+    import_obj.do_setup(
         files,
         directory,
         reuse_mats=reuse_mats,
         base_shader=base_shader
         )
 
+# TODO: Logging
 def read_mtl(directory, mtl):
     textures = []
-    with open(os.path.join(directory, mtl), 'r') as f:
-        for line in f:
-            line_split = line.split()
-            if not line_split:
-                continue
-            line_start = line_split[0]
+    if os.path.isfile(os.path.join(directory, mtl)):
+        with open(os.path.join(directory, mtl), 'r') as f:
+            for line in f:
+                line_split = line.split()
+                if not line_split:
+                    continue
+                line_start = line_split[0]
 
-            if line_start == 'map_Kd':
-                textures.append(line_split[1])
-
-    return textures
+                if line_start == 'map_Kd':
+                    textures.append(line_split[1])
+        return textures
+    else:
+        print("Invalid MTL!")
+        return False
