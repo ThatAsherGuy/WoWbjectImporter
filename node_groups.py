@@ -222,12 +222,10 @@ def get_utility_group(name):
     # it imports all of its dependencies. Like the entire scene,
     # and all of its contents. Which is bad. So we do this:
     if name == 'TexturePanner':
-        print("setting up UV animation Driver")
         panner = bpy.data.node_groups[name]
 
         value_node = None
         for node in panner.nodes:
-            print(node.bl_idname)
             if node.bl_idname  == 'ShaderNodeValue':
                 value_node = node
                 break
@@ -306,7 +304,6 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
             shader.inputs[2].default_value = 0.95
         elif base == 'ShaderNodeBsdfDiffuse':
             shader.inputs[1].default_value = 0.95
-    
 
     if base in {'EMIT', 'SPEC', 'DIFF'}:
         pass
@@ -329,8 +326,14 @@ def setup_panner(node, index, **kwargs):
             if item == 'translate':
                 node.inputs[2].default_value = val[0]
                 node.inputs[3].default_value = val[1]
+
+            # I haven't found any objects that have rotation.
+            # The ones that look like they rotating typically have some UV trickery going on.
             elif item == 'rotate':
                 node.inputs[4].default_value = 0.2
+            elif item == 'scale':
+                # Scaling hasn't been implemented yet.
+                pass
     else:
         node.inputs[3].default_value = 0.2
 
@@ -458,6 +461,10 @@ def serialize_nodegroups(path):
 
 
 def generate_nodegroups(path):
+    '''
+    Creates node groups based on a JSON file. 80% accurate.
+    Haven't quite figured out how to handle groups with drivers.
+    '''
     with open("nodes.json", 'r') as data:
         node_dict = json.load(data)
 

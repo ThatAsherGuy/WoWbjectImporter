@@ -56,7 +56,10 @@ class import_container():
         self.do_bones = False
         self.reuse_mats = False
 
+
     def do_setup(self, files, directory, **kwargs):
+        # ProgressReport is the thing that does the fancy print messages and changes the cursor.
+        # I'm 50/50 on it. There's also no documentation for it, outside of comments in the source code.
         with ProgressReport(bpy.context.window_manager) as progress:
             progress.enter_substeps(5, "Importing Files From %r..." % directory)
 
@@ -84,7 +87,7 @@ class import_container():
                 elif ext == 'skin':
                     self.source_files['skin'].append(file)
                 else:
-                    print("Unhandled File Type")
+                    print("Unhandled File Type: " + str(file))
                     self.source_files['unhandled'].append(file)
 
             progress.step("Setting up JSON Data")
