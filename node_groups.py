@@ -53,6 +53,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     override = ""
 
     import_container = kwargs.get("import_container", None)
+    obj = import_container.bl_obj
 
     # Arbitrarily breaking things out into different material passes
     # so they can be composited later. Only matters for Cycles.
@@ -175,12 +176,20 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         tree.links.new(map_node.outputs[0], t_node.inputs[0])
 
         if not textures[i].get("name") in bpy.data.images:
-            image = bpy.data.images.load(textures[i].get("path"))
-            image.alpha_mode = 'CHANNEL_PACKED'
+            if not os.path.isfile(textures[i].get("path")):
+                image = import_container.get_fallback_tex()
+                image.alpha_mode = 'CHANNEL_PACKED'
+            else:
+                image = bpy.data.images.load(textures[i].get("path"))
+                image.alpha_mode = 'CHANNEL_PACKED'
             if uv_map.label == "Sphere Map":
                 image.colorspace_settings.name = 'Linear'
         else:
             image = bpy.data.images[textures[i].get("name")]
+
+        jim = obj.WBJ.textures.add()
+        jim.path = image.filepath
+        jim.datablock = image
 
         t_node.image = image
         t_node.label = 'TEX ' + str(i)
@@ -376,6 +385,14 @@ def set_blend(mat, flags):
     )
     mat.blend_method = blend_values[flags][1]
     return blend_values[flags][0]
+
+
+# def fetch_fallback_texture(import_container):
+#     print("fetching")
+#     if import_container.has_fallback:
+#         return import_container.fallback
+#     else:
+
 
 
 def socket_type_helper(sock_type):

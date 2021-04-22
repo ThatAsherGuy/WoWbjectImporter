@@ -68,3 +68,69 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
             return "ShaderNodeEmission"
 
 
+class WoWbject_texture(bpy.types.PropertyGroup):
+    datablock: bpy.props.PointerProperty(
+        type=bpy.types.Image,
+        name="Texture"
+        )
+    path: bpy.props.StringProperty(name="Texture Path", default="")
+
+
+class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
+    """
+    Mostly Summary Information
+    """
+    initialized: bpy.props.BoolProperty(
+        default=False,
+        options={'HIDDEN'}
+    )
+
+    speed_factor: bpy.props.FloatProperty(
+        name="UV Animation Speed",
+        default=1.0
+    )
+
+    source_asset: bpy.props.StringProperty(
+        name="Source File",
+        description="Where it come from",
+        default="",
+        subtype='FILE_NAME',
+        # get=lambda self : self["source_asset"] 
+        # options={''}
+    )
+
+    source_directory: bpy.props.StringProperty(
+        name="Source Directory",
+        description="Where it come from",
+        default="",
+        subtype='DIR_PATH',
+        # get=lambda self : self["source_directory"] 
+    )
+
+    textures: bpy.props.CollectionProperty(
+        type=WoWbject_texture,
+        name="Textures"
+    )
+
+
+class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
+    """
+    Mostly Summary Information
+    """
+
+    initialized: bpy.props.BoolProperty(
+        default=False,
+        options={'HIDDEN'}
+    )
+
+    linked_asset: bpy.props.StringProperty(
+        name="Source File",
+        description="Where it come from",
+        default="",
+        # options={''}
+    )
+
+    textures: bpy.props.CollectionProperty(
+        type=WoWbject_texture,
+        name="Textures"
+    )

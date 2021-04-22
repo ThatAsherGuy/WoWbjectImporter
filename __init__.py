@@ -38,25 +38,55 @@ from .operators import WOWBJ_OT_ToolTip
 from .operators import WOWBJ_OT_Import
 from .operators import WOWBJ_OT_SerializeNodeGroups
 from .operators import WOWBJ_OT_GenerateNodeGroups
+from .operators import WOWBJ_OT_LoadCombiner
+
 from .preferences import wowbjectAddonPrefs
+from .preferences import WoWbject_ObjectProperties
+from .preferences import WoWbject_MaterialProperties
+from .preferences import WoWbject_texture
+
+from .ui import VIEW3D_PT_wowbject_object_panel
+from .ui import VIEW3D_PT_wowbject_combiner_panel
 
 classes = (
+    # Operators
     WOWBJ_OT_ToolTip,
     WOWBJ_OT_Import,
     WOWBJ_OT_SerializeNodeGroups,
     WOWBJ_OT_GenerateNodeGroups,
+    WOWBJ_OT_LoadCombiner,
+    # Property Groups
     wowbjectAddonPrefs,
+    WoWbject_texture,
+    WoWbject_ObjectProperties,
+    WoWbject_MaterialProperties,
+    # UI stuff
+    VIEW3D_PT_wowbject_object_panel,
+    VIEW3D_PT_wowbject_combiner_panel
 )
+
 
 def menu_func_import(self, context):
     self.layout.operator(WOWBJ_OT_Import.bl_idname, text='WoWbject (.obj)')
 
+
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+
+    bpy.types.Object.WBJ = bpy.props.PointerProperty(type=WoWbject_ObjectProperties)
+    bpy.types.Material.WBJ = bpy.props.PointerProperty(type=WoWbject_MaterialProperties)
+
 
 def unregister():
     from bpy.utils import unregister_class
-    unregister_class(WOWBJ_OT_Import)
+
+    for cls in classes:
+        unregister_class(cls)
+
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+
+    del bpy.types.Object.WBJ
+    del bpy.types.Material.WBJ

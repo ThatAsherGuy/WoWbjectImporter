@@ -34,6 +34,7 @@ from bpy_extras.wm_utils.progress_report import ProgressReport
 # The idea here is that I can then pass this object to the external functions it calls, in order to pull extra data from it.
 class import_container():
     def __init__(self):
+        self.op_args = {}
         self.m2 = None
         self.json_config = None
         self.bl_obj = None
@@ -55,14 +56,18 @@ class import_container():
         self.base_shader = None
         self.do_bones = False
         self.reuse_mats = False
+        self.fallback_texture = None
+        self.fallback_type = ''
+        self.fallback_generated = False
 
 
-    def do_setup(self, files, directory, **kwargs):
+    def do_setup(self, files, directory, op_args, **kwargs):
         # ProgressReport is the thing that does the fancy print messages and changes the cursor.
         # I'm 50/50 on it. There's also no documentation for it, outside of comments in the source code.
         with ProgressReport(bpy.context.window_manager) as progress:
             progress.enter_substeps(5, "Importing Files From %r..." % directory)
 
+            self.op_args = op_args
             self.source_directory = directory
             for arg, val in kwargs.items():
                 if arg == 'base_shader':
@@ -176,7 +181,12 @@ class import_container():
         if len(source) > 1:
             return False
 
-        self.bl_obj = import_obj(source[0], self.source_directory, self.reuse_mats)
+        self.bl_obj = import_obj(
+            source[0],
+            self.source_directory,
+            self.reuse_mats,
+            self.op_args.get("name_override")
+            )
 
 
     def setup_textures(self):
@@ -199,11 +209,39 @@ class import_container():
             if not texID:
                 print("Texture ID Not Found")
 
+            match = False
             for tex_file in source_textures:
                 if str(texID) in tex_file:
                     tex["name"] = tex_file
                     tex["path"] = os.path.join(directory, tex_file)
+                    match = True
                     break
+
+            if not match:
+                print("TEXTURE NOT FOUND")
+
+
+    def get_fallback_tex(self):
+        if self.fallback_generated:
+            return self.fallback_texture
+        else:
+            if "WoWbject_Fallback_Texture" in bpy.data.images:
+                img = bpy.data.images["WoWbject_Fallback_Texture"]
+                self.fallback_texture = img
+                self.fallback_generated = True
+                return img
+
+            img = bpy.data.images.new("WoWbject_Fallback_Texture", 512, 512, alpha=True)
+            if self.fallback_type == '':
+                img.generated_type = 'COLOR_GRID'
+            else:
+                img.generated_type = self.fallback_type
+
+            img.alpha_mode = 'CHANNEL_PACKED'
+
+            self.fallback_generated = True
+            self.fallback_texture = img
+            return img
 
 
     def setup_materials(self):
@@ -261,11 +299,17 @@ def debug_print(string):
         print(string)
 
 
-def do_import(files, directory, reuse_mats, base_shader, **kwargs):
+def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
     '''
     The pre-sorting and initializing function called by the import operator.
     Most of the actual data-handling is handled by an import_container object.
     '''
+
+    files = op_args.get("files")
+    directory = op_args.get("directory")
+    reuse_mats = op_args.get("reuse_materials")
+    base_shader = op_args.get("base_shader")
+    name_override = op_args.get("name_override")
 
     textures = []
     objects = []
@@ -316,6 +360,7 @@ def do_import(files, directory, reuse_mats, base_shader, **kwargs):
         m2_found = False
         mtl_found = False
 
+        # Search source directory for missing files
         for file in dir_files:
             name, ext = file.split('.')
 
@@ -337,11 +382,9 @@ def do_import(files, directory, reuse_mats, base_shader, **kwargs):
                     mtl_found = True
                     continue
 
-        find_textures = False
+        # Find missing textures by checking configs
+        # Doesn't handle situations where only some are missing
         if len(textures) < 1:
-            find_textures = True
-
-        if find_textures:
             if mtl_found == 1:
                 textures = read_mtl(directory, mtl[0])
             elif config_found:
@@ -359,6 +402,7 @@ def do_import(files, directory, reuse_mats, base_shader, **kwargs):
     import_obj.do_setup(
         files,
         directory,
+        op_args,
         reuse_mats=reuse_mats,
         base_shader=base_shader
         )

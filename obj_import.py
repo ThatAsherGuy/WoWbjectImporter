@@ -109,11 +109,15 @@ def initialize_mesh(mesh_path):
     return obj
 
 
-def import_obj(file, directory, reuse_mats, **kwargs):
+def import_obj(file, directory, reuse_mats, name_override, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all(action='DESELECT')
 
-    mesh_name = file.split('.')[0]
+    if name_override:
+        mesh_name = name_override
+    else:
+        mesh_name = file.split('.')[0]
+
     mesh_data = initialize_mesh(os.path.join(directory, file))
 
     newMesh = bpy.data.meshes.new(mesh_name)
@@ -121,6 +125,10 @@ def import_obj(file, directory, reuse_mats, **kwargs):
     newMesh.auto_smooth_angle = 1.0472
 
     newObj = bpy.data.objects.new(mesh_name, newMesh)
+
+    newObj.WBJ.source_asset = file
+    newObj.WBJ.source_directory = directory
+    newObj.WBJ.initialized = True
 
     bm = bmesh.new()
 
@@ -135,10 +143,16 @@ def import_obj(file, directory, reuse_mats, **kwargs):
         create_mat = True
         exampleFaceSet = False
         mat_name = mesh_name + "_" + component.name + "_mat"
+        fallback_name = file.split('.')[0] + "_" + component.name + "_mat"
 
         if reuse_mats:
             for bl_mat in bpy.data.materials:
                 if bl_mat.name == mat_name:
+                    mat = bl_mat
+                    create_mat = False
+                    break
+
+                elif bl_mat.name == fallback_name:
                     mat = bl_mat
                     create_mat = False
                     break
