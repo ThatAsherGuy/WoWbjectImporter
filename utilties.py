@@ -118,7 +118,8 @@ class import_container():
         if self.m2 == None:
             return False
 
-        load_kaitai()
+        # Kaitai is now bundled, no need to import
+        # load_kaitai()
         self.use_m2, self.m2_dict, self.anim_combos, self.anim_transforms, self.bones = read_m2(self.source_directory, self.m2)
 
         # Bone/billboard debugging

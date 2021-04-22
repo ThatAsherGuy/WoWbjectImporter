@@ -4,7 +4,7 @@ TL;DR: This Blender add-on + WoW.Export = Streamlined material assignment with k
 
 ## Installing
 
-This add-on relies on an external python module called `kaitastruct`, which it uses to read additional data from .m2 files. In most situations it should automatically install the module with `pip` — the functions for that are in `/kaitai/m2_handler.py` — but there'll likely be a few edge cases where it'll need to be installed manually.
+This add-on relies on an external python module called `kaitastruct`, which it uses to read additional data from .m2 files. The module is bundled with the add-on — you don't need to install or configure anything — and it should work seamlessly 99.9% of the time. Also, check out the [Kaitai Struct repo](https://github.com/kaitai-io/kaitai_struct_python_runtime). It's an awesome project.
 
 Beyond that, though, it should install like any other Blender add-on. Click on Edit→Preferences, navigate to the Add-ons tab, click the Install button on the top-right figure out where you've put `WoWbjectifier.zip`, select it, and mash the Install Add-on button.
 
