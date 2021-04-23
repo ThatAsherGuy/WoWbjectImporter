@@ -25,6 +25,7 @@ from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
 from .utilties import do_import
 
+
 class WOWBJ_OT_ToolTip(bpy.types.Operator):
     """Use this operator to display inline tooltips."""
     bl_idname = "wowbj.tool_tip"
@@ -113,8 +114,6 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         row = root.row(align=True)
         row.prop(self, 'reuse_materials')
-        # op = row.operator('wowbj.tool_tip', text='', icon='INFO')
-        # op.tooltip = "INFORMATIVE STRING"
  
         col = root.column(align=True)
         col.use_property_split = True
@@ -122,6 +121,7 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         col.prop(self, 'base_shader', expand=False)
 
 
+# TODO: Add confirm button to preven data loss. Maybe an export browser?
 class WOWBJ_OT_SerializeNodeGroups(bpy.types.Operator):
     """
     Serializes the node groups in the open file.
@@ -137,6 +137,7 @@ class WOWBJ_OT_SerializeNodeGroups(bpy.types.Operator):
         return {'FINISHED'}
 
 
+# TODO: Add confirm buttons to prevent data loss
 class WOWBJ_OT_GenerateNodeGroups(bpy.types.Operator):
     """
     Creates node groups based on the JSON schema.
@@ -149,7 +150,9 @@ class WOWBJ_OT_GenerateNodeGroups(bpy.types.Operator):
         generate_nodegroups(os.path.join(os.path.dirname(__file__), "BlendFunctions.blend"))
         return {'FINISHED'}
 
+
 # Lazy way of respecting Blender's Enum capitalization requirement. Also allows substitutions
+# TODO: Move to lookup_funcs.py
 combiner_enum_map = {
     "COMBINERS_OPAQUE_MOD2XNA_ALPHA":           "Combiners_Opaque_Mod2xNA_Alpha",
     "COMBINERS_OPAQUE_ADDALPHA":                "Combiners_Opaque_AddAlpha",

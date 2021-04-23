@@ -74,6 +74,8 @@ shader_table =(
     # helmet_anim_scaled = 0x1000, 
     # something_sequence_id = 0x2000, 
 
+# A really hacky bitfield unpacker.
+# I should be able to abstract this into an enum-agnostic function.
 def get_bone_flags(flags):
     flag_list = []
 
@@ -161,6 +163,7 @@ def get_shadereffects(shaderID, op_count = 2):
                     return "PS_Combiners_Opaque_Mod"
 
 
+# Also from: https://wowdev.wiki/M2/.skin
 def get_vertex_shader(shader_id, op_count = 2):
     if shader_id & 0x8000:
         shader_id &= (~0x8000)
@@ -191,6 +194,7 @@ def get_vertex_shader(shader_id, op_count = 2):
                         return "VS_Diffuse_T1_T1"
 
 
+# Currently unused, needs actual interp functions to be useful.
 def get_interpolation_type(index):
     types = (
         'CONST',

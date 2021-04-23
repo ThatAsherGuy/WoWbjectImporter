@@ -32,7 +32,8 @@ from ..lookup_funcs import get_interpolation_type
 
 enc = sys.getdefaultencoding()
 
-# Yoinked directly from DECALMachine
+# Yoinked directly from DECALMachine.
+# These are called by load_kaitai(), which'll pull the module for you if the bundled one causes issues.
 def get_python_paths():
     pythonbinpath = bpy.app.binary_path_python if bpy.app.version < (2, 91, 0) else sys.executable
 
@@ -87,6 +88,7 @@ def do_pip(pythonbinpath, ensurepippath):
         print("Failed to install pip!\n")
         return False, pipout + piperr
 
+
 def do_kaitai(pythonbinpath):
     cmd = [pythonbinpath, "-m", "pip", "install", "--upgrade", "kaitaistruct"]
 
@@ -137,14 +139,18 @@ def load_kaitai():
 
 
 def read_m2(directory, file):
+    '''
+    A more accurate name for this function would be read_tex_transforms_from_m2(),
+    since that's the main focus here. The import process relies mostly on the JSON data.
+    '''
     from .m2 import M2
+
+    # TODO: Make sure this file isn't left open
     with M2.from_file(os.path.join(directory, file)) as m2_struct:
-        m2_globals = m2_struct.Md20GlobalFlags
         m2_dict = m2_struct.__dict__
 
         md21_chunk = None
         uv_anim_chunk = None
-        texTransform_chunk = None
 
         for entry, item in m2_dict.items():
             if entry == "chunks":
@@ -155,16 +161,12 @@ def read_m2(directory, file):
 
         if md21_chunk:
             uv_anim_chunk = md21_chunk.texture_transform_combos
-
             anim_chunk_combos = uv_anim_chunk.values
-
             texTransforms = md21_chunk.texture_transforms.values
 
             unpacked_transforms = []
 
             bones = md21_chunk.bones.values
-            bone_combos = md21_chunk.bone_combos.values
-
 
             for transform in texTransforms:
                 transform_container = {}
@@ -182,11 +184,13 @@ def read_m2(directory, file):
                     rate = translation.timestamps.values[0].values[1] / 1000 # TODO: Double-check time unit
                     translate_vectors = translation.values.values[0].values[1]
                     transform_container['translate'] = (translate_vectors.x / rate, translate_vectors.y / rate, translate_vectors.z / rate)
+
                 if do_rotate:
                     print("Rotation interp: " + rotate_interp)
                     rate = rotation.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
                     rotate_vectors = rotation.values.values[0].values[1] / rate
                     transform_container['rotate'] = rotate_vectors
+
                 if do_scale:
                     print("Scale interp: " + scale_interp)
                     rate = scaling.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
@@ -197,19 +201,11 @@ def read_m2(directory, file):
 
             return (True, m2_dict, anim_chunk_combos, unpacked_transforms, bones)
 
-        return (False, None, None)
+        return (False, None, None, None, None)
 
 
 def read_track(track):
     track_type = get_interpolation_type(track.interpolation_type)
     has_values = True if len(track.timestamps.values) > 0 else False
-
-    if has_values:
-        stamps = track.timestamps.values
-        values = track.values.values
-
-        duration = stamps[0].values[1] / 100 # TODO: Double-check time unit
-        val = values[0].values[1]
-
 
     return (has_values, track_type)
