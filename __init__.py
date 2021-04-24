@@ -21,14 +21,14 @@
 # A bunch of this code is based on Krunthne's WoW Export add-on.
 
 bl_info = {
-    "name" : "WoWbjectifier",
-    "author" : "Asher",
-    "description" : "",
+    "name" : "WoWbject Importer",
+    "author" : "Asher and Alinsa",
+    "description" : "Import World of Warcraft objects as correctly as possible",
     "blender" : (2, 80, 0),
     "version" : (0, 0, 1),
-    "location" : "",
-    "warning" : "",
-    "category" : "Generic"
+    "location" : "File > Import",
+    "wiki_url": "https://github.com/ThatAsherGuy/WoWbjectImporter",
+    "category" : "Import-Export"
 }
 
 import bpy

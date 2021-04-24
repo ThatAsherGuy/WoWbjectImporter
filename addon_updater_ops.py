@@ -114,7 +114,7 @@ def get_user_preferences(context=None):
 # simple popup for prompting checking for update & allow to install if available
 class addon_updater_install_popup(bpy.types.Operator):
 	"""Check and install update if available"""
-	bl_label = "Update {x} addon".format(x=updater.addon)
+	bl_label = "Update WoWbject Importer addon"
 	bl_idname = updater.addon+".updater_install_popup"
 	bl_description = "Popup menu to check and display current updates available"
 	bl_options = {'REGISTER', 'INTERNAL'}
@@ -216,10 +216,9 @@ class addon_updater_install_popup(bpy.types.Operator):
 
 # User preference check-now operator
 class addon_updater_check_now(bpy.types.Operator):
-	bl_label = "Check now for "+updater.addon+" update"
+	bl_label = "Check now for WoWBject Importer update"
 	bl_idname = updater.addon+".updater_check_now"
-	bl_description = "Check now for an update to the {x} addon".format(
-														x=updater.addon)
+	bl_description = "Check now for an update to the WoWbject Importer addon"
 	bl_options = {'REGISTER', 'INTERNAL'}
 
 	def execute(self,context):
@@ -255,10 +254,9 @@ class addon_updater_check_now(bpy.types.Operator):
 
 
 class addon_updater_update_now(bpy.types.Operator):
-	bl_label = "Update "+updater.addon+" addon now"
+	bl_label = "Update WoWBject Importer addon now"
 	bl_idname = updater.addon+".updater_update_now"
-	bl_description = "Update to the latest version of the {x} addon".format(
-														x=updater.addon)
+	bl_description = "Update to the latest version of the WoWbject Importer addon"
 	bl_options = {'REGISTER', 'INTERNAL'}
 
 	# if true, run clean install - ie remove all files before adding new
@@ -316,8 +314,7 @@ class addon_updater_update_now(bpy.types.Operator):
 class addon_updater_update_target(bpy.types.Operator):
 	bl_label = updater.addon+" version target"
 	bl_idname = updater.addon+".updater_update_target"
-	bl_description = "Install a targeted version of the {x} addon".format(
-														x=updater.addon)
+	bl_description = "Install a targeted version of the WoWbject Importer addon"
 	bl_options = {'REGISTER', 'INTERNAL'}
 
 	def target_version(self, context):
@@ -786,8 +783,8 @@ def check_for_update_background():
 	# this function should take a bool input, if true: update ready
 	# if false, no update ready
 	if updater.verbose:
-		print("{} updater: Running background check for update".format(\
-				updater.addon))
+	print("{} updater: Running background check for update".format(
+            updater.addon))
 	updater.check_for_update_async(background_update_callback)
 	ran_background_check = True
 
@@ -1389,7 +1386,8 @@ def register(bl_info):
 	# as a part of the pattern list below so they will always be overwritten by an
 	# update. If a pattern file is not found in new update, no action is taken
 	# This does NOT detele anything, only defines what is allowed to be overwritten
-	updater.overwrite_patterns = ["*.png","*.jpg","README.md","LICENSE.txt"]
+	updater.overwrite_patterns = ["*"]
+	# updater.overwrite_patterns = ["*.png","*.jpg","README.md","LICENSE.txt"]
 	# updater.overwrite_patterns = []
 	# other examples:
 	# ["*"] means ALL files/folders will be overwritten by update, was the behavior pre updater v1.0.4
