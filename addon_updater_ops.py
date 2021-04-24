@@ -783,8 +783,8 @@ def check_for_update_background():
 	# this function should take a bool input, if true: update ready
 	# if false, no update ready
 	if updater.verbose:
-	print("{} updater: Running background check for update".format(
-            updater.addon))
+		print("{} updater: Running background check for update".format(
+			updater.addon))
 	updater.check_for_update_async(background_update_callback)
 	ran_background_check = True
 
