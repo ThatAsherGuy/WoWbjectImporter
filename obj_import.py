@@ -209,7 +209,7 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
     newObj.rotation_euler = [0, 0, 0]
     newObj.rotation_euler.x = radians(90)
 
-    # Defaults to master collection if no collection exists.
+    # Defaults to main collection if no collection exists.
     bpy.context.view_layer.active_layer_collection.collection.objects.link(newObj)
     newObj.select_set(True)
 

@@ -48,6 +48,8 @@ from .preferences import WoWbject_texture
 from .ui import VIEW3D_PT_wowbject_object_panel
 from .ui import VIEW3D_PT_wowbject_combiner_panel
 
+from . import addon_updater_ops
+
 classes = (
     # Operators
     WOWBJ_OT_ToolTip,
@@ -71,6 +73,7 @@ def menu_func_import(self, context):
 
 
 def register():
+    addon_updater_ops.register(bl_info)
     for cls in classes:
         bpy.utils.register_class(cls)
 

@@ -20,117 +20,166 @@
 
 import bpy
 import os
+from . import addon_updater_ops
 
 def get_path():
-    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+	return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 def get_name():
-    return os.path.basename(get_path())
+	return os.path.basename(get_path())
 
 def get_prefs():
-    # return bpy.context.preferences.addons[get_name()].preferences
-    return bpy.context.preferences.addons[__package__].preferences
+	# return bpy.context.preferences.addons[get_name()].preferences
+	return bpy.context.preferences.addons[__package__].preferences
+
 
 class wowbjectAddonPrefs(bpy.types.AddonPreferences):
-    bl_idname = __package__
+	bl_idname = __package__
 
-    # A fallback option for when the import operator
-    # is called without a specified base shader type.
-    base_shader_items = [
-                        ("EMIT", "Emission Shader", ""),
-                        ("DIFF", "Diffuse Shader", ""),
-                        ("SPEC", "Specular Shader", ""),
-                        ("PRIN", "Principled Shader", ""),
-                        ("EXPE", "Experimental", ""),
-                      ]
+	# Stuff from the CGCookie Add-on Updater.
+	auto_check_update: bpy.props.BoolProperty(
+		name="Auto-check for Update",
+		description="If enabled, auto-check for updates using an interval",
+		default=False,
+		)
+	updater_intrval_months: bpy.props.IntProperty(
+		name='Months',
+		description="Number of months between checking for updates",
+		default=0,
+		min=0
+		)
+	updater_intrval_days: bpy.props.IntProperty(
+		name='Days',
+		description="Number of days between checking for updates",
+		default=7,
+		min=0,
+		max=31
+		)
+	updater_intrval_hours: bpy.props.IntProperty(
+		name='Hours',
+		description="Number of hours between checking for updates",
+		default=0,
+		min=0,
+		max=23
+		)
+	updater_intrval_minutes: bpy.props.IntProperty(
+		name='Minutes',
+		description="Number of minutes between checking for updates",
+		default=0,
+		min=0,
+		max=59
+		)
 
-    base_shader: bpy.props.EnumProperty(
-                                name="Base Shader",
-                                items=base_shader_items,
-                                default="EMIT",
-                                )
+	# A fallback option for when the import operator
+	# is called without a specified base shader type.
+	base_shader_items = [
+						("EMIT", "Emission Shader", ""),
+						("DIFF", "Diffuse Shader", ""),
+						("SPEC", "Specular Shader", ""),
+						("PRIN", "Principled Shader", ""),
+						("EXPE", "Experimental", ""),
+					  ]
 
-    def get_base_shader(self, base):
-        if base == None:
-            base = self.base_shader
+	base_shader: bpy.props.EnumProperty(
+								name="Base Shader",
+								items=base_shader_items,
+								default="EMIT",
+								)
 
-        if base == 'EMIT':
-            return "ShaderNodeEmission"
-        elif base == 'DIFF':
-            return "ShaderNodeBsdfDiffuse"
-        elif base == 'SPEC':
-            return "ShaderNodeEeveeSpecular"
-        elif base == 'PRIN':
-            return "ShaderNodeBsdfPrincipled"
-        elif base == 'EXPE':
-            return "Experimental"
-        else:
-            return "ShaderNodeEmission"
+
+	def draw(self, context):
+		layout = self.layout
+
+		# works best if a column, or even just self.layout
+		mainrow = layout.row()
+		col = mainrow.column()
+
+		# updater draw function
+		# could also pass in col as third arg
+		addon_updater_ops.update_settings_ui(self, context)
+
+
+	def get_base_shader(self, base):
+		if base == None:
+			base = self.base_shader
+
+		if base == 'EMIT':
+			return "ShaderNodeEmission"
+		elif base == 'DIFF':
+			return "ShaderNodeBsdfDiffuse"
+		elif base == 'SPEC':
+			return "ShaderNodeEeveeSpecular"
+		elif base == 'PRIN':
+			return "ShaderNodeBsdfPrincipled"
+		elif base == 'EXPE':
+			return "Experimental"
+		else:
+			return "ShaderNodeEmission"
 
 
 class WoWbject_texture(bpy.types.PropertyGroup):
-    datablock: bpy.props.PointerProperty(
-        type=bpy.types.Image,
-        name="Texture"
-        )
-    path: bpy.props.StringProperty(name="Texture Path", default="")
+	datablock: bpy.props.PointerProperty(
+		type=bpy.types.Image,
+		name="Texture"
+		)
+	path: bpy.props.StringProperty(name="Texture Path", default="")
 
 
 class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
-    """
-    Mostly Summary Information
-    """
-    initialized: bpy.props.BoolProperty(
-        default=False,
-        options={'HIDDEN'}
-    )
+	"""
+	Mostly Summary Information
+	"""
+	initialized: bpy.props.BoolProperty(
+		default=False,
+		options={'HIDDEN'}
+	)
 
-    speed_factor: bpy.props.FloatProperty(
-        name="UV Animation Speed",
-        default=1.0
-    )
+	speed_factor: bpy.props.FloatProperty(
+		name="UV Animation Speed",
+		default=1.0
+	)
 
-    source_asset: bpy.props.StringProperty(
-        name="Source File",
-        description="Where it come from",
-        default="",
-        subtype='FILE_NAME',
-        # get=lambda self : self["source_asset"] 
-        # options={''}
-    )
+	source_asset: bpy.props.StringProperty(
+		name="Source File",
+		description="Where it come from",
+		default="",
+		subtype='FILE_NAME',
+		# get=lambda self : self["source_asset"] 
+		# options={''}
+	)
 
-    source_directory: bpy.props.StringProperty(
-        name="Source Directory",
-        description="Where it come from",
-        default="",
-        subtype='DIR_PATH',
-        # get=lambda self : self["source_directory"] 
-    )
+	source_directory: bpy.props.StringProperty(
+		name="Source Directory",
+		description="Where it come from",
+		default="",
+		subtype='DIR_PATH',
+		# get=lambda self : self["source_directory"] 
+	)
 
-    textures: bpy.props.CollectionProperty(
-        type=WoWbject_texture,
-        name="Textures"
-    )
+	textures: bpy.props.CollectionProperty(
+		type=WoWbject_texture,
+		name="Textures"
+	)
 
 
 class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
-    """
-    Mostly Summary Information
-    """
+	"""
+	Mostly Summary Information
+	"""
 
-    initialized: bpy.props.BoolProperty(
-        default=False,
-        options={'HIDDEN'}
-    )
+	initialized: bpy.props.BoolProperty(
+		default=False,
+		options={'HIDDEN'}
+	)
 
-    linked_asset: bpy.props.StringProperty(
-        name="Source File",
-        description="Where it come from",
-        default="",
-        # options={''}
-    )
+	linked_asset: bpy.props.StringProperty(
+		name="Source File",
+		description="Where it come from",
+		default="",
+		# options={''}
+	)
 
-    textures: bpy.props.CollectionProperty(
-        type=WoWbject_texture,
-        name="Textures"
-    )
+	textures: bpy.props.CollectionProperty(
+		type=WoWbject_texture,
+		name="Textures"
+	)

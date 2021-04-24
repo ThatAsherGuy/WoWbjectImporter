@@ -129,7 +129,7 @@ class WOWBJ_OT_SerializeNodeGroups(bpy.types.Operator):
     """
     bl_idname = 'wowbj.serialize_nodegroups'
     bl_label = 'WoWbject Serialize Nodegroups'
-    bl_options = {'PRESET', 'UNDO'}
+    bl_options = {'INTERNAL', 'UNDO'}
 
     def execute(self, context):
         file_paths = os.path.join(os.path.dirname(__file__), "BlendFunctions.blend")
@@ -144,7 +144,7 @@ class WOWBJ_OT_GenerateNodeGroups(bpy.types.Operator):
     """
     bl_idname = 'wowbj.generate_nodegroups'
     bl_label = 'WoWbject Generate Nodegroups'
-    bl_options = {'PRESET', 'UNDO'}
+    bl_options = {'INTERNAL', 'UNDO'}
 
     def execute(self, context):
         generate_nodegroups(os.path.join(os.path.dirname(__file__), "BlendFunctions.blend"))
@@ -196,7 +196,7 @@ class WOWBJ_OT_LoadCombiner(bpy.types.Operator):
     """
     bl_idname = 'wowbj.get_combiner'
     bl_label = 'WoWbject Get Combiner'
-    bl_options = {'PRESET', 'UNDO'}
+    bl_options = {'REGISTER', 'UNDO'}
 
     combiner_items = [
         ("COMBINERS_OPAQUE_MOD2XNA_ALPHA",           "Combiners_Opaque_Mod2xNA_Alpha",             ""),
