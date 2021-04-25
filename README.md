@@ -63,11 +63,17 @@ For assets that have UV animations, the add-on uses a driver inside of a node gr
 
 ![import dialog](img/TexturePannerNode.png)
 
-The node automatically compensates for the frame rate of the scene that is active when the object is imported. It does this by referencing the scene's frame rate in the driver that the add-on sets up. As a result, if you import an object with UV animations into one file, and then append that object into another file, it will also append the scene that the driver references. You can get around this by removing the driver from the node before appending the object.
+The node automatically compensates for the frame rate of the scene that is active when the object is imported. It does this by referencing the scene's frame rate in the driver that the add-on sets up. As a result, if you import an object with UV animations into one file, and then append that object into another file, it will also append the scene that the driver references. You will almost certainly want to avoid this by removing the driver from the node before appending an object to another scene.
 
 ## Options and Preferences
 
 The add-on preferences are relatively simple at the moment. Setting the Report Verbosity changes what kinds of reports the importer shows in the info editor, console, and status bar. It defaults to only showing warnings and errors. The updater settings control if and how frequently the add-on checks for updates, and are largely self-explanatory.
+
+## Reporting Bugs (and Feature Requests)
+
+We want the WoWbject Importer to be as accurate as possible when importing objects from WoW. If you run into situations where you think the importer is doing the wrong thing, *please* open an issue on the WoWbject Importer [issues page](https://github.com/ThatAsherGuy/WoWbjectImporter/issues) so that we can investigate!
+
+We will also gladly accept feature requests via the same page. We can't guarantee we can implement everything requested, but we'll sure as heck give consideration to anything reasonable!
 
 ## License
 
@@ -78,6 +84,8 @@ As with all Blender addons, the WoWbject Importer is licensed under the GNU GPL.
 This project was researched and beaten into existence through sheer force of will by [TDV Alinsa](https://github.com/alinsavix), who then conscripted [Asher Stephenson](https://github.com/ThatAsherGuy) to do much of the heavy lifting. I think we were both surprised how deep this particular rabbit hole went!
 
 Also, endless appreciation to Kruithne for both their awesome [wow.export](https://github.com/Kruithne/wow.export), and for tolerating way too many questions from Alinsa about various nitpicky WoW innards. By proxy, special thanks to Marlamin as well, creator of [WoW Export Tools](https://github.com/Marlamin/WoWExportTools/), on which wow.export is based.
+
+(We are also intending to contribute our work back to Kruithne and the wow.export project after we've implemented more of what we intend to implement, and the dust has settled a bit.)
 
 Many thanks to everyone who has contributed to the [WoWDev wiki](https://wowdev.wiki/), for helping to provide an amazing resource for those who have come after them (like us). We build on the shoulders of giants.
 
