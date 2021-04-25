@@ -76,20 +76,20 @@ class import_container():
                     self.reuse_mats = val
 
             for file in files:
-                name, ext = file.split('.')
-                if ext == 'png':
+                name, ext = os.path.splitext(file)
+                if ext == '.png':
                     self.source_files['texture'].append(file)
-                elif ext == 'obj':
+                elif ext == '.obj':
                     self.source_files['OBJ'].append(file)
-                elif ext == 'mtl':
+                elif ext == '.mtl':
                     self.source_files['MTL'].append(file)
-                elif ext == 'json':
+                elif ext == '.json':
                     self.source_files['config'].append(file)
-                elif ext == 'm2':
+                elif ext == '.m2':
                     self.source_files['M2'].append(file)
-                elif ext == 'blp':
+                elif ext == '.blp':
                     self.source_files['BLP'].append(file)
-                elif ext == 'skin':
+                elif ext == '.skin':
                     self.source_files['skin'].append(file)
                 else:
                     print("Unhandled File Type: " + str(file))
@@ -134,7 +134,7 @@ class import_container():
                 marker.show_in_front = True
                 bpy.context.evaluated_depsgraph_get().update()
 
-                if bone.parent_bone > -1:                    
+                if bone.parent_bone > -1:
                     marker.parent = bone_markers[bone.parent_bone]
                     marker.matrix_parent_inverse = bone_markers[bone.parent_bone].matrix_world.inverted()
 
@@ -200,7 +200,7 @@ class import_container():
         if self.tex_dir == '':
             directory = self.source_directory
         else:
-            directory = os.path.join(self.source_directory, self.tex_dir) 
+            directory = os.path.join(self.source_directory, self.tex_dir)
 
         source_textures = self.source_files.get('texture')
 
@@ -257,7 +257,7 @@ class import_container():
 
             # Lazy check to avoid re-building existing materials
             if len(tree.nodes.items()) == 2:
-                if self.use_m2:        
+                if self.use_m2:
                     build_shader(
                         unit,
                         bl_mat,
@@ -319,16 +319,17 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
     m2 = []
 
     for file in files:
-        name, ext = file.name.split('.')
-        if ext == 'png':
+        name, ext = os.path.splitext(file.name)
+
+        if ext == '.png':
             textures.append(file.name)
-        elif ext == 'obj':
+        elif ext == '.obj':
             objects.append(file.name)
-        elif ext == 'mtl':
+        elif ext == '.mtl':
             mtl.append(file.name)
-        elif ext == 'json':
+        elif ext == '.json':
             configs.append(file.name)
-        elif ext == 'm2':
+        elif ext == '.m2':
             m2.append(file.name)
 
     file_lists = (textures, objects, configs, m2)
@@ -363,22 +364,22 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
 
         # Search source directory for missing files
         for file in dir_files:
-            name, ext = file.split('.')
+            name, ext = os.path.splitext(file)
 
             if len(configs) < 1:
-                if (name == ref_name) and (ext == 'json'):
+                if (name == ref_name) and (ext == '.json'):
                     configs.append(file)
                     config_found = True
                     continue
 
             if len(m2) < 1:
-                if (name == ref_name) and (ext == 'm2'):
+                if (name == ref_name) and (ext == '.m2'):
                     m2.append(file)
                     m2_found = True
                     continue
 
             if len(mtl) < 1:
-                if (name == ref_name) and (ext == 'mtl'):
+                if (name == ref_name) and (ext == '.mtl'):
                     mtl.append(file)
                     mtl_found = True
                     continue
