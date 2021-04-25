@@ -98,7 +98,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 								description='',
 								items=report_items,
 								options={'ENUM_FLAG'},
-								default=None,
+								default={'WARNING', 'ERROR'},
 								)
 
 	def draw(self, context):

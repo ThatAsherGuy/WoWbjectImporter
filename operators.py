@@ -104,24 +104,30 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         verbosity = prefs.reporting
         args = self.as_keywords(ignore=("filter_glob",))
         reports = do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
-        if len(reports[0]) > 0:
-            error = ''
 
-            for err_type in reports[0]:
-                if error == '':
-                    error = err_type
-                else:
-                    if (error == 'INFO') and (err_type == 'ERROR'):
-                        error = err_type
+        if (len(reports.warnings) > 0) and 'WARNING' in verbosity:
+            self.report({'WARNING'}, "Warnings encountered. Check the console for details")
 
-            if error == 'ERROR':
-                self.report({error}, "Import failure. Check the console for details")
-            elif error in verbosity:
-                self.report({error}, "Import succeeded, but has reports. Check the console for details. Reporting threshold can be adjusted in the add-on preferences")
-
-            for report in reports[1]:
+            for report in reports.warnings:
                 print(report)
 
+        if (len(reports.errors) > 0) and 'ERROR' in verbosity:
+            self.report({'ERROR'}, "Errors ecountered. Check the console for details")
+
+            for report in reports.errors:
+                print(report)
+
+        if (len(reports.info) > 0) and 'INFO' in verbosity:
+            self.report({'INFO'}, "Info messages generated. Check the console for details")
+
+            for report in reports.info:
+                print(report)
+
+        if (len(reports.sub_steps) > 0) and 'PROPERTY' in verbosity:
+            self.report({'PROPERTY'}, "Sub-step report generated. Check the console for details")
+
+            for report in reports.sub_steps:
+                print(report)
 
         return {'FINISHED'}
 

@@ -28,6 +28,7 @@ from .lookup_funcs import get_vertex_shader, get_shadereffects, get_bone_flags
 from .obj_import import import_obj
 from .kaitai.m2_handler import load_kaitai, read_m2
 from bpy_extras.wm_utils.progress_report import ProgressReport
+from collections import namedtuple
 
 
 # Rather than pass everything individually or assign stuff to globals, I made this... Thing.
@@ -59,9 +60,13 @@ class import_container():
         self.fallback_texture = None
         self.fallback_type = ''
         self.fallback_generated = False
-        self.err = set()
-        self.reports = []
         self.damage_control = False
+
+        self.reports = namedtuple('log_group', ['warnings', 'errors', 'info', 'sub_steps'])
+        self.reports.warnings = []
+        self.reports.errors = []
+        self.reports.info = []
+        self.reports.sub_steps = []
 
 
     def do_setup(self, files, directory, op_args, **kwargs):
@@ -101,8 +106,7 @@ class import_container():
             progress.step("Setting up JSON Data")
             load_step = self.setup_json_data()
             if not load_step:
-                self.err.add('ERROR')
-                self.reports.append('Failed to load JSON Data')
+                self.reports.errors.append('Failed to load JSON Data')
                 self.damage_control = True
 
             progress.step("Unpacking Textures")
@@ -113,8 +117,7 @@ class import_container():
             progress.step("Initializing Object")
             load_step = self.setup_bl_object()
             if not load_step:
-                self.err.add('ERROR')
-                self.reports.append('Failed to initialize blender object')
+                self.reports.errors.append('Failed to initialize blender object')
 
             raw = self.source_files.get('M2')
             if len(raw) > 0:
@@ -127,14 +130,13 @@ class import_container():
             progress.step("Generating Materials")
             load_step = self.setup_materials()
             if not load_step:
-                self.reports.append('Failed to setup materials')
+                self.reports.errors.append('Failed to setup materials')
 
-            return (self.err, self.reports)
+            return self.reports
 
     def unpack_m2(self):
         if self.m2 == None:
-            self.err.add('INFO')
-            self.reports.append("M2 File not found")
+            self.reports.info.append("M2 File not found")
             return False
 
         # Kaitai is now bundled, no need to import
@@ -255,7 +257,7 @@ class import_container():
             self.json_tex_units = {}
             self.json_mats = {}
             self.json_submeshes = {}
-            self.reports.append("Textures must be setup manually")
+            self.reports.info.append("Textures must be setup manually")
             return False
 
         for tex in self.json_textures:
