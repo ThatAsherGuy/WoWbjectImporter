@@ -175,17 +175,13 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         tree.links.new(uv_map.outputs[0], map_node.inputs[0+sb])
         tree.links.new(map_node.outputs[0], t_node.inputs[0])
 
-        if not textures[i].get("name") in bpy.data.images:
-            if not os.path.isfile(textures[i].get("path")):
-                image = import_container.get_fallback_tex()
-                image.alpha_mode = 'CHANNEL_PACKED'
-            else:
-                image = bpy.data.images.load(textures[i].get("path"))
-                image.alpha_mode = 'CHANNEL_PACKED'
-            if uv_map.label == "Sphere Map":
-                image.colorspace_settings.name = 'Linear'
-        else:
+        if textures[i].get("name") in bpy.data.images:
             image = bpy.data.images[textures[i].get("name")]
+            if not os.path.isfile(image.filepath):
+                import_container.reports.warnings.append(textures[i].get("name") + " has an invalid path.")
+                image = load_texture(textures[i], import_container, uv_map.label)
+        else:
+            image = load_texture(textures[i], import_container, uv_map.label)
 
         jim = obj.WBJ.textures.add()
         jim.path = image.filepath
@@ -199,6 +195,20 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         tree.links.new(t_node.outputs[1], mixer.inputs[socket_index+1])
 
         tex_nodes.append(t_node)
+
+
+def load_texture(tex, import_container, mapping):
+    if os.path.isfile(tex.get("path")):
+        image = bpy.data.images.load(tex.get("path"))
+        image.name = tex.get("name")
+    else:
+        image = import_container.get_fallback_tex()
+
+    if mapping == "Sphere Map":
+        image.colorspace_settings.name = 'Linear'
+
+    image.alpha_mode = 'CHANNEL_PACKED'
+    return image
 
 
 def get_utility_group(name):

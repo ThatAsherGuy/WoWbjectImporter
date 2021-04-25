@@ -35,6 +35,7 @@ from collections import namedtuple
 # The idea here is that I can then pass this object to the external functions it calls, in order to pull extra data from it.
 class import_container():
     def __init__(self):
+        self.name = None
         self.op_args = {}
         self.m2 = None
         self.json_config = None
@@ -269,9 +270,10 @@ class import_container():
             match = False
             for tex_file in source_textures:
                 if str(texID) in tex_file:
-                    tex["name"] = tex_file
+                    tex["name"] = self.name + "_" + tex_file
                     tex["path"] = os.path.join(directory, tex_file)
                     match = True
+
                     break
 
             if not match:
@@ -458,10 +460,19 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
                         tID = tdef.get("fileDataID")
                         textures.append(tID + ".png")
 
+        if len(objects) == 1:
+            if name_override == '':
+                name = objects[0].split('.')[0]
+            else:
+                name = name_override
+
+            print(name)
+
     files = textures + objects + mtl + configs + m2
 
     import_obj = import_container()
     import_obj.tex_dir = tex_dir
+    import_obj.name = name
     reports = import_obj.do_setup(
         files,
         directory,
