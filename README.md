@@ -22,7 +22,7 @@ TL;DR: This Blender add-on + WoW.Export = Streamlined material assignment with a
 - It is possible that models originated in older expansions may not import, or may not import correctly (we haven't investigated)
 - It's possible that some shaders are not implemented completely correctly and we simply haven't observed them in a situation that makes the error obvious
 - Objects that are themselves translucent will not perfectly match in-game translucency effects, because Blender does not have all of the blending modes available to do so (though a future release may provide some tooling for helping with this)
-- "billboard" textures and sub-meshes (ones where the same side always "faces" the camera) are not currently supported.   (TODO: Asher, did we ever put any thought/time into billboard texture support for glows and such?)
+- "billboard" textures and sub-meshes (ones where the same side always "faces" the camera) are not currently supported.
 
 ### Future Plans
 
@@ -59,9 +59,15 @@ WoWbject relies on name matching to find the files it needs to import assets cor
 
 The add-on will figure out which textures it should use, how they're combined, and if/how they use animated UVs based on what's in these files. It will also search for textures in a `textures` subdirectory, if one exists in the same directory as the `.obj` file being imported.
 
+For assets that have UV animations, the add-on uses a driver inside of a node group, which means that, if you want to adjust the speed/direction of a UV animation, the settings are all on this node right here:
+
+![import dialog](img/TexturePannerNode.png)
+
+The node automatically compensates for the frame rate of the scene that is active when the object is imported. It does this by referencing the scene's frame rate in the driver that the add-on sets up. As a result, if you import an object with UV animations into one file, and then append that object into another file, it will also append the scene that the driver references. You can get around this by removing the driver from the node before appending the object.
+
 ## Options and Preferences
 
-[words here]
+The add-on preferences are relatively simple at the moment. Setting the Report Verbosity changes what kinds of reports the importer shows in the info editor, console, and status bar. It defaults to only showing warnings and errors. The updater settings control if and how frequently the add-on checks for updates, and are largely self-explanatory.
 
 ## License
 
