@@ -59,6 +59,9 @@ class import_container():
         self.fallback_texture = None
         self.fallback_type = ''
         self.fallback_generated = False
+        self.err = set()
+        self.reports = []
+        self.damage_control = False
 
 
     def do_setup(self, files, directory, op_args, **kwargs):
@@ -96,26 +99,42 @@ class import_container():
                     self.source_files['unhandled'].append(file)
 
             progress.step("Setting up JSON Data")
-            self.setup_json_data()
+            load_step = self.setup_json_data()
+            if not load_step:
+                self.err.add('ERROR')
+                self.reports.append('Failed to load JSON Data')
+                self.damage_control = True
 
             progress.step("Unpacking Textures")
-            self.setup_textures()
+            load_step = self.setup_textures()
+            # if not load_step:
+            #     self.reports.append('Failed to load textures')
 
             progress.step("Initializing Object")
-            self.setup_bl_object()
+            load_step = self.setup_bl_object()
+            if not load_step:
+                self.err.add('ERROR')
+                self.reports.append('Failed to initialize blender object')
 
             raw = self.source_files.get('M2')
             if len(raw) > 0:
                 progress.step("Reading M2")
                 self.m2 = raw[0]
-                self.unpack_m2()
+                load_step = self.unpack_m2()
+
+            load_step = self.unpack_m2()
 
             progress.step("Generating Materials")
-            self.setup_materials()
+            load_step = self.setup_materials()
+            if not load_step:
+                self.reports.append('Failed to setup materials')
 
+            return (self.err, self.reports)
 
     def unpack_m2(self):
         if self.m2 == None:
+            self.err.add('INFO')
+            self.reports.append("M2 File not found")
             return False
 
         # Kaitai is now bundled, no need to import
@@ -143,6 +162,28 @@ class import_container():
                     if flag in {'spherical_billboard', 'cylindrical_billboard_lock_x', 'cylindrical_billboard_lock_y', 'cylindrical_billboard_lock_z'}:
                         marker.empty_display_type = 'CUBE'
 
+        # Won't make up for missing JSON data (will need to kaitai .skin files for texUnit data)
+        if self.damage_control:
+            main_chunk = None
+            for entry, item in self.m2_dict.items():
+                if entry == "chunks":
+                    for chunk in item:
+                        if chunk.chunk_type == "MD21":
+                            main_chunk = chunk.data.data
+                            break
+
+            if main_chunk:
+                textures = main_chunk.textures
+                combos = main_chunk.texture_combos
+                mats = main_chunk.materials
+
+                json_textures = {}
+
+                for i, tex in enumerate(textures.values):
+                    json_textures[i] = {tex.flags, tex.filename}
+
+        return True
+
 
     def setup_json_data(self, **kwargs):
         if not kwargs.get('config') == None:
@@ -160,11 +201,13 @@ class import_container():
             with open(config_path) as p:
                 self.json_config = json.load(p)
 
-        self.json_textures = self.json_config.get("textures")
-        self.json_tex_combos = self.json_config.get("textureCombos")
-        self.json_tex_units = self.json_config.get("skin", {}).get("textureUnits")
-        self.json_mats = self.json_config.get("materials")
-        self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes")
+        self.json_textures = self.json_config.get("textures", [])
+        self.json_tex_combos = self.json_config.get("textureCombos", [])
+        self.json_tex_units = self.json_config.get("skin", {}).get("textureUnits", [])
+        self.json_mats = self.json_config.get("materials", [])
+        self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes", [])
+
+        return True
 
 
     def setup_bl_object(self):
@@ -189,6 +232,8 @@ class import_container():
             self.op_args.get("name_override")
             )
 
+        return True
+
 
     def setup_textures(self):
         '''
@@ -203,6 +248,15 @@ class import_container():
             directory = os.path.join(self.source_directory, self.tex_dir)
 
         source_textures = self.source_files.get('texture')
+
+        if self.damage_control:
+            self.json_textures = {}
+            self.json_tex_combos = []
+            self.json_tex_units = {}
+            self.json_mats = {}
+            self.json_submeshes = {}
+            self.reports.append("Textures must be setup manually")
+            return False
 
         for tex in self.json_textures:
             texID = tex.get("fileDataID")
@@ -220,6 +274,8 @@ class import_container():
 
             if not match:
                 print("TEXTURE NOT FOUND")
+
+        return True
 
 
     def get_fallback_tex(self):
@@ -251,6 +307,7 @@ class import_container():
         Most of the work here happens in build_shader from node_groups.py
         '''
 
+        # if self.damage_control == True, self.json_tex_units wil be empty.
         for unit in self.json_tex_units:
             bl_mat = self.bl_obj.material_slots[unit.get("skinSectionIndex")].material
             tree = bl_mat.node_tree
@@ -278,6 +335,8 @@ class import_container():
                         self.base_shader,
                         import_container = self
                         )
+
+        return True
 
 
 # Currently unused
@@ -401,13 +460,14 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
 
     import_obj = import_container()
     import_obj.tex_dir = tex_dir
-    import_obj.do_setup(
+    reports = import_obj.do_setup(
         files,
         directory,
         op_args,
         reuse_mats=reuse_mats,
         base_shader=base_shader
         )
+    return reports
 
 # TODO: Logging
 def read_mtl(directory, mtl):

@@ -24,6 +24,7 @@ from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
 from .utilties import do_import
+from . import preferences
 
 
 class WOWBJ_OT_ToolTip(bpy.types.Operator):
@@ -99,8 +100,29 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
 
     def execute(self, context):
+        prefs = preferences.get_prefs()
+        verbosity = prefs.reporting
         args = self.as_keywords(ignore=("filter_glob",))
-        do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
+        reports = do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
+        if len(reports[0]) > 0:
+            error = ''
+
+            for err_type in reports[0]:
+                if error == '':
+                    error = err_type
+                else:
+                    if (error == 'INFO') and (err_type == 'ERROR'):
+                        error = err_type
+
+            if error == 'ERROR':
+                self.report({error}, "Import failure. Check the console for details")
+            elif error in verbosity:
+                self.report({error}, "Import succeeded, but has reports. Check the console for details. Reporting threshold can be adjusted in the add-on preferences")
+
+            for report in reports[1]:
+                print(report)
+
+
         return {'FINISHED'}
 
 

@@ -86,6 +86,20 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 								default="EMIT",
 								)
 
+	report_items = [
+		('WARNING', "Warnings", "Show warnings", 'ERROR', 1),
+		('ERROR', "Errors", "Show error reports", 'CANCEL', 2),
+		('INFO', "Info", "Show general reports", 'INFO', 4),
+		('PROPERTY', "Sub-Steps", "Show step-by-step info (annoyingly verbose)", 'TEXT', 8)
+		]
+
+	reporting: bpy.props.EnumProperty(
+								name="Report Level",
+								description='',
+								items=report_items,
+								options={'ENUM_FLAG'},
+								default=None,
+								)
 
 	def draw(self, context):
 		layout = self.layout
@@ -93,6 +107,9 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 		# works best if a column, or even just self.layout
 		mainrow = layout.row()
 		col = mainrow.column()
+		col.label(text="Report Verbosity:")
+		row = col.grid_flow(columns=2, align=True, even_rows=False)
+		row.prop(self, 'reporting', expand=True)
 
 		# updater draw function
 		# could also pass in col as third arg

@@ -86,6 +86,8 @@ def register():
 def unregister():
     from bpy.utils import unregister_class
 
+    addon_updater_ops.unregister()
+
     for cls in classes:
         unregister_class(cls)
 
