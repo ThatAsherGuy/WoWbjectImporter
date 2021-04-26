@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@master
     - name: Move contents to subdir
       id: move_files
-      run: shopt -s extglob && mkdir wowbject && mv !(wowbject) wowbject
+      run: shopt -s extglob && mkdir wowbject && mv * wowbject
     - name: Archive Release
       uses: thedoctor0/zip-release@master
       with:
