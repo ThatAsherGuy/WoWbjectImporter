@@ -13,7 +13,7 @@ jobs:
     - name: Archive Release
       uses: thedoctor0/zip-release@master
       with:
-        filename: 'wowbject_latest.zip'
+        filename: "${GITHUB_REF/refs\/tags\//wowbject_}.zip"
         exclusions: '*.git* /*img/*'
     - name: Upload Release
       uses: ncipollo/release-action@v1
