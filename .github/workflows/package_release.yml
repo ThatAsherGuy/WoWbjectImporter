@@ -9,14 +9,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Get tag
+      id: release_tag
+      run: echo ::set-output name=TAG::"${GITHUB_REF/refs\/tags\//wowbject_}.zip"
     - uses: actions/checkout@master
     - name: Archive Release
       uses: thedoctor0/zip-release@master
       with:
-        filename: ${GITHUB_REF/refs\/tags\//wowbject_}
+        filename: ${{ steps.release_tag.outputs.TAG }}
         exclusions: '*.git* /*img/*'
     - name: Upload Release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: ${GITHUB_REF/refs\/tags\//wowbject_}
+        artifacts: ${{ steps.release_tag.outputs.TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
