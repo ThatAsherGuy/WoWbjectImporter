@@ -13,12 +13,14 @@ jobs:
       id: release_tag
       run: echo ::set-output name=TAG::"${GITHUB_REF/refs\/tags\//wowbject_}.zip"
     - uses: actions/checkout@master
+    - name: Move contents to subdir
+      id: move_files
+      run: mkdir wowbject && mv !(wowbject) wowbject
     - name: Archive Release
       uses: thedoctor0/zip-release@master
       with:
         filename: ${{ steps.release_tag.outputs.TAG }}
         exclusions: '*.git* /*img/*'
-        directory: ..
     - name: Upload Release
       uses: ncipollo/release-action@v1
       with:
