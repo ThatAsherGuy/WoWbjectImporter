@@ -12,15 +12,13 @@ jobs:
     - name: Get tag
       id: release_tag
       run: echo ::set-output name=TAG::"${GITHUB_REF/refs\/tags\//wowbject_}.zip"
-    - name: Go up one level
-      id: go_up
-      run: cd ..
     - uses: actions/checkout@master
     - name: Archive Release
       uses: thedoctor0/zip-release@master
       with:
         filename: ${{ steps.release_tag.outputs.TAG }}
         exclusions: '*.git* /*img/*'
+        directory: ..
     - name: Upload Release
       uses: ncipollo/release-action@v1
       with:
