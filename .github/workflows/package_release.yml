@@ -13,10 +13,10 @@ jobs:
     - name: Archive Release
       uses: thedoctor0/zip-release@master
       with:
-        filename: "${GITHUB_REF/refs\/tags\//wowbject_}.zip"
+        filename: ${GITHUB_REF/refs\/tags\//wowbject_}
         exclusions: '*.git* /*img/*'
     - name: Upload Release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "wowbject_latest.zip"
+        artifacts: ${GITHUB_REF/refs\/tags\//wowbject_}
         token: ${{ secrets.GITHUB_TOKEN }}
