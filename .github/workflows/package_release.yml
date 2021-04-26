@@ -1,0 +1,22 @@
+name: Package Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: Archive Release
+      uses: thedoctor0/zip-release@master
+      with:
+        filename: 'wowbject_latest.zip'
+        exclusions: '*.git* /*img/*'
+    - name: Upload Release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "wowbject_latest.zip"
+        token: ${{ secrets.GITHUB_TOKEN }}

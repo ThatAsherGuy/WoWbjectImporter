@@ -200,3 +200,19 @@ class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
 		type=WoWbject_texture,
 		name="Textures"
 	)
+
+
+def get_rate(self):
+	return bpy.context.scene.render.fps
+
+
+class WoWbject_NodeGroupProperties(bpy.types.PropertyGroup):
+	"""
+	Mostly Summary Information
+	"""
+	rate: bpy.props.FloatProperty(
+		name="Rate",
+		description="",
+		default=24,
+		get=get_rate
+	)
