@@ -1,15 +1,15 @@
 # This is a generated file! Please edit source .ksy file and use kaitai-struct-compiler to rebuild
 
 from pkg_resources import parse_version
-from . import kaitaistruct
-from .kaitaistruct import KaitaiStruct, KaitaiStream, BytesIO
+import kaitaistruct
+from kaitaistruct import KaitaiStruct, KaitaiStream, BytesIO
 from enum import Enum
 
 
 if parse_version(kaitaistruct.__version__) < parse_version('0.9'):
     raise Exception("Incompatible Kaitai Struct Python API: 0.9 or later is required, but you have %s" % (kaitaistruct.__version__))
 
-class M2(KaitaiStruct):
+class Skel(KaitaiStruct):
 
     class M2materialBlendmodes(Enum):
         m2blend_opaque = 0
@@ -111,7 +111,7 @@ class M2(KaitaiStruct):
         self.chunks = []
         i = 0
         while True:
-            _ = M2.Chunk(self._io, self, self._root)
+            _ = Skel.SkelChunk(self._io, self, self._root)
             self.chunks.append(_)
             if self._io.is_eof():
                 break
@@ -125,8 +125,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.start = M2.C3vector(self._io, self, self._root)
-            self.end = M2.C3vector(self._io, self, self._root)
+            self.start = Skel.C3vector(self._io, self, self._root)
+            self.end = Skel.C3vector(self._io, self, self._root)
 
 
     class M2light(KaitaiStruct):
@@ -139,14 +139,14 @@ class M2(KaitaiStruct):
         def _read(self):
             self.type = self._io.read_u2le()
             self.bone = self._io.read_s2le()
-            self.position = M2.C3vector(self._io, self, self._root)
-            self.ambient_color = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.ambient_intensity = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.diffuse_color = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.diffuse_intensity = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.attenuation_start = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.attenuation_end = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.visibility = M2.M2track(M2.M2trackTypes.uint8, self._io, self, self._root)
+            self.position = Skel.C3vector(self._io, self, self._root)
+            self.ambient_color = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
+            self.ambient_intensity = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.diffuse_color = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
+            self.diffuse_intensity = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.attenuation_start = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.attenuation_end = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.visibility = Skel.M2track(Skel.M2trackTypes.uint8, self._io, self, self._root)
 
 
     class M2extendedParticle(KaitaiStruct):
@@ -160,60 +160,7 @@ class M2(KaitaiStruct):
             self.z_source = self._io.read_f4le()
             self.unknown1 = self._io.read_u4le()
             self.unknown2 = self._io.read_u4le()
-            self.unknown3 = M2.M2parttrack(M2.M2arrayTypes.fixed16, self._io, self, self._root)
-
-
-    class Chunk(KaitaiStruct):
-        def __init__(self, _io, _parent=None, _root=None):
-            self._io = _io
-            self._parent = _parent
-            self._root = _root if _root else self
-            self._read()
-
-        def _read(self):
-            self.chunk_type = (self._io.read_bytes(4)).decode(u"UTF-8")
-            self.chunk_size = self._io.read_u4le()
-            _on = self.chunk_type
-            if _on == u"PGD1":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkPgd1(_io__raw_data, self, self._root)
-            elif _on == u"DETL":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkDetl(_io__raw_data, self, self._root)
-            elif _on == u"LDV1":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkLdv1(_io__raw_data, self, self._root)
-            elif _on == u"AFID":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkAfid(_io__raw_data, self, self._root)
-            elif _on == u"TXAC":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkTxac(_io__raw_data, self, self._root)
-            elif _on == u"TXID":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkTxid(_io__raw_data, self, self._root)
-            elif _on == u"EXP2":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkExp2(_io__raw_data, self, self._root)
-            elif _on == u"MD21":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkMd21(_io__raw_data, self, self._root)
-            elif _on == u"SFID":
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.ChunkSfid(_io__raw_data, self, self._root)
-            else:
-                self._raw_data = self._io.read_bytes(self.chunk_size)
-                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
-                self.data = M2.Noop(_io__raw_data, self, self._root)
+            self.unknown3 = Skel.M2parttrack(Skel.M2arrayTypes.fixed16, self._io, self, self._root)
 
 
     class ChunkSka1(KaitaiStruct):
@@ -229,8 +176,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.attachments = M2.M2array(M2.M2arrayTypes.m2attachment, self._io, self, self._root)
-            self.attachment_lookup_table = M2.M2array(M2.M2arrayTypes.int16, self._io, self, self._root)
+            self.attachments = Skel.M2array(Skel.M2arrayTypes.m2attachment, self._io, self, self._root)
+            self.attachment_lookup_table = Skel.M2array(Skel.M2arrayTypes.int16, self._io, self, self._root)
 
 
     class ChunkSkpd(KaitaiStruct):
@@ -279,10 +226,10 @@ class M2(KaitaiStruct):
             self.flags = self._io.read_u4le()
             self.frequency = self._io.read_s2le()
             self.padding = self._io.read_u2le()
-            self.replay = M2.M2range(self._io, self, self._root)
+            self.replay = Skel.M2range(self._io, self, self._root)
             self.blend_time_in = self._io.read_u2le()
             self.blend_time_out = self._io.read_u2le()
-            self.bounds = M2.M2bounds(self._io, self, self._root)
+            self.bounds = Skel.M2bounds(self._io, self, self._root)
             self.variation_next = self._io.read_s2le()
             self.alias_next = self._io.read_u2le()
 
@@ -295,9 +242,9 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.translation = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.rotation = M2.M2track(M2.M2trackTypes.c4quaternion, self._io, self, self._root)
-            self.scaling = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
+            self.translation = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
+            self.rotation = Skel.M2track(Skel.M2trackTypes.c4quaternion, self._io, self, self._root)
+            self.scaling = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
 
 
     class M2batch(KaitaiStruct):
@@ -337,37 +284,37 @@ class M2(KaitaiStruct):
 
         def _read(self):
             self.particle_id = self._io.read_s4le()
-            self.flags = M2.M2particlesFlags(self._io, self, self._root)
-            self.position = M2.C3vector(self._io, self, self._root)
+            self.flags = Skel.M2particlesFlags(self._io, self, self._root)
+            self.position = Skel.C3vector(self._io, self, self._root)
             self.bone = self._io.read_u2le()
             self.texture_0 = self._io.read_bits_int_le(5)
             self.texture_1 = self._io.read_bits_int_le(5)
             self.texture_2 = self._io.read_bits_int_le(5)
             self._io.align_to_byte()
-            self.geometry_model_filename = M2.M2arrayStr(self._io, self, self._root)
-            self.recursion_model_filename = M2.M2arrayStr(self._io, self, self._root)
-            self.blending_type = KaitaiStream.resolve_enum(M2.Blendmodes, self._io.read_u1())
-            self.emitter_type = KaitaiStream.resolve_enum(M2.EmitterTypes, self._io.read_u1())
+            self.geometry_model_filename = Skel.M2arrayStr(self._io, self, self._root)
+            self.recursion_model_filename = Skel.M2arrayStr(self._io, self, self._root)
+            self.blending_type = KaitaiStream.resolve_enum(Skel.Blendmodes, self._io.read_u1())
+            self.emitter_type = KaitaiStream.resolve_enum(Skel.EmitterTypes, self._io.read_u1())
             self.particle_color_index = self._io.read_u2le()
             self.multi_texture_param_x = self._io.read_u1()
             self.multi_texture_param_y = self._io.read_u1()
             self.texture_tile_rotation = self._io.read_s2le()
             self.texture_dimensions_rows = self._io.read_u2le()
             self.texture_dimensions_columns = self._io.read_u2le()
-            self.emission_speed = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.speed_variation = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.vertical_range = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.horizontal_range = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.gravity = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.lifespan = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
+            self.emission_speed = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.speed_variation = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.vertical_range = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.horizontal_range = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.gravity = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.lifespan = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
             self.lifespan_vary = self._io.read_f4le()
-            self.emission_rate = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
+            self.emission_rate = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
             self.emission_rate_vary = self._io.read_f4le()
-            self.emission_area_length = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.emission_area_width = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.z_source = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.p = M2.ModelParticleParams(self._io, self, self._root)
-            self.enabled_in = M2.M2track(M2.M2trackTypes.uint16, self._io, self, self._root)
+            self.emission_area_length = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.emission_area_width = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.z_source = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.p = Skel.ModelParticleParams(self._io, self, self._root)
+            self.enabled_in = Skel.M2track(Skel.M2trackTypes.uint16, self._io, self, self._root)
 
 
     class Cfacet(KaitaiStruct):
@@ -378,10 +325,10 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.plane = M2.C4plane(self._io, self, self._root)
+            self.plane = Skel.C4plane(self._io, self, self._root)
             self.vertices = [None] * (3)
             for i in range(3):
-                self.vertices[i] = M2.C3vector(self._io, self, self._root)
+                self.vertices[i] = Skel.C3vector(self._io, self, self._root)
 
 
 
@@ -407,98 +354,98 @@ class M2(KaitaiStruct):
             self._m_values = [None] * (self.num)
             for i in range(self.num):
                 _on = self.m2array_type
-                if _on == M2.M2arrayTypes.fixed16:
-                    self._m_values[i] = M2.Fixed16(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2ribbon:
-                    self._m_values[i] = M2.M2ribbon(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.int16:
+                if _on == Skel.M2arrayTypes.fixed16:
+                    self._m_values[i] = Skel.Fixed16(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2ribbon:
+                    self._m_values[i] = Skel.M2ribbon(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.int16:
                     self._m_values[i] = self._io.read_s2le()
-                elif _on == M2.M2arrayTypes.m2array_c4quaternion:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.c4quaternion, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2vertex:
-                    self._m_values[i] = M2.M2vertex(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2light:
-                    self._m_values[i] = M2.M2light(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2sequence:
-                    self._m_values[i] = M2.M2sequence(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2array_fixed16:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2array_c3vector:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.c3vector, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2loop:
-                    self._m_values[i] = M2.M2loop(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2sequencefallback:
-                    self._m_values[i] = M2.M2sequencefallback(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.uint8:
+                elif _on == Skel.M2arrayTypes.m2array_c4quaternion:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.c4quaternion, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2vertex:
+                    self._m_values[i] = Skel.M2vertex(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2light:
+                    self._m_values[i] = Skel.M2light(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2sequence:
+                    self._m_values[i] = Skel.M2sequence(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_fixed16:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.fixed16, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_c3vector:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.c3vector, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2loop:
+                    self._m_values[i] = Skel.M2loop(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2sequencefallback:
+                    self._m_values[i] = Skel.M2sequencefallback(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.uint8:
                     self._m_values[i] = self._io.read_u1()
-                elif _on == M2.M2arrayTypes.uint32:
+                elif _on == Skel.M2arrayTypes.uint32:
                     self._m_values[i] = self._io.read_u4le()
-                elif _on == M2.M2arrayTypes.todo:
-                    self._m_values[i] = M2.M2arrayTodo(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2event:
-                    self._m_values[i] = M2.M2event(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.c4quaternion:
-                    self._m_values[i] = M2.C4quaternion(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2texturetransform:
-                    self._m_values[i] = M2.M2texturetransform(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.c3vector:
-                    self._m_values[i] = M2.C3vector(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2particle:
-                    self._m_values[i] = M2.M2particle(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2color:
-                    self._m_values[i] = M2.M2color(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2shadowbatch:
-                    self._m_values[i] = M2.M2shadowbatch(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.float:
+                elif _on == Skel.M2arrayTypes.todo:
+                    self._m_values[i] = Skel.M2arrayTodo(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2event:
+                    self._m_values[i] = Skel.M2event(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.c4quaternion:
+                    self._m_values[i] = Skel.C4quaternion(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2texturetransform:
+                    self._m_values[i] = Skel.M2texturetransform(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.c3vector:
+                    self._m_values[i] = Skel.C3vector(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2particle:
+                    self._m_values[i] = Skel.M2particle(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2color:
+                    self._m_values[i] = Skel.M2color(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2shadowbatch:
+                    self._m_values[i] = Skel.M2shadowbatch(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.float:
                     self._m_values[i] = self._io.read_f4le()
-                elif _on == M2.M2arrayTypes.c4vector:
-                    self._m_values[i] = M2.C4vector(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2texture:
-                    self._m_values[i] = M2.M2texture(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.c2vector:
-                    self._m_values[i] = M2.C2vector(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2array_c4vector:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.c4vector, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2extended_particle:
-                    self._m_values[i] = M2.M2extendedParticle(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.uint16:
+                elif _on == Skel.M2arrayTypes.c4vector:
+                    self._m_values[i] = Skel.C4vector(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2texture:
+                    self._m_values[i] = Skel.M2texture(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.c2vector:
+                    self._m_values[i] = Skel.C2vector(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_c4vector:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.c4vector, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2extended_particle:
+                    self._m_values[i] = Skel.M2extendedParticle(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.uint16:
                     self._m_values[i] = self._io.read_u2le()
-                elif _on == M2.M2arrayTypes.m2array_m2compquat:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.m2compquat, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2attachment:
-                    self._m_values[i] = M2.M2attachment(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.int8:
+                elif _on == Skel.M2arrayTypes.m2array_m2compquat:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.m2compquat, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2attachment:
+                    self._m_values[i] = Skel.M2attachment(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.int8:
                     self._m_values[i] = self._io.read_s1()
-                elif _on == M2.M2arrayTypes.m2array_float:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.float, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2array_c2vector:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.c2vector, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.frgb:
-                    self._m_values[i] = M2.Frgb(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2material:
-                    self._m_values[i] = M2.M2material(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2array_uint32:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.uint32, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2compquat:
-                    self._m_values[i] = M2.M2compquat(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.ubyte4:
-                    self._m_values[i] = M2.Ubyte4(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2camera:
-                    self._m_values[i] = M2.M2camera(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2compbone:
-                    self._m_values[i] = M2.M2compbone(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.pgd1_entry:
-                    self._m_values[i] = M2.Pgd1Entry(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2array_uint16:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2batch:
-                    self._m_values[i] = M2.M2batch(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2skinsection:
-                    self._m_values[i] = M2.M2skinsection(self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2array_uint8:
-                    self._m_values[i] = M2.M2array(M2.M2arrayTypes.uint8, self._io, self, self._root)
-                elif _on == M2.M2arrayTypes.m2textureweight:
-                    self._m_values[i] = M2.M2textureweight(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_float:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.float, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_c2vector:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.c2vector, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.frgb:
+                    self._m_values[i] = Skel.Frgb(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2material:
+                    self._m_values[i] = Skel.M2material(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_uint32:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.uint32, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2compquat:
+                    self._m_values[i] = Skel.M2compquat(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.ubyte4:
+                    self._m_values[i] = Skel.Ubyte4(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2camera:
+                    self._m_values[i] = Skel.M2camera(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2compbone:
+                    self._m_values[i] = Skel.M2compbone(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.pgd1_entry:
+                    self._m_values[i] = Skel.Pgd1Entry(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_uint16:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2batch:
+                    self._m_values[i] = Skel.M2batch(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2skinsection:
+                    self._m_values[i] = Skel.M2skinsection(self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2array_uint8:
+                    self._m_values[i] = Skel.M2array(Skel.M2arrayTypes.uint8, self._io, self, self._root)
+                elif _on == Skel.M2arrayTypes.m2textureweight:
+                    self._m_values[i] = Skel.M2textureweight(self._io, self, self._root)
 
             self._io.seek(_pos)
             return self._m_values if hasattr(self, '_m_values') else None
@@ -512,7 +459,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.weight = M2.M2track(M2.M2trackTypes.fixed16, self._io, self, self._root)
+            self.weight = Skel.M2track(Skel.M2trackTypes.fixed16, self._io, self, self._root)
 
 
     class M2bounds(KaitaiStruct):
@@ -523,7 +470,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.extent = M2.Caabox(self._io, self, self._root)
+            self.extent = Skel.Caabox(self._io, self, self._root)
             self.radius = self._io.read_f4le()
 
 
@@ -538,12 +485,12 @@ class M2(KaitaiStruct):
             self.type = self._io.read_u4le()
             self.far_clip = self._io.read_f4le()
             self.near_clip = self._io.read_f4le()
-            self.positions = M2.M2track(M2.M2trackTypes.todo, self._io, self, self._root)
-            self.position_base = M2.C3vector(self._io, self, self._root)
-            self.target_position = M2.M2track(M2.M2trackTypes.todo, self._io, self, self._root)
-            self.target_position_base = M2.C3vector(self._io, self, self._root)
-            self.roll = M2.M2track(M2.M2trackTypes.todo, self._io, self, self._root)
-            self.fov = M2.M2track(M2.M2trackTypes.todo, self._io, self, self._root)
+            self.positions = Skel.M2track(Skel.M2trackTypes.todo, self._io, self, self._root)
+            self.position_base = Skel.C3vector(self._io, self, self._root)
+            self.target_position = Skel.M2track(Skel.M2trackTypes.todo, self._io, self, self._root)
+            self.target_position_base = Skel.C3vector(self._io, self, self._root)
+            self.roll = Skel.M2track(Skel.M2trackTypes.todo, self._io, self, self._root)
+            self.fov = Skel.M2track(Skel.M2trackTypes.todo, self._io, self, self._root)
 
 
     class Ubyte4(KaitaiStruct):
@@ -575,7 +522,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.p_g_d_v1 = M2.M2array(M2.M2arrayTypes.pgd1_entry, self._io, self, self._root)
+            self.p_g_d_v1 = Skel.M2array(Skel.M2arrayTypes.pgd1_entry, self._io, self, self._root)
 
 
     class C34matrix(KaitaiStruct):
@@ -588,7 +535,7 @@ class M2(KaitaiStruct):
         def _read(self):
             self.columns = [None] * (4)
             for i in range(4):
-                self.columns[i] = M2.C3vector(self._io, self, self._root)
+                self.columns[i] = Skel.C3vector(self._io, self, self._root)
 
 
 
@@ -600,7 +547,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.data = M2.ChunkMd20(self._io, self, self._root)
+            self.data = Skel.ChunkMd20(self._io, self, self._root)
 
 
     class C3ray(KaitaiStruct):
@@ -611,8 +558,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.origin = M2.C3vector(self._io, self, self._root)
-            self.dir = M2.C3vector(self._io, self, self._root)
+            self.origin = Skel.C3vector(self._io, self, self._root)
+            self.dir = Skel.C3vector(self._io, self, self._root)
 
 
     class Cimvector(KaitaiStruct):
@@ -637,7 +584,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.normal = M2.C3vector(self._io, self, self._root)
+            self.normal = Skel.C3vector(self._io, self, self._root)
             self.distance = self._io.read_f4le()
 
 
@@ -721,7 +668,7 @@ class M2(KaitaiStruct):
             self.flags_unknown1 = self._io.read_bits_int_le(1) != 0
             self.flags_preventalpha = self._io.read_bits_int_le(1) != 0
             self._io.align_to_byte()
-            self.blending_mode = KaitaiStream.resolve_enum(M2.M2materialBlendmodes, self._io.read_u2le())
+            self.blending_mode = KaitaiStream.resolve_enum(Skel.M2materialBlendmodes, self._io.read_u2le())
 
 
     class M2color(KaitaiStruct):
@@ -732,8 +679,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.color = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.alpha = M2.M2track(M2.M2trackTypes.fixed16, self._io, self, self._root)
+            self.color = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
+            self.alpha = Skel.M2track(Skel.M2trackTypes.fixed16, self._io, self, self._root)
 
 
     class Frgb(KaitaiStruct):
@@ -769,20 +716,20 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.colors = M2.Fblock(M2.M2arrayTypes.frgb, self._io, self, self._root)
-            self.opacity = M2.Fblock(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.sizes = M2.Fblock(M2.M2arrayTypes.c2vector, self._io, self, self._root)
+            self.colors = Skel.Fblock(Skel.M2arrayTypes.frgb, self._io, self, self._root)
+            self.opacity = Skel.Fblock(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.sizes = Skel.Fblock(Skel.M2arrayTypes.c2vector, self._io, self, self._root)
             self.d = [None] * (2)
             for i in range(2):
                 self.d[i] = self._io.read_u4le()
 
-            self.intensity = M2.Fblock(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.unk2 = M2.Fblock(M2.M2arrayTypes.uint16, self._io, self, self._root)
+            self.intensity = Skel.Fblock(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.unk2 = Skel.Fblock(Skel.M2arrayTypes.uint16, self._io, self, self._root)
             self.unk = [None] * (3)
             for i in range(3):
                 self.unk[i] = self._io.read_f4le()
 
-            self.scales = M2.C3vector(self._io, self, self._root)
+            self.scales = Skel.C3vector(self._io, self, self._root)
             self.slowdown = self._io.read_f4le()
             self.unknown1 = [None] * (2)
             for i in range(2):
@@ -793,14 +740,14 @@ class M2(KaitaiStruct):
             for i in range(2):
                 self.unknown2[i] = self._io.read_f4le()
 
-            self.rot1 = M2.C3vector(self._io, self, self._root)
-            self.rot2 = M2.C3vector(self._io, self, self._root)
-            self.trans = M2.C3vector(self._io, self, self._root)
+            self.rot1 = Skel.C3vector(self._io, self, self._root)
+            self.rot2 = Skel.C3vector(self._io, self, self._root)
+            self.trans = Skel.C3vector(self._io, self, self._root)
             self.f2 = [None] * (4)
             for i in range(4):
                 self.f2[i] = self._io.read_f4le()
 
-            self.unknown_reference = M2.M2array(M2.M2arrayTypes.todo, self._io, self, self._root)
+            self.unknown_reference = Skel.M2array(Skel.M2arrayTypes.todo, self._io, self, self._root)
 
 
     class ChunkSkb1(KaitaiStruct):
@@ -816,8 +763,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.bones = M2.M2array(M2.M2arrayTypes.m2compbone, self._io, self, self._root)
-            self.key_bone_lookup = M2.M2array(M2.M2arrayTypes.int16, self._io, self, self._root)
+            self.bones = Skel.M2array(Skel.M2arrayTypes.m2compbone, self._io, self, self._root)
+            self.key_bone_lookup = Skel.M2array(Skel.M2arrayTypes.int16, self._io, self, self._root)
 
 
     class M2event(KaitaiStruct):
@@ -831,8 +778,8 @@ class M2(KaitaiStruct):
             self.identifier = (self._io.read_bytes(4)).decode(u"ASCII")
             self.data = self._io.read_u4le()
             self.bone = self._io.read_u4le()
-            self.position = M2.C3vector(self._io, self, self._root)
-            self.enabled = M2.M2trackbase(self._io, self, self._root)
+            self.position = Skel.C3vector(self._io, self, self._root)
+            self.enabled = Skel.M2trackbase(self._io, self, self._root)
 
 
     class ChunkSks1(KaitaiStruct):
@@ -848,9 +795,9 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.global_loops = M2.M2array(M2.M2arrayTypes.m2loop, self._io, self, self._root)
-            self.sequences = M2.M2array(M2.M2arrayTypes.m2sequence, self._io, self, self._root)
-            self.sequence_lookups = M2.M2array(M2.M2arrayTypes.int16, self._io, self, self._root)
+            self.global_loops = Skel.M2array(Skel.M2arrayTypes.m2loop, self._io, self, self._root)
+            self.sequences = Skel.M2array(Skel.M2arrayTypes.m2sequence, self._io, self, self._root)
+            self.sequence_lookups = Skel.M2array(Skel.M2arrayTypes.int16, self._io, self, self._root)
             self.unknown1 = [None] * (8)
             for i in range(8):
                 self.unknown1[i] = self._io.read_u1()
@@ -879,7 +826,7 @@ class M2(KaitaiStruct):
         def _read(self):
             self.type = self._io.read_u4le()
             self.flags = self._io.read_u4le()
-            self.filename = M2.M2arrayStr(self._io, self, self._root)
+            self.filename = Skel.M2arrayStr(self._io, self, self._root)
 
 
     class ChunkSkl1(KaitaiStruct):
@@ -896,7 +843,7 @@ class M2(KaitaiStruct):
 
         def _read(self):
             self.flags = self._io.read_u4le()
-            self.name = M2.M2arrayStr(self._io, self, self._root)
+            self.name = Skel.M2arrayStr(self._io, self, self._root)
             self.unknown1 = [None] * (4)
             for i in range(4):
                 self.unknown1[i] = self._io.read_u1()
@@ -942,10 +889,10 @@ class M2(KaitaiStruct):
             self.parent_bone = self._io.read_s2le()
             self.submesh_id = self._io.read_u2le()
             self.bone_name_crc = self._io.read_u4le()
-            self.translation = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.rotation = M2.M2track(M2.M2trackTypes.m2compquat, self._io, self, self._root)
-            self.scale = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.pivot = M2.C3vector(self._io, self, self._root)
+            self.translation = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
+            self.rotation = Skel.M2track(Skel.M2trackTypes.m2compquat, self._io, self, self._root)
+            self.scale = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
+            self.pivot = Skel.C3vector(self._io, self, self._root)
 
 
     class M2arrayStr(KaitaiStruct):
@@ -972,6 +919,51 @@ class M2(KaitaiStruct):
             return self._m_arraydata if hasattr(self, '_m_arraydata') else None
 
 
+    class SkelChunk(KaitaiStruct):
+        def __init__(self, _io, _parent=None, _root=None):
+            self._io = _io
+            self._parent = _parent
+            self._root = _root if _root else self
+            self._read()
+
+        def _read(self):
+            self.chunk_type = (self._io.read_bytes(4)).decode(u"UTF-8")
+            self.chunk_size = self._io.read_u4le()
+            _on = self.chunk_type
+            if _on == u"SKA1":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.ChunkSka1(_io__raw_data, self, self._root)
+            elif _on == u"AFID":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.ChunkAfid(_io__raw_data, self, self._root)
+            elif _on == u"BFID":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.ChunkBfid(_io__raw_data, self, self._root)
+            elif _on == u"SKPD":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.ChunkSkpd(_io__raw_data, self, self._root)
+            elif _on == u"SKS1":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.ChunkSks1(_io__raw_data, self, self._root)
+            elif _on == u"SKB1":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.ChunkSkb1(_io__raw_data, self, self._root)
+            elif _on == u"SKL1":
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.ChunkSkl1(_io__raw_data, self, self._root)
+            else:
+                self._raw_data = self._io.read_bytes(self.chunk_size)
+                _io__raw_data = KaitaiStream(BytesIO(self._raw_data))
+                self.data = Skel.Noop(_io__raw_data, self, self._root)
+
+
     class M2vertex(KaitaiStruct):
         def __init__(self, _io, _parent=None, _root=None):
             self._io = _io
@@ -980,7 +972,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.pos = M2.C3vector(self._io, self, self._root)
+            self.pos = Skel.C3vector(self._io, self, self._root)
             self.bone_weights = [None] * (4)
             for i in range(4):
                 self.bone_weights[i] = self._io.read_u1()
@@ -989,10 +981,10 @@ class M2(KaitaiStruct):
             for i in range(4):
                 self.bone_indices[i] = self._io.read_u1()
 
-            self.normal = M2.C3vector(self._io, self, self._root)
+            self.normal = Skel.C3vector(self._io, self, self._root)
             self.tex_coords = [None] * (2)
             for i in range(2):
-                self.tex_coords[i] = M2.C2vector(self._io, self, self._root)
+                self.tex_coords[i] = Skel.C2vector(self._io, self, self._root)
 
 
 
@@ -1007,46 +999,46 @@ class M2(KaitaiStruct):
             self.magic2 = self._io.read_bytes(4)
             if not self.magic2 == b"\x4D\x44\x32\x30":
                 raise kaitaistruct.ValidationNotEqualError(b"\x4D\x44\x32\x30", self.magic2, self._io, u"/types/chunk_md20/seq/0")
-            self.version = KaitaiStream.resolve_enum(M2.WowVersions, self._io.read_u4le())
-            self.name = M2.M2arrayStr(self._io, self, self._root)
+            self.version = KaitaiStream.resolve_enum(Skel.WowVersions, self._io.read_u4le())
+            self.name = Skel.M2arrayStr(self._io, self, self._root)
             self._raw_global_flags = self._io.read_bytes(4)
             _io__raw_global_flags = KaitaiStream(BytesIO(self._raw_global_flags))
-            self.global_flags = M2.Md20GlobalFlags(_io__raw_global_flags, self, self._root)
-            self.global_loops = M2.M2array(M2.M2arrayTypes.m2loop, self._io, self, self._root)
-            self.sequences = M2.M2array(M2.M2arrayTypes.m2sequence, self._io, self, self._root)
-            self.sequence_idx_hash_by_id = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.bones = M2.M2array(M2.M2arrayTypes.m2compbone, self._io, self, self._root)
-            self.bone_indices_by_id = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.vertices = M2.M2array(M2.M2arrayTypes.m2vertex, self._io, self, self._root)
+            self.global_flags = Skel.Md20GlobalFlags(_io__raw_global_flags, self, self._root)
+            self.global_loops = Skel.M2array(Skel.M2arrayTypes.m2loop, self._io, self, self._root)
+            self.sequences = Skel.M2array(Skel.M2arrayTypes.m2sequence, self._io, self, self._root)
+            self.sequence_idx_hash_by_id = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.bones = Skel.M2array(Skel.M2arrayTypes.m2compbone, self._io, self, self._root)
+            self.bone_indices_by_id = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.vertices = Skel.M2array(Skel.M2arrayTypes.m2vertex, self._io, self, self._root)
             self.num_skin_profiles = self._io.read_u4le()
-            self.colors = M2.M2array(M2.M2arrayTypes.m2color, self._io, self, self._root)
-            self.textures = M2.M2array(M2.M2arrayTypes.m2texture, self._io, self, self._root)
-            self.texture_weights = M2.M2array(M2.M2arrayTypes.m2textureweight, self._io, self, self._root)
-            self.texture_transforms = M2.M2array(M2.M2arrayTypes.m2texturetransform, self._io, self, self._root)
-            self.texture_indices_by_id = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.materials = M2.M2array(M2.M2arrayTypes.m2material, self._io, self, self._root)
-            self.bone_combos = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.texture_combos = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.texture_transform_bone_map = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.texture_weight_combos = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.texture_transform_combos = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.bounding_box = M2.Caabox(self._io, self, self._root)
+            self.colors = Skel.M2array(Skel.M2arrayTypes.m2color, self._io, self, self._root)
+            self.textures = Skel.M2array(Skel.M2arrayTypes.m2texture, self._io, self, self._root)
+            self.texture_weights = Skel.M2array(Skel.M2arrayTypes.m2textureweight, self._io, self, self._root)
+            self.texture_transforms = Skel.M2array(Skel.M2arrayTypes.m2texturetransform, self._io, self, self._root)
+            self.texture_indices_by_id = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.materials = Skel.M2array(Skel.M2arrayTypes.m2material, self._io, self, self._root)
+            self.bone_combos = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.texture_combos = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.texture_transform_bone_map = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.texture_weight_combos = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.texture_transform_combos = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.bounding_box = Skel.Caabox(self._io, self, self._root)
             self.bounding_sphere_radius = self._io.read_f4le()
-            self.collision_box = M2.Caabox(self._io, self, self._root)
+            self.collision_box = Skel.Caabox(self._io, self, self._root)
             self.collision_sphere_radius = self._io.read_f4le()
-            self.collision_indices = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.collision_positions = M2.M2array(M2.M2arrayTypes.c3vector, self._io, self, self._root)
-            self.collision_face_normals = M2.M2array(M2.M2arrayTypes.c3vector, self._io, self, self._root)
-            self.attachments = M2.M2array(M2.M2arrayTypes.m2attachment, self._io, self, self._root)
-            self.attachment_indices_by_id = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.events = M2.M2array(M2.M2arrayTypes.m2event, self._io, self, self._root)
-            self.lights = M2.M2array(M2.M2arrayTypes.m2light, self._io, self, self._root)
-            self.cameras = M2.M2array(M2.M2arrayTypes.m2camera, self._io, self, self._root)
-            self.camera_indices_by_id = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.ribbon_emitters = M2.M2array(M2.M2arrayTypes.m2ribbon, self._io, self, self._root)
-            self.particle_emitters = M2.M2array(M2.M2arrayTypes.m2particle, self._io, self, self._root)
+            self.collision_indices = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.collision_positions = Skel.M2array(Skel.M2arrayTypes.c3vector, self._io, self, self._root)
+            self.collision_face_normals = Skel.M2array(Skel.M2arrayTypes.c3vector, self._io, self, self._root)
+            self.attachments = Skel.M2array(Skel.M2arrayTypes.m2attachment, self._io, self, self._root)
+            self.attachment_indices_by_id = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.events = Skel.M2array(Skel.M2arrayTypes.m2event, self._io, self, self._root)
+            self.lights = Skel.M2array(Skel.M2arrayTypes.m2light, self._io, self, self._root)
+            self.cameras = Skel.M2array(Skel.M2arrayTypes.m2camera, self._io, self, self._root)
+            self.camera_indices_by_id = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.ribbon_emitters = Skel.M2array(Skel.M2arrayTypes.m2ribbon, self._io, self, self._root)
+            self.particle_emitters = Skel.M2array(Skel.M2arrayTypes.m2particle, self._io, self, self._root)
             if self.global_flags.flag_use_texture_combiner_combos:
-                self.texture_combiner_combos = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
+                self.texture_combiner_combos = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
 
 
 
@@ -1103,7 +1095,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.position = M2.C3vector(self._io, self, self._root)
+            self.position = Skel.C3vector(self._io, self, self._root)
             self.radius = self._io.read_f4le()
 
 
@@ -1161,26 +1153,26 @@ class M2(KaitaiStruct):
         def _read(self):
             self.interpolation_type = self._io.read_s2le()
             self.global_sequence = self._io.read_s2le()
-            self.timestamps = M2.M2array(M2.M2arrayTypes.m2array_uint32, self._io, self, self._root)
+            self.timestamps = Skel.M2array(Skel.M2arrayTypes.m2array_uint32, self._io, self, self._root)
             _on = self.m2track_type
-            if _on == M2.M2trackTypes.uint8:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_uint8, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.c2vector:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_c2vector, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.c4quaternion:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_c4quaternion, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.m2compquat:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_m2compquat, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.uint16:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_uint16, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.float:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_float, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.fixed16:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_fixed16, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.todo:
-                self.values = M2.M2array(M2.M2arrayTypes.todo, self._io, self, self._root)
-            elif _on == M2.M2trackTypes.c3vector:
-                self.values = M2.M2array(M2.M2arrayTypes.m2array_c3vector, self._io, self, self._root)
+            if _on == Skel.M2trackTypes.uint8:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_uint8, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.c2vector:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_c2vector, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.c4quaternion:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_c4quaternion, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.m2compquat:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_m2compquat, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.uint16:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_uint16, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.float:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_float, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.fixed16:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_fixed16, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.todo:
+                self.values = Skel.M2array(Skel.M2arrayTypes.todo, self._io, self, self._root)
+            elif _on == Skel.M2trackTypes.c3vector:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2array_c3vector, self._io, self, self._root)
 
 
     class Crange(KaitaiStruct):
@@ -1220,10 +1212,10 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.times = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
+            self.times = Skel.M2array(Skel.M2arrayTypes.fixed16, self._io, self, self._root)
             _on = self.m2array_type
-            if _on == M2.M2arrayTypes.fixed16:
-                self.values = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
+            if _on == Skel.M2arrayTypes.fixed16:
+                self.values = Skel.M2array(Skel.M2arrayTypes.fixed16, self._io, self, self._root)
 
 
     class Md20GlobalFlags(KaitaiStruct):
@@ -1266,8 +1258,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.x = M2.Fp69(self._io, self, self._root)
-            self.y = M2.Fp69(self._io, self, self._root)
+            self.x = Skel.Fp69(self._io, self, self._root)
+            self.y = Skel.Fp69(self._io, self, self._root)
 
 
     class Cargb(KaitaiStruct):
@@ -1336,7 +1328,7 @@ class M2(KaitaiStruct):
         def _read(self):
             self.interpolation_type = self._io.read_u2le()
             self.global_sequence = self._io.read_u2le()
-            self.timestamps = M2.M2array(M2.M2arrayTypes.m2array_uint32, self._io, self, self._root)
+            self.timestamps = Skel.M2array(Skel.M2arrayTypes.m2array_uint32, self._io, self, self._root)
 
 
     class C4vector(KaitaiStruct):
@@ -1363,7 +1355,7 @@ class M2(KaitaiStruct):
         def _read(self):
             self.columns = [None] * (3)
             for i in range(3):
-                self.columns[i] = M2.C3vector(self._io, self, self._root)
+                self.columns[i] = Skel.C3vector(self._io, self, self._root)
 
 
 
@@ -1375,14 +1367,14 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.old = M2.M2particleOld(self._io, self, self._root)
+            self.old = Skel.M2particleOld(self._io, self, self._root)
             self.multi_texture_param0 = [None] * (2)
             for i in range(2):
-                self.multi_texture_param0[i] = M2.Vector2fp69(self._io, self, self._root)
+                self.multi_texture_param0[i] = Skel.Vector2fp69(self._io, self, self._root)
 
             self.multi_texture_param1 = [None] * (2)
             for i in range(2):
-                self.multi_texture_param1[i] = M2.Vector2fp69(self._io, self, self._root)
+                self.multi_texture_param1[i] = Skel.Vector2fp69(self._io, self, self._root)
 
 
 
@@ -1408,30 +1400,30 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.timestamps = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
+            self.timestamps = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
             _on = self.m2array_type
-            if _on == M2.M2arrayTypes.fixed16:
-                self.values = M2.M2array(M2.M2arrayTypes.fixed16, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.uint8:
-                self.values = M2.M2array(M2.M2arrayTypes.uint8, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.todo:
-                self.values = M2.M2array(M2.M2arrayTypes.todo, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.c4quaternion:
-                self.values = M2.M2array(M2.M2arrayTypes.c4quaternion, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.c3vector:
-                self.values = M2.M2array(M2.M2arrayTypes.c3vector, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.float:
-                self.values = M2.M2array(M2.M2arrayTypes.float, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.c4vector:
-                self.values = M2.M2array(M2.M2arrayTypes.c4vector, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.c2vector:
-                self.values = M2.M2array(M2.M2arrayTypes.c2vector, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.uint16:
-                self.values = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.frgb:
-                self.values = M2.M2array(M2.M2arrayTypes.frgb, self._io, self, self._root)
-            elif _on == M2.M2arrayTypes.m2compquat:
-                self.values = M2.M2array(M2.M2arrayTypes.m2compquat, self._io, self, self._root)
+            if _on == Skel.M2arrayTypes.fixed16:
+                self.values = Skel.M2array(Skel.M2arrayTypes.fixed16, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.uint8:
+                self.values = Skel.M2array(Skel.M2arrayTypes.uint8, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.todo:
+                self.values = Skel.M2array(Skel.M2arrayTypes.todo, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.c4quaternion:
+                self.values = Skel.M2array(Skel.M2arrayTypes.c4quaternion, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.c3vector:
+                self.values = Skel.M2array(Skel.M2arrayTypes.c3vector, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.float:
+                self.values = Skel.M2array(Skel.M2arrayTypes.float, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.c4vector:
+                self.values = Skel.M2array(Skel.M2arrayTypes.c4vector, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.c2vector:
+                self.values = Skel.M2array(Skel.M2arrayTypes.c2vector, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.uint16:
+                self.values = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.frgb:
+                self.values = Skel.M2array(Skel.M2arrayTypes.frgb, self._io, self, self._root)
+            elif _on == Skel.M2arrayTypes.m2compquat:
+                self.values = Skel.M2array(Skel.M2arrayTypes.m2compquat, self._io, self, self._root)
 
 
     class Todo(KaitaiStruct):
@@ -1478,8 +1470,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.model_rotation_speed_min = M2.C3vector(self._io, self, self._root)
-            self.model_rotation_speed_max = M2.C3vector(self._io, self, self._root)
+            self.model_rotation_speed_min = Skel.C3vector(self._io, self, self._root)
+            self.model_rotation_speed_max = Skel.C3vector(self._io, self, self._root)
 
 
     class ChunkBfid(KaitaiStruct):
@@ -1519,7 +1511,7 @@ class M2(KaitaiStruct):
             self.anim_file_ids = []
             i = 0
             while not self._io.is_eof():
-                self.anim_file_ids.append(M2.AnimFileId(self._io, self, self._root))
+                self.anim_file_ids.append(Skel.AnimFileId(self._io, self, self._root))
                 i += 1
 
 
@@ -1537,7 +1529,7 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.content = M2.M2array(M2.M2arrayTypes.m2extended_particle, self._io, self, self._root)
+            self.content = Skel.M2array(Skel.M2arrayTypes.m2extended_particle, self._io, self, self._root)
 
 
     class Caabox(KaitaiStruct):
@@ -1548,8 +1540,8 @@ class M2(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.min = M2.C3vector(self._io, self, self._root)
-            self.max = M2.C3vector(self._io, self, self._root)
+            self.min = Skel.C3vector(self._io, self, self._root)
+            self.max = Skel.C3vector(self._io, self, self._root)
 
 
     class M2skinsection(KaitaiStruct):
@@ -1575,8 +1567,8 @@ class M2(KaitaiStruct):
             self.bone_combo_index = self._io.read_u2le()
             self.bone_influences = self._io.read_u2le()
             self.center_bone_index = self._io.read_u2le()
-            self.center_position = M2.C3vector(self._io, self, self._root)
-            self.sort_center_position = M2.C3vector(self._io, self, self._root)
+            self.center_position = Skel.C3vector(self._io, self, self._root)
+            self.sort_center_position = Skel.C3vector(self._io, self, self._root)
             self.sort_radius = self._io.read_f4le()
 
 
@@ -1710,8 +1702,8 @@ class M2(KaitaiStruct):
             self.id = self._io.read_u4le()
             self.bone = self._io.read_u2le()
             self.unknown = self._io.read_u2le()
-            self.position = M2.C3vector(self._io, self, self._root)
-            self.animate_attached = M2.M2track(M2.M2trackTypes.uint8, self._io, self, self._root)
+            self.position = Skel.C3vector(self._io, self, self._root)
+            self.animate_attached = Skel.M2track(Skel.M2trackTypes.uint8, self._io, self, self._root)
 
 
     class M2ribbon(KaitaiStruct):
@@ -1724,20 +1716,20 @@ class M2(KaitaiStruct):
         def _read(self):
             self.ribbon_id = self._io.read_u4le()
             self.bone_index = self._io.read_u4le()
-            self.position = M2.C3vector(self._io, self, self._root)
-            self.texture_indices = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.material_indices = M2.M2array(M2.M2arrayTypes.uint16, self._io, self, self._root)
-            self.color_track = M2.M2track(M2.M2trackTypes.c3vector, self._io, self, self._root)
-            self.alpha_track = M2.M2track(M2.M2trackTypes.fixed16, self._io, self, self._root)
-            self.height_above_track = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
-            self.height_below_track = M2.M2track(M2.M2trackTypes.float, self._io, self, self._root)
+            self.position = Skel.C3vector(self._io, self, self._root)
+            self.texture_indices = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.material_indices = Skel.M2array(Skel.M2arrayTypes.uint16, self._io, self, self._root)
+            self.color_track = Skel.M2track(Skel.M2trackTypes.c3vector, self._io, self, self._root)
+            self.alpha_track = Skel.M2track(Skel.M2trackTypes.fixed16, self._io, self, self._root)
+            self.height_above_track = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
+            self.height_below_track = Skel.M2track(Skel.M2trackTypes.float, self._io, self, self._root)
             self.edges_per_second = self._io.read_f4le()
             self.edge_lifetime = self._io.read_f4le()
             self.gravity = self._io.read_f4le()
             self.texture_rows = self._io.read_u2le()
             self.texture_cols = self._io.read_u2le()
-            self.tex_slot_track = M2.M2track(M2.M2trackTypes.uint16, self._io, self, self._root)
-            self.visibility_track = M2.M2track(M2.M2trackTypes.uint8, self._io, self, self._root)
+            self.tex_slot_track = Skel.M2track(Skel.M2trackTypes.uint16, self._io, self, self._root)
+            self.visibility_track = Skel.M2track(Skel.M2trackTypes.uint8, self._io, self, self._root)
             self.priority_plane = self._io.read_s2le()
             self.padding = self._io.read_u2le()
 

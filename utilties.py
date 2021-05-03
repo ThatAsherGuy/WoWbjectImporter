@@ -22,6 +22,7 @@ import bpy
 import os
 import json
 import bmesh
+import mathutils
 from math import radians
 from .node_groups import build_shader
 from .lookup_funcs import get_vertex_shader, get_shadereffects, get_bone_flags
@@ -126,7 +127,10 @@ class import_container():
                 self.m2 = raw[0]
                 load_step = self.unpack_m2()
 
-            load_step = self.unpack_m2()
+            # load_step = self.unpack_m2()
+            do_particles = False
+            if do_particles:
+                self.setup_particles()
 
             progress.step("Generating Materials")
             load_step = self.setup_materials()
@@ -143,6 +147,8 @@ class import_container():
         # Kaitai is now bundled, no need to import
         # load_kaitai()
         self.use_m2, self.m2_dict, self.anim_combos, self.anim_transforms, self.bones = read_m2(self.source_directory, self.m2)
+
+        main_chunk = self.m2_dict
 
         # Bone/billboard debugging
         if self.do_bones:
@@ -167,14 +173,6 @@ class import_container():
 
         # Won't make up for missing JSON data (will need to kaitai .skin files for texUnit data)
         if self.damage_control:
-            main_chunk = None
-            for entry, item in self.m2_dict.items():
-                if entry == "chunks":
-                    for chunk in item:
-                        if chunk.chunk_type == "MD21":
-                            main_chunk = chunk.data.data
-                            break
-
             if main_chunk:
                 textures = main_chunk.textures
                 combos = main_chunk.texture_combos
@@ -342,6 +340,60 @@ class import_container():
 
         return True
 
+    def setup_particles(self):
+
+        emitter_geom = bpy.data.meshes.new("Particle_Thingy_Geom")
+        emmitter_obj = bpy.data.objects.new("Particle_Thingy_Obj", emitter_geom)
+        bm = bmesh.new()
+
+        bm.verts.ensure_lookup_table()
+        bm.verts.index_update()
+
+        groups = []
+
+        self.particle_emitters = self.m2_dict.particle_emitters.values
+
+        for i, emitter in enumerate(self.m2_dict.particle_emitters.values):
+            particle = emitter.old
+            p_tex = [emitter.multi_texture_param0, emitter.multi_texture_param1]
+
+            marker = bpy.data.objects.new("Jimbo", None)
+            marker.location = (particle.position.x, particle.position.y, particle.position.z)
+            marker.empty_display_size = 0.125
+            img_path  = self.json_textures[particle.texture]
+
+            img = bpy.data.images.load(self.json_textures[particle.texture].get("path"))
+
+            em_types = ['IMAGE', 'SPHERE', 'SINGLE_ARROW']
+            marker.empty_display_type = em_types[particle.emitter_type - 1]
+            marker.empty_display_type = 'IMAGE'
+            marker.data = img
+
+            bpy.context.view_layer.active_layer_collection.collection.objects.link(marker)
+            # print(str(marker.location))
+
+            mat = mathutils.Matrix.Translation((particle.position.x, particle.position.y, particle.position.z))
+
+            if particle.emitter_type == 1:
+                verts = bmesh.ops.create_grid(bm, x_segments=2, y_segments=2, size=0.1, matrix=mat)
+            elif particle.emitter_type == 2:
+                verts = bmesh.ops.create_uvsphere(bm, u_segments=2, v_segments=2, diameter=0.1, matrix=mat)
+            else:
+                verts = bmesh.ops.create_uvsphere(bm, u_segments=2, v_segments=2, diameter=0.1, matrix=mat)
+
+            verts = verts.get('verts')
+            vert_indicies = [v.index for v in verts]
+            groups.append(vert_indicies)
+
+        bm.to_mesh(emitter_geom)
+        bm.free()
+
+        for i, group in enumerate(groups):
+            vg = emmitter_obj.vertex_groups.new(name="Franklin_" + str(i))
+            vg.add(group, 1.0, "REPLACE")
+
+        bpy.context.view_layer.active_layer_collection.collection.objects.link(emmitter_obj)
+        print("++++++++++++++++++++")
 
 # Currently unused
 class mat_def():

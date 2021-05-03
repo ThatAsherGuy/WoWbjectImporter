@@ -203,3 +203,19 @@ def get_interpolation_type(index):
         'HERMITE'
     )
     return types[index]
+
+
+# MODELPARTICLE_FLAGS_WORLDSPACE     0x8         Particles travel "up" in world space, rather than model
+# MODELPARTICLE_FLAGS_DONOTTRAIL     0x10        Do not trail 
+# MODELPARTICLE_FLAGS_MODELSPACE     0x80        Particles in model space
+# MODELPARTICLE_FLAGS_PINNED         0x400       Pinned Particles, their quad enlarges from their creation  position to where they expand 
+# MODELPARTICLE_FLAGS_DONOTBILLBOARD 0x1000      Wiki says: XYQuad Particles. They align to XY axis facing Z axis direction
+# MODELPARTICLE_FLAGS_RANDOMTEXTURE  0x10000     Choose Random Texture
+# MODELPARTICLE_FLAGS_OUTWARD        0x20000     "Outward" particles, most emitters have this and their particles move away from the origin, when they don't the particles start at origin+(speed*life) and move towards the origin
+# MODELPARTICLE_FLAGS_RANDOMSTART    0x200000    Random Flip Book Start
+# MODELPARTICLE_FLAGS_BONEGENERATOR  0x1000000   Bone generator = bone, not joint
+# MODELPARTICLE_FLAGS_DONOTTHROTTLE  0x4000000   Do not throttle emission rate based on distance
+# MODELPARTICLE_FLAGS_MULTITEXTURE   0x10000000  Particle uses multi-texturing. This affects emitter values
+# MODELPARTICLE_EMITTER_PLANE  1
+# MODELPARTICLE_EMITTER_SPHERE 2
+# MODELPARTICLE_EMITTER_SPLINE 3

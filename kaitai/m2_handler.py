@@ -28,6 +28,8 @@ import os
 import platform
 import site
 import subprocess
+import mathutils
+import math
 from ..lookup_funcs import get_interpolation_type
 
 enc = sys.getdefaultencoding()
@@ -175,37 +177,92 @@ def read_m2(directory, file):
                 rotation = transform.rotation
                 scaling = transform.scaling
 
-                do_translate, translate_interp = read_track(translation)
-                do_rotate, rotate_interp = read_track(rotation)
-                do_scale, scale_interp = read_track(scaling)
+                do_translate, translate_interp, translate_rate = read_track(translation, 'VEC')
+                do_rotate, rotate_interp, rotate_rate = read_track(rotation, 'QUAT')
+                do_scale, scale_interp, scale_rate = read_track(scaling, 'VEC')
 
                 if do_translate:
-                    print("Translation interp: " + translate_interp)
-                    rate = translation.timestamps.values[0].values[1] / 1000 # TODO: Double-check time unit
                     translate_vectors = translation.values.values[0].values[1]
-                    transform_container['translate'] = (translate_vectors.x / rate, translate_vectors.y / rate, translate_vectors.z / rate)
+                    translate_vectors = mathutils.Vector((translate_vectors.x, translate_vectors.y, translate_vectors.z))
+                    transform_container['translate'] = translate_vectors * translate_rate
 
                 if do_rotate:
-                    print("Rotation interp: " + rotate_interp)
-                    rate = rotation.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
-                    rotate_vectors = rotation.values.values[0].values[1] / rate
+                    if rotate_interp == 'CONST':
+                        i = 0
+                        rate = 20
+                    else:
+                        i = 1
+                        rate = rotation.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
+
+                    r_vec = rotation.values.values[0].values[i]
+                    rotate_vectors = mathutils.Quaternion((r_vec.w, r_vec.x, r_vec.y, r_vec.z))
                     transform_container['rotate'] = rotate_vectors
 
                 if do_scale:
-                    print("Scale interp: " + scale_interp)
-                    rate = scaling.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
-                    scale_vectors = scaling.values.values[0].values[1] / rate
+                    rate = scaling.timestamps.values[0].values[-1] / 1000 if not (scale_interp == 'CONST') else 15
+                    scale_vectors = scaling.values.values[0].values[-1]
                     transform_container['scale'] = (scale_vectors.x / rate, scale_vectors.y / rate, scale_vectors.z / rate)
 
                 unpacked_transforms.append(transform_container)
 
-            return (True, m2_dict, anim_chunk_combos, unpacked_transforms, bones)
+            return (True, md21_chunk, anim_chunk_combos, unpacked_transforms, bones)
 
         return (False, None, None, None, None)
 
 
-def read_track(track):
+def read_track(track, type):
     track_type = get_interpolation_type(track.interpolation_type)
     has_values = True if len(track.timestamps.values) > 0 else False
 
-    return (has_values, track_type)
+    if has_values:
+        nvals = len(track.values.values[0].values)
+        
+        if type == 'VEC':
+            delta = (0.0, 0.0, 0.0)
+            prev = (0.0, 0.0, 0.0)
+            for val in track.values.values[0].values:
+                delta = (
+                    delta[0] + val.x - prev[0],
+                    delta[1] + val.y - prev[1],
+                    delta[2] + val.z - prev[2]
+                    )
+                prev = (val.x, val.y, val.z)
+
+            avg = (delta[0]/nvals, delta[1]/nvals, delta[2]/nvals)
+            
+        elif type == 'QUAT':
+            delta = (0.0, 0.0, 0.0, 0.0)
+            prev = (0.0, 0.0, 0.0, 0.0)
+            for val in track.values.values[0].values:
+                delta = (
+                    delta[0] + val.x - prev[0],
+                    delta[1] + val.y - prev[1],
+                    delta[2] + val.z - prev[2],
+                    delta[3] + val.w - prev[3]
+                    )
+                prev = (val.x, val.y, val.z, val.w)
+
+            avg = (delta[0]/nvals, delta[1]/nvals, delta[2]/nvals, delta[3]/nvals)
+
+        # True if the interp type is constant
+        if nvals == 1:
+            avg = 4
+        elif nvals == 2:
+            rate = track.timestamps.values[0].values[1] / 1000
+            avg = mathutils.Vector([i/rate for i in avg])
+        else:
+            rate = 0.0
+            prev_step = 0
+
+            for step in track.timestamps.values[0].values:
+                rate += abs(step - prev_step)
+                prev_step = step
+
+            # keyframes are given in milliseconds, rate/nvals gives avg time step per frame
+            # 1000/(rate/nvals) gives us the rate per second.
+            rate = 1000 / (rate/nvals)
+            avg = mathutils.Vector([i * rate for i in avg])
+
+        return (has_values, track_type, avg)
+    else:
+        return (has_values, track_type, 0)

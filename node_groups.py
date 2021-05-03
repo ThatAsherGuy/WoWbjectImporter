@@ -340,7 +340,7 @@ def setup_panner(node, index, **kwargs):
     if settings_container:
         anim_transforms = settings_container.anim_transforms
         panner_vectors = anim_transforms[min(index, len(anim_transforms))]
-        print(str(panner_vectors))
+        # print(str(panner_vectors))
         for item, val in panner_vectors.items():
             if item == 'translate':
                 node.inputs[2].default_value = val[0]
