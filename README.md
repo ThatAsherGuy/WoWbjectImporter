@@ -15,6 +15,7 @@ TL;DR: This Blender add-on + WoW.Export = Streamlined material assignment with a
 
 ### Current Non-features/Mis-features
 
+- For full functionality, you will need to export the model from wow.export twice (see "Using")
 - Other than UV animation, does not attempt any sort of model animation (this will be addressed when wow.export supports animation export)
 - Design and testing has been focused primarily on weapons and armors, other things (characters, monsters, maps) have not been particularly tested, though the set of shader nodes provided should be largely applicable to anything you might import, even if the texture assignment isn't automatic
 - In particular, you're on your own when it comes to character models (though our collection of shaders should be quite useful for them)
@@ -39,17 +40,17 @@ Things we are actively looking at doing in the near(ish) future:
 
 Install as any other addon, access via `File > Import > WoWbject`. You will also need Kruithne's wonderful [wow.export](https://github.com/Kruithne/wow.export) so that you'll be able to have something you can import. The WoWbject importer currently *requires* several features that are exclusive to wow.export, so don't try to use other export tools right now.
 
-You will need to have wow.export configured in a specific way. You will need (in the wow.export settings page):
+## Using
+
+WoWbject Import is built to work with WoW.Export, and it reads both the JSON files that WoW.Export produces and the raw m2 files that it can export. You will need to install wow.export and have it configured in a specific way (in the wow.export settings page):
 
 - **Enable Shared Textures** must be *disabled*
 - **Export UV2 Data** must be *enabled*
 - **Export Meta Data** must be *enabled for M2 files*
 
-## Using
+**You will need to export the model twice:** The importer needs two different types of files from wow.export, so  Use "**export as OBJ**", followed by "**export as M2 / WMO (Raw)**". If you are in a hurry you can skip the M2/RAW step, though you will lose some features by doing so (primarily UV animation setup). We may remove the double-export requirement at some point in the future, but it's easy enough to do the double export that it's not at the top of our list.
 
-WoWbject Import is built to work with WoW.Export, and it reads both the JSON files that WoW.Export produces and the raw m2 files that it can export. This add-on works best if both of those files are in the same folder as the model you import. This means that for best results, you will need to do "export as OBJ" in wow.export, followed by "export as M2 / WMO (Raw)". If you are in a hurry you can skip the M2/RAW step, though you will lose some features by doing so (primarily UV animation setup)
-
-Like most Blender importers, you'll find the WoWbject  import operator in the File→Import menu. Click it, and it'll pop up a file browser that looks something like this:
+Like most Blender importers, you'll find the WoWbject import operator in the File→Import menu. Click it, and it'll pop up a file browser that looks something like this:
 
 ![import dialog](img/import_dialog.png)
 
