@@ -211,6 +211,6 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
 
     # Defaults to main collection if no collection exists.
     bpy.context.view_layer.active_layer_collection.collection.objects.link(newObj)
-    newObj.select_set(True)
+    # newObj.select_set(True)
 
     return newObj

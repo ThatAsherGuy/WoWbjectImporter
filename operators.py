@@ -20,6 +20,8 @@
 
 import bpy
 import os
+
+from bpy.props import StringProperty
 from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
@@ -32,6 +34,7 @@ class WOWBJ_OT_ToolTip(bpy.types.Operator):
     bl_idname = "wowbj.tool_tip"
     bl_label = "WoWbject Tool Tip"
     bl_description = "If you can read this, something is broken."
+    bl_options = {'INTERNAL'}
 
     tooltip: bpy.props.StringProperty(default="")
 
@@ -41,6 +44,24 @@ class WOWBJ_OT_ToolTip(bpy.types.Operator):
 
     def execute(self, context):
         return {'CANCELLED'}
+
+
+class WOWBJ_OT_SetDefaultDir(bpy.types.Operator):
+    """Use the current directory as the default directory for importing"""
+    bl_idname = 'wowbj.set_default_dir'
+    bl_label = 'WoWbject Set Default Directory'
+    bl_options = {'INTERNAL', 'UNDO'}
+
+    new_dir: StringProperty(
+        name="Directory",
+        default="",
+        subtype='DIR_PATH'
+    )
+
+    def execute(self, context):
+        prefs = preferences.get_prefs()
+        prefs.default_dir = self.new_dir
+        return {'FINISHED'}
 
 
 class WOWBJ_OT_Import(bpy.types.Operator):
@@ -95,6 +116,10 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
 
     def invoke(self, context, _event):
+        prefs = preferences.get_prefs()
+        default_dir = prefs.default_dir
+        if not default_dir == "":
+            self.directory = default_dir
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -102,6 +127,7 @@ class WOWBJ_OT_Import(bpy.types.Operator):
     def execute(self, context):
         prefs = preferences.get_prefs()
         verbosity = prefs.reporting
+        default_dir = prefs.default_dir
         args = self.as_keywords(ignore=("filter_glob",))
         reports = do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
 
@@ -147,6 +173,12 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         col.use_property_split = True
         col.label(text="Shading:")
         col.prop(self, 'base_shader', expand=False)
+
+        selector_params = context.space_data.params
+
+        col.label(text="Misc:")
+        op = col.operator('wowbj.set_default_dir', text="Use as Default Directory")
+        op.new_dir = selector_params.directory
 
 
 # TODO: Add confirm button to preven data loss. Maybe an export browser?

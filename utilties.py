@@ -344,12 +344,19 @@ class import_container():
 
         emitter_geom = bpy.data.meshes.new("Particle_Thingy_Geom")
         emmitter_obj = bpy.data.objects.new("Particle_Thingy_Obj", emitter_geom)
-        bm = bmesh.new()
 
-        bm.verts.ensure_lookup_table()
-        bm.verts.index_update()
+        bpy.context.view_layer.active_layer_collection.collection.objects.link(emmitter_obj)
+        bpy.context.view_layer.objects.active = emmitter_obj
 
-        groups = []
+        # Initialize groups before entering edit mode.
+        # Means we have to manipulate vertex groups via the deform data layer
+        # But that's somehow less fucky than the alternative
+        for i, emitter in enumerate(self.m2_dict.particle_emitters.values):
+            vg = emmitter_obj.vertex_groups.new(name="Franklin_" + str(i))
+            vg.add([], 1.0, "REPLACE")
+
+        bpy.ops.object.editmode_toggle()
+        bm = bmesh.from_edit_mesh(emmitter_obj.data)
 
         self.particle_emitters = self.m2_dict.particle_emitters.values
 
@@ -357,43 +364,31 @@ class import_container():
             particle = emitter.old
             p_tex = [emitter.multi_texture_param0, emitter.multi_texture_param1]
 
-            marker = bpy.data.objects.new("Jimbo", None)
-            marker.location = (particle.position.x, particle.position.y, particle.position.z)
-            marker.empty_display_size = 0.125
-            img_path  = self.json_textures[particle.texture]
-
-            img = bpy.data.images.load(self.json_textures[particle.texture].get("path"))
-
-            em_types = ['IMAGE', 'SPHERE', 'SINGLE_ARROW']
-            marker.empty_display_type = em_types[particle.emitter_type - 1]
-            marker.empty_display_type = 'IMAGE'
-            marker.data = img
-
-            bpy.context.view_layer.active_layer_collection.collection.objects.link(marker)
-            # print(str(marker.location))
-
             mat = mathutils.Matrix.Translation((particle.position.x, particle.position.y, particle.position.z))
 
-            if particle.emitter_type == 1:
-                verts = bmesh.ops.create_grid(bm, x_segments=2, y_segments=2, size=0.1, matrix=mat)
-            elif particle.emitter_type == 2:
-                verts = bmesh.ops.create_uvsphere(bm, u_segments=2, v_segments=2, diameter=0.1, matrix=mat)
+            if particle.emitter_type.value == 1:
+                verts = bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=0.1, matrix=mat)
+                nverts = 4
+            elif particle.emitter_type.value == 2:
+                verts = bmesh.ops.create_icosphere(bm, subdivisions=1, diameter=0.1, matrix=mat)
+                nverts = 12
             else:
-                verts = bmesh.ops.create_uvsphere(bm, u_segments=2, v_segments=2, diameter=0.1, matrix=mat)
+                verts = bmesh.ops.create_icosphere(bm, subdivisions=1, diameter=0.05, matrix=mat)
+                nverts = 12
+
+            bmesh.update_edit_mesh(emmitter_obj.data)
+            bm.verts.ensure_lookup_table()
+            bm.verts.layers.deform.verify()
+
+            deform = bm.verts.layers.deform.active
 
             verts = verts.get('verts')
-            vert_indicies = [v.index for v in verts]
-            groups.append(vert_indicies)
+            verts = [bm.verts[i] for i in range(-nverts, 0)]
+            for vert in verts:
+                g = vert[deform]
+                g[i] = 1
 
-        bm.to_mesh(emitter_geom)
-        bm.free()
-
-        for i, group in enumerate(groups):
-            vg = emmitter_obj.vertex_groups.new(name="Franklin_" + str(i))
-            vg.add(group, 1.0, "REPLACE")
-
-        bpy.context.view_layer.active_layer_collection.collection.objects.link(emmitter_obj)
-        print("++++++++++++++++++++")
+        bpy.ops.object.editmode_toggle()
 
 # Currently unused
 class mat_def():

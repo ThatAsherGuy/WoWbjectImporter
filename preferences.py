@@ -70,6 +70,14 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 		max=59
 		)
 
+	# TODO: Create some sort of per-project system for this.
+	default_dir: bpy.props.StringProperty(
+		name="Default Directory",
+		description="",
+		default="",
+		subtype='DIR_PATH'
+	)
+
 	# A fallback option for when the import operator
 	# is called without a specified base shader type.
 	base_shader_items = [
@@ -107,6 +115,8 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 		# works best if a column, or even just self.layout
 		mainrow = layout.row()
 		col = mainrow.column()
+		col.label(text="Importer Defaults:")
+		col.prop(self, 'default_dir', text='Directory')
 		col.label(text="Report Verbosity:")
 		row = col.grid_flow(columns=2, align=True, even_rows=False)
 		row.prop(self, 'reporting', expand=True)

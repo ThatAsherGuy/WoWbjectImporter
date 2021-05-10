@@ -39,6 +39,7 @@ from .operators import WOWBJ_OT_Import
 from .operators import WOWBJ_OT_SerializeNodeGroups
 from .operators import WOWBJ_OT_GenerateNodeGroups
 from .operators import WOWBJ_OT_LoadCombiner
+from .operators import WOWBJ_OT_SetDefaultDir
 
 from .preferences import wowbjectAddonPrefs
 from .preferences import WoWbject_ObjectProperties
@@ -58,6 +59,7 @@ classes = (
     WOWBJ_OT_SerializeNodeGroups,
     WOWBJ_OT_GenerateNodeGroups,
     WOWBJ_OT_LoadCombiner,
+    WOWBJ_OT_SetDefaultDir,
     # Property Groups
     wowbjectAddonPrefs,
     WoWbject_texture,
