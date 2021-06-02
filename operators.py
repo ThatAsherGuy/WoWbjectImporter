@@ -131,26 +131,30 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         args = self.as_keywords(ignore=("filter_glob",))
         reports = do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
 
-        if (len(reports.warnings) > 0) and 'WARNING' in verbosity:
-            self.report({'WARNING'}, "Warnings encountered. Check the console for details")
+        if (len(reports.warnings) > 0):
+            if 'WARNING' in verbosity:
+                self.report({'WARNING'}, "Warnings encountered. Check the console for details")
 
             for report in reports.warnings:
                 print(report)
 
-        if (len(reports.errors) > 0) and 'ERROR' in verbosity:
-            self.report({'ERROR'}, "Errors ecountered. Check the console for details")
+        if (len(reports.errors) > 0):
+            if 'ERROR' in verbosity:
+                self.report({'ERROR'}, "Errors ecountered. Check the console for details")
 
             for report in reports.errors:
                 print(report)
 
-        if (len(reports.info) > 0) and 'INFO' in verbosity:
-            self.report({'INFO'}, "Info messages generated. Check the console for details")
+        if (len(reports.info) > 0):
+            if 'INFO' in verbosity:
+                self.report({'INFO'}, "Info messages generated. Check the console for details")
 
             for report in reports.info:
                 print(report)
 
-        if (len(reports.sub_steps) > 0) and 'PROPERTY' in verbosity:
-            self.report({'PROPERTY'}, "Sub-step report generated. Check the console for details")
+        if (len(reports.sub_steps) > 0):
+            if 'PROPERTY' in verbosity:
+                self.report({'PROPERTY'}, "Sub-step report generated. Check the console for details")
 
             for report in reports.sub_steps:
                 print(report)
@@ -168,7 +172,7 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         row = root.row(align=True)
         row.prop(self, 'reuse_materials')
- 
+
         col = root.column(align=True)
         col.use_property_split = True
         col.label(text="Shading:")
