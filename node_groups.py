@@ -61,7 +61,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     mat.use_backface_culling = True
 
     blend_flag = mat_flags.get('blendingMode')
-    downmix = set_blend(mat, blend_flag)     
+    downmix = set_blend(mat, blend_flag)
 
     render_flags = read_render_flags(mat_flags['flags'])
     for flag in render_flags:
@@ -220,11 +220,11 @@ def get_utility_group(name):
         return bpy.data.node_groups[name]
 
     addon_dir = os.path.dirname(__file__)
-    blend_file = addon_dir + "\\BlendFunctions.blend"
-    section = "\\NodeTree\\"
+    blend_file = os.path.join(addon_dir, "BlendFunctions.blend")
+    section = "NodeTree"
 
-    filepath = blend_file + section + name
-    directory = blend_file + section
+    filepath = os.path.join(blend_file, section, name)
+    directory = os.path.join(blend_file, section)
 
     bpy.ops.wm.append(
         'EXEC_DEFAULT',
