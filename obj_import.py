@@ -164,27 +164,42 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
 
         newObj.data.materials.append(mat)
 
-        for face in component.faces:
-            if exampleFaceSet == False:
-                bm.faces.new((
-                    bm.verts[face[0] - 1],
-                    bm.verts[face[1] - 1],
-                    bm.verts[face[2] - 1]
-                ))
-                bm.faces.ensure_lookup_table()
+        try:
+            for face in component.faces:
+                if exampleFaceSet == False:
+                    bm.faces.new((
+                        bm.verts[face[0] - 1],
+                        bm.verts[face[1] - 1],
+                        bm.verts[face[2] - 1]
+                    ))
+                    bm.faces.ensure_lookup_table()
 
-                bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
+                    bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
 
-                bm.faces[-1].smooth = True
-                exampleFace = bm.faces[-1]
-                exampleFaceSet = True
-            else:
-                ## Use example face if set to speed up material copy!
-                bm.faces.new((
-                    bm.verts[face[0] - 1],
-                    bm.verts[face[1] - 1],
-                    bm.verts[face[2] - 1]
-                ), exampleFace)
+                    bm.faces[-1].smooth = True
+                    exampleFace = bm.faces[-1]
+                    exampleFaceSet = True
+                else:
+                    ## Use example face if set to speed up material copy!
+                    bm.faces.new((
+                        bm.verts[face[0] - 1],
+                        bm.verts[face[1] - 1],
+                        bm.verts[face[2] - 1]
+                    ), exampleFace)
+
+        except ValueError:
+            # sometimes there are duplicate faces. Spot checking these,
+            # the duplicates tend to be the same as a previous, except
+            # with a vert order of (2,1,3) instead of (1,2,3), which
+            # gives the duplicate face the opposite normal of the one
+            # it is duplicating. We're pretty sure these are used for
+            # cloaks and other double-sided things, since the WoW engine
+            # doesn't believe in double-sided polys. There may be some
+            # situations where there's something different going on,
+            # and we'd really like to find/investigate those if they
+            # exist, but for now, just ignoring duplicate faces will
+            # stop the addon from crashing, with no apparent downsides.
+            pass
 
     uv_layer = bm.loops.layers.uv.new()
     for face in bm.faces:
