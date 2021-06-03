@@ -163,6 +163,8 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
             mat_name = mat.name
 
         newObj.data.materials.append(mat)
+        dupes = []
+        do_dupe_debug = False
 
         for face in component.faces:
             try:

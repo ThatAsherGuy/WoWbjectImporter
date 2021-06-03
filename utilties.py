@@ -57,7 +57,7 @@ class import_container():
         self.tex_dir = ''
         self.use_m2 = False
         self.base_shader = None
-        self.do_bones = False
+        self.do_bones = True
         self.reuse_mats = False
         self.fallback_texture = None
         self.fallback_type = ''
@@ -128,7 +128,7 @@ class import_container():
                 load_step = self.unpack_m2()
 
             # load_step = self.unpack_m2()
-            do_particles = False
+            do_particles = True
             if do_particles:
                 self.setup_particles()
 
@@ -152,24 +152,77 @@ class import_container():
 
         # Bone/billboard debugging
         if self.do_bones:
-            bone_markers = []
-            for bone in self.bones:
-                marker = bpy.data.objects.new("Jimbo", None)
-                bone_markers.append(marker)
-                bpy.context.view_layer.active_layer_collection.collection.objects.link(marker)
-                marker.location = (bone.pivot.x, bone.pivot.y, bone.pivot.z)
-                marker.empty_display_size = 0.05
-                marker.show_in_front = True
-                bpy.context.evaluated_depsgraph_get().update()
+            armature = bpy.data.armatures.new("ARM")
+            arm_obj = bpy.data.objects.new("ARM_OBJ", armature)
 
-                if bone.parent_bone > -1:
-                    marker.parent = bone_markers[bone.parent_bone]
-                    marker.matrix_parent_inverse = bone_markers[bone.parent_bone].matrix_world.inverted()
+            bpy.context.view_layer.active_layer_collection.collection.objects.link(arm_obj)
+            arm_obj.select_set(True)
+
+            bpy.context.view_layer.objects.active = arm_obj
+            bpy.ops.object.mode_set('INVOKE_DEFAULT', False, mode='EDIT', toggle=False)
+
+            # EditBones and PoseBones don't hold references to each other.
+            # Which means that we have to manuall map M2CompBone:EditBone:PoseBone by name,
+            # in order to do all the things we need to do.
+            bone_dict = {} 
+
+            for i, bone in enumerate(self.bones):
 
                 bone_flags = get_bone_flags(bone.flags)
                 for flag in bone_flags:
                     if flag in {'spherical_billboard', 'cylindrical_billboard_lock_x', 'cylindrical_billboard_lock_y', 'cylindrical_billboard_lock_z'}:
-                        marker.empty_display_type = 'CUBE'
+                        bone_tag = "_" + flag
+
+                ebone = armature.edit_bones.new("Bone_" + str(i))
+                ebone.head = (bone.pivot.x, bone.pivot.y, bone.pivot.z)
+                ebone.tail = (bone.pivot.x, bone.pivot.y, bone.pivot.z + 0.1)
+
+                bone_dict["Bone_" + str(i)] = {
+                    "m2_bone": bone
+                }
+
+                if 'ignoreParentScale' in bone_flags:
+                    ebone.inherit_scale = 'NONE'
+
+                if bone.parent_bone > -1:
+                    parent = armature.edit_bones[bone.parent_bone]
+
+                    if not parent.parent: # Not sure about this
+                        parent.tail = ebone.head
+
+                    ebone.parent = parent
+                    ebone.use_connect = True
+
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.mode_set('INVOKE_DEFAULT', False, mode='POSE', toggle=False)
+
+            for pbone in arm_obj.pose.bones:
+                do_billboard = False
+
+                bone = bone_dict.get(pbone.name).get("m2_bone")
+                bone_flags = get_bone_flags(bone.flags)
+
+                for flag in bone_flags:
+                    if flag in {'spherical_billboard', 'cylindrical_billboard_lock_x', 'cylindrical_billboard_lock_y', 'cylindrical_billboard_lock_z'}:
+                        do_billboard = True
+
+                if do_billboard:
+                    bb_constraint = pbone.constraints.new('DAMPED_TRACK')
+                    if bpy.context.scene.camera:
+                        bb_constraint.target = bpy.context.scene.camera
+
+
+                if 'transformed' in bone_flags:
+                    if bone.rotation.values.num > 0: # There's some janky shit going on here
+                        if bone.rotation.values.values[0].num > 0:
+                            comp_quat = bone.rotation.values.values[0].values[0]
+                            x = (comp_quat.x + 32768)/32767 if comp_quat.x < 0 else (comp_quat.x - 32767)/32767
+                            y = (comp_quat.y + 32768)/32767 if comp_quat.y < 0 else (comp_quat.y - 32767)/32767
+                            z = (comp_quat.z + 32768)/32767 if comp_quat.z < 0 else (comp_quat.z - 32767)/32767
+                            w = (comp_quat.w + 32768)/32767 if comp_quat.w < 0 else (comp_quat.w - 32767)/32767
+                            bone_quat = mathutils.Quaternion((w, x, y, z))
+                            fquat = mathutils.Quaternion((1.0, 0.0, 0.0), radians(90))
+                            pbone.rotation_quaternion = bone_quat      
 
         # Won't make up for missing JSON data (will need to kaitai .skin files for texUnit data)
         if self.damage_control:
@@ -202,11 +255,15 @@ class import_container():
             with open(config_path) as p:
                 self.json_config = json.load(p)
 
-        self.json_textures = self.json_config.get("textures", [])
-        self.json_tex_combos = self.json_config.get("textureCombos", [])
-        self.json_tex_units = self.json_config.get("skin", {}).get("textureUnits", [])
-        self.json_mats = self.json_config.get("materials", [])
-        self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes", [])
+        if "portalMapObjectRef" in self.json_config:
+            print("THIS IS A WMO OBJECT")
+
+        else:
+            self.json_textures = self.json_config.get("textures", [])
+            self.json_tex_combos = self.json_config.get("textureCombos", [])
+            self.json_tex_units = self.json_config.get("skin", {}).get("textureUnits", [])
+            self.json_mats = self.json_config.get("materials", [])
+            self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes", [])
 
         return True
 
@@ -341,6 +398,10 @@ class import_container():
         return True
 
     def setup_particles(self):
+        if not hasattr(self, "m2_dict"):
+            return
+        if len(self.m2_dict.particle_emitters.values) == 0:
+            return
 
         emitter_geom = bpy.data.meshes.new("Particle_Thingy_Geom")
         emmitter_obj = bpy.data.objects.new("Particle_Thingy_Obj", emitter_geom)
@@ -387,6 +448,32 @@ class import_container():
             for vert in verts:
                 g = vert[deform]
                 g[i] = 1
+
+            emit_rate = particle.emission_rate.values.values[0].values[0]
+            # print(emit_rate)
+            emit_speed = particle.emission_speed.values.values[0].values[0]
+            lifespan = particle.lifespan.values.values[0].values[0]
+
+            count = (emit_rate * 24) / (100)
+            # print(count)
+
+            bpy.ops.object.particle_system_add()
+
+            sys = emmitter_obj.particle_systems[-1]
+            sys.vertex_group_density = "Franklin_" + str(i)
+
+            sys_settings = sys.settings
+            sys_settings.effector_weights.gravity = 0
+            sys_settings.display_size = 0.01
+            sys_settings.count = max(count, 1)
+            sys_settings.normal_factor = emit_speed
+            sys_settings.lifetime = lifespan * 24
+
+            # Blender uses particle count/emission time to get particles per time step
+            # Wow uses emission rate * emission time to get particle count
+            # Still need to figure out the actual total particles per minute, though.
+
+            # TODO: Standardize M2Track reading to speed up access for single-item tracks.
 
         bpy.ops.object.editmode_toggle()
 

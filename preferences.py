@@ -226,3 +226,14 @@ class WoWbject_NodeGroupProperties(bpy.types.PropertyGroup):
 		default=24,
 		get=get_rate
 	)
+
+
+class WoWbject_BoneProperties(bpy.types.PropertyGroup):
+	"""
+	Where billboard info goes
+	"""
+	billboard_type: bpy.props.IntProperty(
+		name="Billboard Type",
+		default=-1
+	)
+
