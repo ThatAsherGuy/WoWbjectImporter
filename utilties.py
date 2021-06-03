@@ -57,7 +57,7 @@ class import_container():
         self.tex_dir = ''
         self.use_m2 = False
         self.base_shader = None
-        self.do_bones = True
+        self.do_bones = False
         self.reuse_mats = False
         self.fallback_texture = None
         self.fallback_type = ''
@@ -127,8 +127,8 @@ class import_container():
                 self.m2 = raw[0]
                 load_step = self.unpack_m2()
 
-            # load_step = self.unpack_m2()
-            do_particles = True
+            # Work-in-progress particle system importer
+            do_particles = False
             if do_particles:
                 self.setup_particles()
 
