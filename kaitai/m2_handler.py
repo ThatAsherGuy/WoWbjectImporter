@@ -182,9 +182,8 @@ def read_m2(directory, file):
                 do_scale, scale_interp, scale_rate = read_track(scaling, 'VEC')
 
                 if do_translate:
-                    translate_vectors = translation.values.values[0].values[1]
-                    translate_vectors = mathutils.Vector((translate_vectors.x, translate_vectors.y, translate_vectors.z))
-                    transform_container['translate'] = translate_vectors * translate_rate
+                    translate_vectors = mathutils.Vector((translate_rate.x, translate_rate.y, translate_rate.z))
+                    transform_container['translate'] = translate_vectors
 
                 if do_rotate:
                     if rotate_interp == 'CONST':

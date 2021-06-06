@@ -37,3 +37,4 @@ venv.bak/
 # Misc
 .vscode
 wowbjectifier_updater
+.diff
