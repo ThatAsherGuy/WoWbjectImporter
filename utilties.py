@@ -24,7 +24,7 @@ import json
 import bmesh
 import mathutils
 from math import radians
-from .node_groups import build_shader
+from .node_groups import build_shader, do_wmo_mats
 from .lookup_funcs import get_vertex_shader, get_shadereffects, get_bone_flags
 from .obj_import import import_obj
 from .kaitai.m2_handler import load_kaitai, read_m2
@@ -70,6 +70,8 @@ class import_container():
         self.reports.info = []
         self.reports.sub_steps = []
 
+        self.wmo = False
+
 
     def do_setup(self, files, directory, op_args, **kwargs):
         # ProgressReport is the thing that does the fancy print messages and changes the cursor.
@@ -112,7 +114,8 @@ class import_container():
                 self.damage_control = True
 
             progress.step("Unpacking Textures")
-            load_step = self.setup_textures()
+            if not self.wmo:
+                load_step = self.setup_textures()
             # if not load_step:
             #     self.reports.append('Failed to load textures')
 
@@ -257,13 +260,13 @@ class import_container():
 
         if "portalMapObjectRef" in self.json_config:
             print("THIS IS A WMO OBJECT")
+            self.wmo = True
 
-        else:
-            self.json_textures = self.json_config.get("textures", [])
-            self.json_tex_combos = self.json_config.get("textureCombos", [])
-            self.json_tex_units = self.json_config.get("skin", {}).get("textureUnits", [])
-            self.json_mats = self.json_config.get("materials", [])
-            self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes", [])
+        self.json_textures = self.json_config.get("textures", self.json_config.get("fileDataIDs", []))
+        self.json_tex_combos = self.json_config.get("textureCombos", [])
+        self.json_tex_units = self.json_config.get("skin", {}).get("textureUnits", [])
+        self.json_mats = self.json_config.get("materials", [])
+        self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes", [])
 
         return True
 
@@ -365,35 +368,37 @@ class import_container():
         Generates a material for each texture unit in the JSON config.
         Most of the work here happens in build_shader from node_groups.py
         '''
+        if self.wmo:
+            do_wmo_mats(container=self, json=self.json_config)
+        else:
+            # if self.damage_control == True, self.json_tex_units wil be empty.
+            for unit in self.json_tex_units:
+                bl_mat = self.bl_obj.material_slots[unit.get("skinSectionIndex")].material
+                tree = bl_mat.node_tree
 
-        # if self.damage_control == True, self.json_tex_units wil be empty.
-        for unit in self.json_tex_units:
-            bl_mat = self.bl_obj.material_slots[unit.get("skinSectionIndex")].material
-            tree = bl_mat.node_tree
-
-            # Lazy check to avoid re-building existing materials
-            if len(tree.nodes.items()) == 2:
-                if self.use_m2:
-                    build_shader(
-                        unit,
-                        bl_mat,
-                        self.json_mats,
-                        self.json_textures,
-                        self.json_tex_combos,
-                        self.base_shader,
-                        import_container = self,
-                        anim_combos=self.anim_combos,
-                        )
-                else:
-                    build_shader(
-                        unit,
-                        bl_mat,
-                        self.json_mats,
-                        self.json_textures,
-                        self.json_tex_combos,
-                        self.base_shader,
-                        import_container = self
-                        )
+                # Lazy check to avoid re-building existing materials
+                if len(tree.nodes.items()) == 2:
+                    if self.use_m2:
+                        build_shader(
+                            unit,
+                            bl_mat,
+                            self.json_mats,
+                            self.json_textures,
+                            self.json_tex_combos,
+                            self.base_shader,
+                            import_container = self,
+                            anim_combos=self.anim_combos,
+                            )
+                    else:
+                        build_shader(
+                            unit,
+                            bl_mat,
+                            self.json_mats,
+                            self.json_textures,
+                            self.json_tex_combos,
+                            self.base_shader,
+                            import_container = self
+                            )
 
         return True
 

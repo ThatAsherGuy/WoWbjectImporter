@@ -18,6 +18,7 @@
 
 # Hell is other people's code
 
+import bmesh
 import bpy
 from mathutils import Vector
 from . import preferences
@@ -544,3 +545,97 @@ def generate_nodegroups(path):
                         break
 
                 ng.links.new(from_node.outputs[link_def.get('from_socket')], to_node.inputs[link_def.get('to_socket')])
+
+
+def do_wmo_mats(**kwargs):
+    print("Setting up WMO Materials")
+
+    container = kwargs.get("container")
+    config = kwargs.get("json")
+
+    groups = config.get("groups")
+    matinfo = groups[0].get("materialInfo")
+    batches = groups[0].get("renderBatches")
+    mats = config.get("materials")
+    print(len(mats))
+
+    for i, mat in enumerate(mats):
+        # i = min(i, (len(container.bl_obj.material_slots)-1) )
+
+        tex1 = get_tex(container, str(mat.get("texture1")))
+        tex2 = get_tex(container, str(mat.get("texture2")))
+        tex3 = get_tex(container, str(mat.get("texture3")))
+
+        if i >= len(container.bl_obj.material_slots):
+            bl_mat = bpy.data.materials.new(name="jim bob")
+            bl_mat.use_nodes = True
+            container.bl_obj.data.materials.append(bl_mat)
+        else:
+            bl_mat = container.bl_obj.material_slots[i].material
+        tree = bl_mat.node_tree
+        nodes= tree.nodes
+
+        shader = None
+        out_node = None
+        for node in nodes:
+            if node.type == 'BSDF_PRINCIPLED':
+                shader = node
+
+            if node.type == 'OUTPUT_MATERIAL':
+                out_node = node
+
+            if shader and out_node:
+                break
+
+        if not out_node:
+            out_node = nodes.new('ShaderNodeOutputMaterial')
+
+        if not shader:
+            print("DO LATER")
+
+        baseColor = nodes.new('ShaderNodeRGB')
+        baseColor.location += Vector((-1200.0, 400.0))
+        baseColor.outputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
+        baseColor.label = 'BASE COLOR'
+
+        if tex1:
+            tex1_node = nodes.new('ShaderNodeTexImage')
+            tex1_node.image = tex1
+            tex1_node.location += Vector((-1200.0, (200 - 1 * 300.0)))
+
+            tree.links.new(tex1_node.outputs[0], shader.inputs[0])
+
+
+    setup_wmo_batches(container, matinfo)
+
+
+def get_tex(container, tex_num):
+    if tex_num == 0:
+        return None
+
+    name = tex_num + ".png"
+    path = os.path.join(container.source_directory, name)
+    if os.path.isfile(path):
+        if name in bpy.data.images:
+            return bpy.data.images[name]
+        else:
+            img = bpy.data.images.load(path)
+            img.alpha_mode = 'CHANNEL_PACKED'
+            return img
+    else:
+        return None
+
+def setup_wmo_batches(container, batches):
+    # bpy.ops.object.editmode_toggle()
+    obj = container.bl_obj
+    mesh = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+
+    for i, tri in enumerate(batches):
+        i = min(i, len(bm.faces)-1)
+        bm.faces[i].material_index = tri.get("materialID")
+
+    bm.to_mesh(mesh)
+    bm.free()
