@@ -79,6 +79,7 @@ def initialize_mesh(mesh_path):
 
     # TODO: Replace with a more robust port of the ImportObj add-on's process
     with open(mesh_path, 'rb') as f:
+        f_count = 0
         for line in f:
             line_split = line.split()
             if not line_split:
@@ -99,13 +100,14 @@ def initialize_mesh(mesh_path):
                 fv = [int(v.split(b'/')[0]) for v in line_split]
                 obj.components[meshIndex].faces.append((fv[0], fv[1], fv[2]))
                 obj.components[meshIndex].verts.update([i - 1 for i in fv])
+                f_count += 1
             elif line_start == b'g':
                 meshIndex += 1
                 obj.components.append(meshComponent())
                 obj.components[meshIndex].name = line_split[1].decode('utf-8')
             elif line_start == b'usemtl':
                 obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
-
+    print(f_count)
     return obj
 
 

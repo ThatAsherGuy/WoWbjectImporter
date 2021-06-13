@@ -219,3 +219,85 @@ def get_interpolation_type(index):
 # MODELPARTICLE_EMITTER_PLANE  1
 # MODELPARTICLE_EMITTER_SPHERE 2
 # MODELPARTICLE_EMITTER_SPLINE 3
+
+WMO_Shaders_Old = (
+    ("Diffuse",                 1, 1, 1, 1),
+    ("Specular",                1, 1, 1, 1),
+    ("Metal",                   1, 1, 1, 1),
+    ("Env",                     1, 2, 1, 1),
+    ("Opaque",                  1, 1, 1, 1),
+    ("EnvMetal",                1, 2, 1, 1),
+    ("TwoLayerDiffuse",         1, 2, 2, 2),
+    ("TwoLayerEnvMetal",        1, 3, 2, 2),
+    ("TwoLayerTerrain",         1, 2, 1, 2),
+    ("DiffuseEmissive",         1, 2, 2, 2),
+    ("waterWindow",             1, 1, 1, 1),
+    ("MaskedEnvMetal",          1, 3, 2, 2),
+    ("EnvMetalEmissive",        1, 3, 2, 2),
+    ("TwoLayerDiffuseOpaque",   1, 2, 2, 2),
+    ("submarineWindow",         1, 1, 1, 1),
+    ("TwoLayerDiffuseEmissive", 1, 2, 2, 2),
+    ("DiffuseTerrain",          1, 1, 1, 1),
+    ("AdditiveMaskedEnvMetal",  1, 3, 2, 2),
+)
+
+WMO_Shaders_New = (
+    ("Diffuse",	                  "MapObjDiffuse_T1",	        "MapObjDiffuse"),
+    ("Specular",	              "MapObjSpecular_T1",	        "MapObjSpecular"),
+    ("Metal",	                  "MapObjSpecular_T1",	        "MapObjMetal"),
+    ("Env",	                      "MapObjDiffuse_T1_Refl",	    "MapObjEnv"),
+    ("Opaque",	                  "MapObjDiffuse_T1",	        "MapObjOpaque"),
+    ("EnvMetal",	              "MapObjDiffuse_T1_Refl",	    "MapObjEnvMetal"),
+    ("TwoLayerDiffuse",	          "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuse"),
+    ("TwoLayerEnvMetal",	      "MapObjDiffuse_T1",	        "MapObjTwoLayerEnvMetal"),
+    ("TwoLayerTerrain",	          "MapObjDiffuse_Comp_Terrain",	"MapObjTwoLayerTerrain"	),
+    ("DiffuseEmissive",	          "MapObjDiffuse_Comp",	        "MapObjDiffuseEmissive"),
+    ("waterWindow",	              "FFXWaterWindow",	            "FFXWaterWindow"),
+    ("MaskedEnvMetal",	          "MapObjDiffuse_T1_Env_T2",	"MapObjMaskedEnvMetal"),
+    ("EnvMetalEmissive",	      "MapObjDiffuse_T1_Env_T2",	"MapObjEnvMetalEmissive"),
+    ("TwoLayerDiffuseOpaque",     "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseOpaque"),
+    ("submarineWindow",	          "FFXSubmarineWindow",	        "FFXSubmarineWindow"),
+    ("TwoLayerDiffuseEmissive",   "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseEmissive"),
+    ("DiffuseTerrain",	          "MapObjDiffuse_T1",	        "MapObjDiffuse"),
+    ("AdditiveMaskedEnvMetal",    "MapObjDiffuse_T1_Env_T2",	"MapObjAdditiveMaskedEnvMetal"),
+    ("TwoLayerDiffuseMod2x",      "MapObjDiffuse_CompAlpha",	"MapObjTwoLayerDiffuseMod2x"),
+    ("TwoLayerDiffuseMod2xNA",    "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseMod2xNA"),
+    ("TwoLayerDiffuseAlpha",      "MapObjDiffuse_CompAlpha",	"MapObjTwoLayerDiffuseAlpha"),
+    ("Lod",	                      "MapObjDiffuse_T1",	        "MapObjLod"),
+    ("Parallax",	              "MapObjParallax",	            "MapObjParallax"),
+)
+
+WMO_Blend_Modes = (
+    "OPAQUE",
+    "ALPHA_KEY",
+    "ALPHA",
+    "ADD",
+    "MOD",
+    "MOD_2X",
+    "MOD_ADD",
+    "INV_SRC_ALPHA_ADD",
+    "INV_SRC_ALPHA_OPAQUE",
+    "SRC_ALPHA_OPAQUE",
+    "NO_ALPHA_ADD",
+    "CONST_ALPHA",
+    "SCREEN",
+    "BLEND_ADD"
+)
+
+def wmo_read_color(color, type):
+    c_bytes = color.to_bytes(4, 'little')
+
+    if type == 'CImVector':
+        red = c_bytes[2]
+        green = c_bytes[1]
+        blue = c_bytes[0]
+        alpha = c_bytes[3]
+
+    elif type == 'CArgb':
+        red = c_bytes[0]
+        green = c_bytes[1]
+        blue = c_bytes[2]
+        alpha = c_bytes[3]
+
+    cvec = (float(red)/255, float(green)/255, float(blue)/255, float(alpha)/255)
+    return cvec

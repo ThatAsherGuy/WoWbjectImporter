@@ -22,7 +22,7 @@ import bmesh
 import bpy
 from mathutils import Vector
 from . import preferences
-from .lookup_funcs import get_vertex_shader, get_shadereffects
+from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, WMO_Shaders_New
 import os
 import json
 
@@ -552,12 +552,7 @@ def do_wmo_mats(**kwargs):
 
     container = kwargs.get("container")
     config = kwargs.get("json")
-
-    groups = config.get("groups")
-    matinfo = groups[0].get("materialInfo")
-    batches = groups[0].get("renderBatches")
     mats = config.get("materials")
-    print(len(mats))
 
     for i, mat in enumerate(mats):
         # i = min(i, (len(container.bl_obj.material_slots)-1) )
@@ -565,6 +560,8 @@ def do_wmo_mats(**kwargs):
         tex1 = get_tex(container, str(mat.get("texture1")))
         tex2 = get_tex(container, str(mat.get("texture2")))
         tex3 = get_tex(container, str(mat.get("texture3")))
+
+        tex_list = (tex1, tex2, tex3)
 
         if i >= len(container.bl_obj.material_slots):
             bl_mat = bpy.data.materials.new(name="jim bob")
@@ -580,6 +577,7 @@ def do_wmo_mats(**kwargs):
         for node in nodes:
             if node.type == 'BSDF_PRINCIPLED':
                 shader = node
+                shader.inputs[7].default_value = 1.0
 
             if node.type == 'OUTPUT_MATERIAL':
                 out_node = node
@@ -595,18 +593,51 @@ def do_wmo_mats(**kwargs):
 
         baseColor = nodes.new('ShaderNodeRGB')
         baseColor.location += Vector((-1200.0, 400.0))
-        baseColor.outputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
+        baseColor.outputs[0].default_value = wmo_read_color(mat.get("color2"), 'CArgb')
         baseColor.label = 'BASE COLOR'
 
-        if tex1:
-            tex1_node = nodes.new('ShaderNodeTexImage')
-            tex1_node.image = tex1
-            tex1_node.location += Vector((-1200.0, (200 - 1 * 300.0)))
+        tex_nodes = []
 
-            tree.links.new(tex1_node.outputs[0], shader.inputs[0])
+        for i, tex in enumerate(tex_list):
+            if tex:
+                tex_node = nodes.new('ShaderNodeTexImage')
+                tex_node.image = tex
+                tex_node.location += Vector((-1200.0, (200 - i * 300.0)))
+                tex_nodes.append(tex_node)
 
+        if len(tex_nodes) > 1:
+            mix_node = nodes.new("ShaderNodeMixRGB")
+            mix_node.location += Vector((-600.0, 0.0))
+            tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
+            tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[2])
+            tree.links.new(mix_node.outputs[0], shader.inputs[0])
 
-    setup_wmo_batches(container, matinfo)
+            connect_mode = WMO_Shaders_New[mat.get("shader", 0)][1]
+
+            if connect_mode in {'MapObjDiffuse_T1_Env_T2', 'MapObjDiffuse_T1_Refl'}:
+                env_map = nodes.new('ShaderNodeGroup')
+                env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+                env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+                tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
+                tree.links.new(tex_nodes[0].outputs[1], mix_node.inputs[0])
+            elif connect_mode in {'MapObjDiffuse_Comp'}:
+                v_colors = nodes.new("ShaderNodeVertexColor")
+                v_colors.layer_name = 'vcols'
+                v_colors.location += Vector((-800.0, 0.0))
+
+                tree.links.new(v_colors.outputs[1], mix_node.inputs[0])
+
+                # These need to be flipped, for whatever reason
+                tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[2])
+                tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[1])
+        else:
+            tree.links.new(tex_nodes[0].outputs[0], shader.inputs[0])
+
+            if mat.get("blendMode") == 2:
+                tree.links.new(tex_nodes[0].outputs[1], shader.inputs[19])
+                bl_mat.blend_method = 'BLEND'
+
+    setup_wmo_batches(container, config)
 
 
 def get_tex(container, tex_num):
@@ -625,17 +656,43 @@ def get_tex(container, tex_num):
     else:
         return None
 
-def setup_wmo_batches(container, batches):
+def setup_wmo_batches(container, config):
     # bpy.ops.object.editmode_toggle()
     obj = container.bl_obj
     mesh = obj.data
     bm = bmesh.new()
     bm.from_mesh(mesh)
     bm.faces.ensure_lookup_table()
+    bm.verts.ensure_lookup_table()
+    vcols = bm.loops.layers.color.new("vcols")
 
-    for i, tri in enumerate(batches):
-        i = min(i, len(bm.faces)-1)
-        bm.faces[i].material_index = tri.get("materialID")
+    groups = config.get("groups")
+    mat_offset = 0
+    color_offset = 0
+    for group in groups:
+        triangles = [i for i in group.get("materialInfo") if not i.get("materialID") == 255]
+        colors = group.get("vertexColours")
+
+        for i, tri in enumerate(triangles):
+            i += mat_offset
+            if i < (len(bm.faces)):
+                bm.faces[i].material_index = tri.get("materialID")
+            else:
+                break
+
+        mat_offset += len(triangles)
+
+        if colors:
+            for j, col in enumerate(colors):
+                j += color_offset
+                if j < (len(bm.verts)):
+                    for loop in bm.verts[j].link_loops:
+                        loop[vcols] = wmo_read_color(col, 'CImVector')
+                else:
+                    break
+
+            color_offset += j
 
     bm.to_mesh(mesh)
+    mesh.update()
     bm.free()
