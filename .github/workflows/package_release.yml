@@ -12,7 +12,11 @@ jobs:
     - name: Get tag
       id: release_tag
       run: echo ::set-output name=TAG::"${GITHUB_REF/refs\/tags\//wowbject_}.zip"
-    - uses: actions/checkout@master
+    - name: checkout repo
+      uses: actions/checkout@master
+    - name: Update version number
+      id: ver_update
+      run: bash ./setver.sh ${GITHUB_REF/refs\/tags\//}
     - name: Move contents to subdir
       id: move_files
       run: mkdir .wowbject && mv * .wowbject && mv .wowbject wowbject
