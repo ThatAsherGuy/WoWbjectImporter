@@ -301,3 +301,14 @@ def wmo_read_color(color, type):
 
     cvec = (float(red)/255, float(green)/255, float(blue)/255, float(alpha)/255)
     return cvec
+
+WMO_Mat_Flags = {}
+
+ # 1 == UNKNOWN
+ # 2 == No Camera collision
+ # 4 == "Detail"
+ # 8 == Water collision?
+ # 16 == "hint"
+ # 32 == Render
+ # 64 == UNKNOWN
+ # 128 == Collide Hit
