@@ -150,7 +150,7 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
         # the OBJ is broken into batches, but not groups. Sorta.
         batches = []
         for group in groups:
-            batches += group.get("renderBatches")
+            batches += group.get("renderBatches", [])
 
         for i, mat in enumerate(json_mats):
             mat = bpy.data.materials.new(name=mesh_name + "_mat")
@@ -197,21 +197,12 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
                     if import_container.wmo:
                         if batches[i].get("flags") == 2:
                             mat_ID = batches[i].get("possibleBox2")[2]
-                            print("flag")
                         else:
                             mat_ID = batches[i].get("materialID")
 
                         mat_index = mat_map.get(mat_ID, -1)
-                        bm.faces[-1].material_index =mat_ID
+                        bm.faces[-1].material_index = mat_ID
     
-                        # if mat_index == -1:
-                        #     mat = bpy.data.materials.new(name=mat_name)
-                        #     mat.use_nodes = True
-                        #     mat_name = mat.name
-                        #     mat_map[mat_ID] = mat
-                        #     bm.faces[-1].material_index = len(mat_map) - 1
-                        # else:
-                        #     bm.faces[-1].material_index = list(mat_map).index(mat_ID)
                     else:
                         bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
 
