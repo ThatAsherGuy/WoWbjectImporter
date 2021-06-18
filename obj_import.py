@@ -107,11 +107,11 @@ def initialize_mesh(mesh_path):
                 obj.components[meshIndex].name = line_split[1].decode('utf-8')
             elif line_start == b'usemtl':
                 obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
-    print(f_count)
+    # print(f_count)
     return obj
 
 
-def import_obj(file, directory, reuse_mats, name_override, **kwargs):
+def import_obj(file, directory, reuse_mats, name_override, import_container, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all(action='DESELECT')
 
@@ -141,6 +141,24 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
     bm.verts.ensure_lookup_table()
     bm.verts.index_update()
 
+    if import_container.wmo:
+        config = import_container.json_config
+        json_mats = config.get("materials")
+        groups = config.get("groups")
+        mat_map = {}
+    
+        # the OBJ is broken into batches, but not groups. Sorta.
+        batches = []
+        for group in groups:
+            batches += group.get("renderBatches")
+
+        for i, mat in enumerate(json_mats):
+            mat = bpy.data.materials.new(name=mesh_name + "_mat")
+            mat.use_nodes = True
+            mat_name = mat.name
+            newObj.data.materials.append(mat)
+
+
     for i, component in enumerate(mesh_data.components):
         create_mat = True
         exampleFaceSet = False
@@ -160,13 +178,11 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
                     break
 
         if create_mat:
-            mat = bpy.data.materials.new(name=mat_name)
-            mat.use_nodes = True
-            mat_name = mat.name
-
-        newObj.data.materials.append(mat)
-        dupes = []
-        do_dupe_debug = False
+            if not import_container.wmo:
+                mat = bpy.data.materials.new(name=mat_name)
+                mat.use_nodes = True
+                mat_name = mat.name
+                newObj.data.materials.append(mat)
 
         for face in component.faces:
             try:
@@ -178,7 +194,26 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
                     ))
                     bm.faces.ensure_lookup_table()
 
-                    bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
+                    if import_container.wmo:
+                        if batches[i].get("flags") == 2:
+                            mat_ID = batches[i].get("possibleBox2")[2]
+                            print("flag")
+                        else:
+                            mat_ID = batches[i].get("materialID")
+
+                        mat_index = mat_map.get(mat_ID, -1)
+                        bm.faces[-1].material_index =mat_ID
+    
+                        # if mat_index == -1:
+                        #     mat = bpy.data.materials.new(name=mat_name)
+                        #     mat.use_nodes = True
+                        #     mat_name = mat.name
+                        #     mat_map[mat_ID] = mat
+                        #     bm.faces[-1].material_index = len(mat_map) - 1
+                        # else:
+                        #     bm.faces[-1].material_index = list(mat_map).index(mat_ID)
+                    else:
+                        bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
 
                     bm.faces[-1].smooth = True
                     exampleFace = bm.faces[-1]
@@ -205,6 +240,10 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
                 # stop the addon from crashing, with no apparent downsides.
                 pass
 
+    if import_container.wmo:
+        for mat in mat_map.values():
+            newObj.data.materials.append(mat)
+
     uv_layer = bm.loops.layers.uv.new()
     for face in bm.faces:
         for loop in face.loops:
@@ -220,7 +259,8 @@ def import_obj(file, directory, reuse_mats, name_override, **kwargs):
     bm.free()
 
     # needed to have a mesh before we can create vertex groups, so do that now
-    for i, component in enumerate(sorted(mesh_data.components, key=lambda m: m.name.lower())):
+    # for i, component in enumerate(sorted(mesh_data.components, key=lambda m: m.name.lower())):
+    for i, component in enumerate(mesh_data.components):
         vg = newObj.vertex_groups.new(name=f"{component.name}")
         vg.add(list(component.verts), 1.0, "REPLACE")
 

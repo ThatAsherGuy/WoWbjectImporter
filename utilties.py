@@ -51,7 +51,8 @@ class import_container():
             "skin": [],
             "config": [],
             "unhandled": [],
-            "M2": []
+            "M2": [],
+            "WMO": []
         }
         self.source_directory = ''
         self.tex_dir = ''
@@ -102,6 +103,8 @@ class import_container():
                 elif ext == '.blp':
                     self.source_files['BLP'].append(file)
                 elif ext == '.skin':
+                    self.source_files['skin'].append(file)
+                elif ext == '.wmo':
                     self.source_files['skin'].append(file)
                 else:
                     print("Unhandled File Type: " + str(file))
@@ -258,8 +261,7 @@ class import_container():
             with open(config_path) as p:
                 self.json_config = json.load(p)
 
-        if "portalMapObjectRef" in self.json_config:
-            print("THIS IS A WMO OBJECT")
+        if ".wmo" in self.json_config.get("fileName"):
             self.wmo = True
 
         self.json_textures = self.json_config.get("textures", self.json_config.get("fileDataIDs", []))
@@ -290,7 +292,8 @@ class import_container():
             source[0],
             self.source_directory,
             self.reuse_mats,
-            self.op_args.get("name_override")
+            self.op_args.get("name_override"),
+            self
             )
 
         return True

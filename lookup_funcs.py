@@ -302,13 +302,32 @@ def wmo_read_color(color, type):
     cvec = (float(red)/255, float(green)/255, float(blue)/255, float(alpha)/255)
     return cvec
 
-WMO_Mat_Flags = {}
+def read_wmo_face_flags(flag_in, func):
 
- # 1 == UNKNOWN
- # 2 == No Camera collision
- # 4 == "Detail"
- # 8 == Water collision?
- # 16 == "hint"
- # 32 == Render
- # 64 == UNKNOWN
- # 128 == Collide Hit
+    # The flags, as per https://wowdev.wiki/WMO#MOPY_chunk
+    F_UNK_0x01     = 0x01
+    F_NOCAMCOLLIDE = 0x02
+    F_DETAIL       = 0x04
+    F_COLLISION    = 0x08
+    F_HINT         = 0x10
+    F_RENDER       = 0x20
+    F_UNK_0x40     = 0x40
+    F_COLLIDE_HIT  = 0x80
+
+    if func == "is_transition":
+        result = True if ((flag_in & F_UNK_0x01) and ((flag_in & F_DETAIL) or (flag_in & F_RENDER))) else False
+        if result:
+            print("TRANSITION!")
+        return result
+    elif func == 'is_color':
+        result = True if not flag_in & F_COLLISION else False
+        return result
+    elif func == 'is_render':
+        result = True if (flag_in & F_RENDER) else False
+        backup = True if ((flag_in & F_RENDER) and not (flag_in & F_DETAIL)) else False
+        return result
+    elif func == 'is_collidable':
+        result = True if ((flag_in & F_COLLISION) or (flag_in & F_RENDER) or not (flag_in & F_DETAIL)) else False
+        return result
+
+

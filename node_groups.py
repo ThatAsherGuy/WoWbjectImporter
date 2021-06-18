@@ -22,7 +22,7 @@ import bmesh
 import bpy
 from mathutils import Vector
 from . import preferences
-from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, WMO_Shaders_New
+from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, WMO_Shaders_New, read_wmo_face_flags
 import os
 import json
 
@@ -669,16 +669,45 @@ def setup_wmo_batches(container, config):
     groups = config.get("groups")
     mat_offset = 0
     color_offset = 0
+    batch_offset = 0
     for group in groups:
-        triangles = [i for i in group.get("materialInfo") if not i.get("materialID") == 255]
+        # triangles = [i for i in group.get("materialInfo") if not i.get("materialID") == 255]
         colors = group.get("vertexColours")
 
-        for i, tri in enumerate(triangles):
-            i += mat_offset
-            if i < (len(bm.faces)):
-                bm.faces[i].material_index = tri.get("materialID")
-            else:
-                break
+        triangles = group.get("materialInfo")
+
+        # for i, tri in enumerate(triangles):
+        #     i += mat_offset
+        #     if read_wmo_face_flags(tri.get("flags"), 'is_render') == False:
+        #         print("no-render")
+        #         continue
+        #     else:
+        #         if i < (len(bm.faces)):
+        #             bm.faces[i].material_index = tri.get("materialID")
+        #         else:
+        #             break
+
+        batches = group.get("renderBatches")
+        # print(len(triangles))
+
+        stoip = len(bm.faces)
+        
+        # for i, batch in enumerate(batches):
+        #     faces = []
+        #     for j in range(batch.get("numFaces")-1):
+        #         index = int((batch.get("firstFace") + j)/3)
+        #         # print(str(index) + " | " + str(len(triangles)))
+        #         faces.append(triangles[index])
+
+        #     ofs = int((batch.get("firstFace")))
+
+        #     for i, face in enumerate(faces):
+        #         mInd = face.get("materialID")
+        #         if not mInd == 255:
+        #             bm.faces[i + ofs].material_index = face.get("materialID")
+
+        #     batch_offset += int((batch.get("numFaces")-1)/3)
+
 
         mat_offset += len(triangles)
 
