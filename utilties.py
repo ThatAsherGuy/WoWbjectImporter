@@ -261,7 +261,7 @@ class import_container():
             with open(config_path) as p:
                 self.json_config = json.load(p)
 
-        if ".wmo" in self.json_config.get("fileName"):
+        if ".wmo" in self.json_config.get("fileName", ""):
             self.wmo = True
 
         self.json_textures = self.json_config.get("textures", self.json_config.get("fileDataIDs", []))
