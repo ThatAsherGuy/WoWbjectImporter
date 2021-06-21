@@ -32,6 +32,178 @@ import bmesh
 from math import radians
 from bpy_extras.io_utils import unpack_list
 from bpy_extras.image_utils import load_image
+from .lookup_funcs import wmo_read_color
+from itertools import chain
+
+
+def setup_blender_object(**kwargs):
+    base_name = kwargs.get("name", "wmo_object")
+    mesh_data = kwargs.get("mesh_data")
+    mat_dict = kwargs.get("mat_dict", {})
+
+    group = kwargs.get("group")
+    json_group = group.json_group
+
+    full_name = base_name + "_" + json_group.get("groupName", "section")
+
+    mesh = bpy.data.meshes.new(base_name)
+    mesh.use_auto_smooth = True
+    mesh.auto_smooth_angle = 1.0472    
+
+    blender_object = bpy.data.objects.new(full_name, mesh)
+
+    bm = bmesh.new()
+    vcols = bm.loops.layers.color.new("vcols")
+    uv_layer = bm.loops.layers.uv.new()
+
+    batches = group.mesh_batches
+    json_batches = group.json_batches
+    color_list = group.colors
+
+    batch_offset = 0
+    colors = {}
+
+    # print("JSON Batches: %i" % len(json_batches))
+    # print("Direct Batches: %i" % len(batches))
+    v_dict = {}
+    uv_dict = {}
+    for i, batch in enumerate(batches):
+        exampleFaceSet = False
+        
+
+        for face in batch.faces:
+            for v in face:
+                vert = bm.verts.new(mesh_data.verts[v - 1])
+                v_dict[v] = vert
+
+                # The data layer for vertex color is actually in the face loop.
+                # We can't set the color until after all of the faces are made,
+                # So we throw it all into a dictionary and brute-force it later.
+                # v_color = wmo_read_color(color_list[v], 'CImVector')
+                # colors[vert.index] = v_color
+            try:
+                if exampleFaceSet == False:
+                    face = bm.faces.new((
+                        v_dict[face[0]],
+                        v_dict[face[1]],
+                        v_dict[face[2]]
+                    ))
+                    exampleFace = face
+                    exampleFaceSet = True
+
+                    if json_batches[i].get("flags") == 2:
+                        mat_ID = json_batches[i].get("possibleBox2")[2]
+                    else:
+                        mat_ID = json_batches[i].get("materialID")
+
+                    local_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+
+                    if local_index == -1:
+                        blender_object.data.materials.append(mat_dict[mat_ID])
+                        face.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+                    else:
+                        face.material_index = local_index
+
+                else:
+                    face = bm.faces.new((
+                        v_dict[face[0]],
+                        v_dict[face[1]],
+                        v_dict[face[2]]
+                    ), exampleFace)
+
+            except ValueError:
+                pass
+
+    if len(mesh_data.uv2) > 0:
+        uv2_layer = bm.loops.layers.uv.new('UV2Map')
+
+    bm.faces.ensure_lookup_table()
+
+    face_list = [batch.faces for batch in batches]
+    face_list = [face for sublist in face_list for face in sublist]
+
+    for i, face in enumerate(face_list):
+        for j, loop in enumerate(bm.faces[i].loops):
+            loop[uv_layer].uv = mesh_data.uv[face[j] -1]
+            if len(mesh_data.uv2) > 0:
+                loop[uv2_layer].uv = mesh_data.uv2[face[j]-1]
+
+    bm.verts.ensure_lookup_table()
+
+    if len(color_list) > 0:
+        for vert in bm.verts:
+            for loop in vert.link_loops:
+                # loop[vcols] = colors[vert.index]
+                loop[vcols] = wmo_read_color(color_list[vert.index], 'CImVector')
+
+    bm.to_mesh(mesh)
+    bm.free()
+    bpy.context.view_layer.active_layer_collection.collection.objects.link(blender_object)
+    blender_object.rotation_euler = [0, 0, 0]
+    blender_object.rotation_euler.x = radians(90)
+    return blender_object
+
+# TL;DR:
+# Step one: Repack OBJ into meshObject
+# Step two: Repack meshObject into wmoGroups
+# Step three: Generate blenderObjects from wmoGroups
+class wmoGroup:
+    def __init__(self):
+        self.mesh_data = None
+
+        # Pulled from mesh_batches
+        self.face_offset = -1
+        self.faces = []
+        self.b_faces = []
+
+        # Pulled from mesh_batches
+        self.vert_offset = -1
+        self.verts = []
+        self.b_verts = []
+
+        self.batch_count = -1
+        self.group_offset = -1
+
+        # A list of meshComponent objects
+        self.mesh_batches = []
+        # The renderBatches that map to the meshComponent objects
+        self.json_batches = []
+        self.json_group = None
+
+        self.colors = []
+
+
+def repack_wmo(**kwargs):
+    container = kwargs.get("import_container")
+    json_groups = container.json_config.get("groups")
+    mesh_data = kwargs.get("mesh_data")
+
+    groups = []
+
+    offset = 0
+
+    for group in json_groups:
+        g_batches = group.get("renderBatches", [])
+        g_length = len(g_batches)
+
+        if g_length > 0:
+            g_slice = slice(offset, offset + g_length)
+            wmo_group = wmoGroup()
+
+            wmo_group.json_group = group
+            wmo_group.json_batches = g_batches
+            wmo_group.mesh_batches = mesh_data.components[g_slice]
+            wmo_group.batch_count = g_length
+
+            wmo_group.mesh_data = mesh_data
+            wmo_group.colors = group.get("vertexColours", [])
+
+            groups.append(wmo_group)
+
+            offset += g_length
+            wmo_group.group_offset = offset
+
+    return groups
 
 class meshComponent:
     def __init__(self):
@@ -110,7 +282,6 @@ def initialize_mesh(mesh_path):
     # print(f_count)
     return obj
 
-
 def import_obj(file, directory, reuse_mats, name_override, import_container, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all(action='DESELECT')
@@ -133,6 +304,30 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
     newObj.WBJ.initialized = True
 
     bm = bmesh.new()
+    output_meshes = []
+
+    if import_container.wmo:
+        config = import_container.json_config
+        json_mats = config.get("materials")
+        groups = config.get("groups")
+        used_mats = set()
+
+        wmo_groups = repack_wmo(import_container=import_container, groups=groups, mesh_data=mesh_data, config=config)
+
+        mat_dict = {}
+        for i, mat in enumerate(json_mats):
+            mat = bpy.data.materials.new(name=mesh_name + "_mat_" + str(i))
+            mat.use_nodes = True
+            mat_name = mat.name
+            mat_dict[i] = mat
+
+        objects = []
+
+        for group in wmo_groups:
+            bl_obj = setup_blender_object(name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict)
+            objects.append(bl_obj)
+
+        return objects
 
     for i, v in enumerate(mesh_data.verts):
         vert = bm.verts.new(v)
@@ -141,23 +336,7 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
     bm.verts.ensure_lookup_table()
     bm.verts.index_update()
 
-    if import_container.wmo:
-        config = import_container.json_config
-        json_mats = config.get("materials")
-        groups = config.get("groups")
-        mat_map = {}
-    
-        # the OBJ is broken into batches, but not groups. Sorta.
-        batches = []
-        for group in groups:
-            batches += group.get("renderBatches", [])
-
-        for i, mat in enumerate(json_mats):
-            mat = bpy.data.materials.new(name=mesh_name + "_mat")
-            mat.use_nodes = True
-            mat_name = mat.name
-            newObj.data.materials.append(mat)
-
+    group_faces = []
 
     for i, component in enumerate(mesh_data.components):
         create_mat = True
@@ -187,35 +366,27 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
         for face in component.faces:
             try:
                 if exampleFaceSet == False:
-                    bm.faces.new((
+                    face = bm.faces.new((
                         bm.verts[face[0] - 1],
                         bm.verts[face[1] - 1],
                         bm.verts[face[2] - 1]
                     ))
                     bm.faces.ensure_lookup_table()
 
-                    if import_container.wmo:
-                        if batches[i].get("flags") == 2:
-                            mat_ID = batches[i].get("possibleBox2")[2]
-                        else:
-                            mat_ID = batches[i].get("materialID")
-
-                        mat_index = mat_map.get(mat_ID, -1)
-                        bm.faces[-1].material_index = mat_ID
-    
-                    else:
-                        bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
+                    bm.faces[-1].material_index = newObj.data.materials.find(mat_name)
 
                     bm.faces[-1].smooth = True
                     exampleFace = bm.faces[-1]
                     exampleFaceSet = True
                 else:
                     ## Use example face if set to speed up material copy!
-                    bm.faces.new((
+                    face = bm.faces.new((
                         bm.verts[face[0] - 1],
                         bm.verts[face[1] - 1],
                         bm.verts[face[2] - 1]
                     ), exampleFace)
+
+                group_faces.append(face)
 
             except ValueError:
                 # sometimes there are duplicate faces. Spot checking these,
@@ -230,10 +401,6 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
                 # exist, but for now, just ignoring duplicate faces will
                 # stop the addon from crashing, with no apparent downsides.
                 pass
-
-    if import_container.wmo:
-        for mat in mat_map.values():
-            newObj.data.materials.append(mat)
 
     uv_layer = bm.loops.layers.uv.new()
     for face in bm.faces:

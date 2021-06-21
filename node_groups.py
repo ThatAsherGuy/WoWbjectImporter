@@ -554,90 +554,87 @@ def do_wmo_mats(**kwargs):
     config = kwargs.get("json")
     mats = config.get("materials")
 
-    for i, mat in enumerate(mats):
-        # i = min(i, (len(container.bl_obj.material_slots)-1) )
+    for obj in container.bl_obj:
+        for slot in obj.material_slots:
+            mat_number = slot.material.name.split('_')[-1]
+            mat = mats[int(mat_number)]
 
-        tex1 = get_tex(container, str(mat.get("texture1")))
-        tex2 = get_tex(container, str(mat.get("texture2")))
-        tex3 = get_tex(container, str(mat.get("texture3")))
+            tex1 = get_tex(container, str(mat.get("texture1")))
+            tex2 = get_tex(container, str(mat.get("texture2")))
+            tex3 = get_tex(container, str(mat.get("texture3")))
 
-        tex_list = (tex1, tex2, tex3)
+            tex_list = (tex1, tex2, tex3)
 
-        if i >= len(container.bl_obj.material_slots):
-            bl_mat = bpy.data.materials.new(name="jim bob")
-            bl_mat.use_nodes = True
-            container.bl_obj.data.materials.append(bl_mat)
-        else:
-            bl_mat = container.bl_obj.material_slots[i].material
-        tree = bl_mat.node_tree
-        nodes= tree.nodes
+            bl_mat = slot.material
+            tree = bl_mat.node_tree
+            nodes= tree.nodes
 
-        shader = None
-        out_node = None
-        for node in nodes:
-            if node.type == 'BSDF_PRINCIPLED':
-                shader = node
-                shader.inputs[7].default_value = 1.0
+            shader = None
+            out_node = None
+            for node in nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    shader = node
+                    shader.inputs[7].default_value = 1.0
 
-            if node.type == 'OUTPUT_MATERIAL':
-                out_node = node
+                if node.type == 'OUTPUT_MATERIAL':
+                    out_node = node
 
-            if shader and out_node:
-                break
+                if shader and out_node:
+                    break
 
-        if not out_node:
-            out_node = nodes.new('ShaderNodeOutputMaterial')
+            if not out_node:
+                out_node = nodes.new('ShaderNodeOutputMaterial')
 
-        if not shader:
-            print("DO LATER")
+            if not shader:
+                print("DO LATER")
 
-        baseColor = nodes.new('ShaderNodeRGB')
-        baseColor.location += Vector((-1200.0, 400.0))
-        baseColor.outputs[0].default_value = wmo_read_color(mat.get("color2"), 'CArgb')
-        baseColor.label = 'BASE COLOR'
+            baseColor = nodes.new('ShaderNodeRGB')
+            baseColor.location += Vector((-1200.0, 400.0))
+            baseColor.outputs[0].default_value = wmo_read_color(mat.get("color2"), 'CArgb')
+            baseColor.label = 'BASE COLOR'
 
-        tex_nodes = []
+            tex_nodes = []
 
-        for i, tex in enumerate(tex_list):
-            if tex:
-                tex_node = nodes.new('ShaderNodeTexImage')
-                tex_node.image = tex
-                tex_node.location += Vector((-1200.0, (200 - i * 300.0)))
-                tex_nodes.append(tex_node)
+            for i, tex in enumerate(tex_list):
+                if tex:
+                    tex_node = nodes.new('ShaderNodeTexImage')
+                    tex_node.image = tex
+                    tex_node.location += Vector((-1200.0, (200 - i * 300.0)))
+                    tex_nodes.append(tex_node)
 
-        if len(tex_nodes) > 1:
-            mix_node = nodes.new("ShaderNodeMixRGB")
-            mix_node.location += Vector((-600.0, 0.0))
-            tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
-            tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[2])
-            tree.links.new(mix_node.outputs[0], shader.inputs[0])
+            if len(tex_nodes) > 1:
+                mix_node = nodes.new("ShaderNodeMixRGB")
+                mix_node.location += Vector((-600.0, 0.0))
+                tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
+                tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[2])
+                tree.links.new(mix_node.outputs[0], shader.inputs[0])
 
-            connect_mode = WMO_Shaders_New[mat.get("shader", 0)][1]
+                connect_mode = WMO_Shaders_New[mat.get("shader", 0)][1]
 
-            if connect_mode in {'MapObjDiffuse_T1_Env_T2', 'MapObjDiffuse_T1_Refl'}:
-                env_map = nodes.new('ShaderNodeGroup')
-                env_map.node_tree = get_utility_group(name="SphereMap_Alt")
-                env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
-                tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
-                tree.links.new(tex_nodes[0].outputs[1], mix_node.inputs[0])
-            elif connect_mode in {'MapObjDiffuse_Comp'}:
-                v_colors = nodes.new("ShaderNodeVertexColor")
-                v_colors.layer_name = 'vcols'
-                v_colors.location += Vector((-800.0, 0.0))
+                if connect_mode in {'MapObjDiffuse_T1_Env_T2', 'MapObjDiffuse_T1_Refl'}:
+                    env_map = nodes.new('ShaderNodeGroup')
+                    env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+                    env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+                    tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
+                    tree.links.new(tex_nodes[0].outputs[1], mix_node.inputs[0])
+                elif connect_mode in {'MapObjDiffuse_Comp'}:
+                    v_colors = nodes.new("ShaderNodeVertexColor")
+                    v_colors.layer_name = 'vcols'
+                    v_colors.location += Vector((-800.0, 0.0))
 
-                tree.links.new(v_colors.outputs[1], mix_node.inputs[0])
+                    tree.links.new(v_colors.outputs[1], mix_node.inputs[0])
 
-                # These need to be flipped, for whatever reason
-                tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[2])
-                tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[1])
-        else:
-            tree.links.new(tex_nodes[0].outputs[0], shader.inputs[0])
+                    # These need to be flipped, for whatever reason
+                    tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[2])
+                    tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[1])
+            else:
+                tree.links.new(tex_nodes[0].outputs[0], shader.inputs[0])
 
-            if mat.get("blendMode") == 2:
-                tree.links.new(tex_nodes[0].outputs[1], shader.inputs[19])
-                bl_mat.blend_method = 'BLEND'
+                if mat.get("blendMode") == 2:
+                    tree.links.new(tex_nodes[0].outputs[1], shader.inputs[19])
+                    bl_mat.blend_method = 'BLEND'
 
-    setup_wmo_batches(container, config)
+        setup_wmo_batches(container, config)
 
 
 def get_tex(container, tex_num):
@@ -657,6 +654,7 @@ def get_tex(container, tex_num):
         return None
 
 def setup_wmo_batches(container, config):
+    return
     # bpy.ops.object.editmode_toggle()
     obj = container.bl_obj
     mesh = obj.data
@@ -667,49 +665,10 @@ def setup_wmo_batches(container, config):
     vcols = bm.loops.layers.color.new("vcols")
 
     groups = config.get("groups")
-    mat_offset = 0
     color_offset = 0
-    batch_offset = 0
+
     for group in groups:
-        # triangles = [i for i in group.get("materialInfo") if not i.get("materialID") == 255]
         colors = group.get("vertexColours")
-
-        triangles = group.get("materialInfo")
-
-        # for i, tri in enumerate(triangles):
-        #     i += mat_offset
-        #     if read_wmo_face_flags(tri.get("flags"), 'is_render') == False:
-        #         print("no-render")
-        #         continue
-        #     else:
-        #         if i < (len(bm.faces)):
-        #             bm.faces[i].material_index = tri.get("materialID")
-        #         else:
-        #             break
-
-        batches = group.get("renderBatches")
-        # print(len(triangles))
-
-        stoip = len(bm.faces)
-        
-        # for i, batch in enumerate(batches):
-        #     faces = []
-        #     for j in range(batch.get("numFaces")-1):
-        #         index = int((batch.get("firstFace") + j)/3)
-        #         # print(str(index) + " | " + str(len(triangles)))
-        #         faces.append(triangles[index])
-
-        #     ofs = int((batch.get("firstFace")))
-
-        #     for i, face in enumerate(faces):
-        #         mInd = face.get("materialID")
-        #         if not mInd == 255:
-        #             bm.faces[i + ofs].material_index = face.get("materialID")
-
-        #     batch_offset += int((batch.get("numFaces")-1)/3)
-
-
-        mat_offset += len(triangles)
 
         if colors:
             for j, col in enumerate(colors):
