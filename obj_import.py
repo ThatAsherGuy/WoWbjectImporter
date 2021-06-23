@@ -40,6 +40,7 @@ def setup_blender_object(**kwargs):
     base_name = kwargs.get("name", "wmo_object")
     mesh_data = kwargs.get("mesh_data")
     mat_dict = kwargs.get("mat_dict", {})
+    merge_verts = kwargs.get("merge_verts")
 
     group = kwargs.get("group")
     json_group = group.json_group
@@ -48,7 +49,7 @@ def setup_blender_object(**kwargs):
 
     mesh = bpy.data.meshes.new(base_name)
     mesh.use_auto_smooth = True
-    mesh.auto_smooth_angle = 1.0472    
+    mesh.auto_smooth_angle = radians(60)
 
     blender_object = bpy.data.objects.new(full_name, mesh)
 
@@ -69,7 +70,6 @@ def setup_blender_object(**kwargs):
     uv_dict = {}
     for i, batch in enumerate(batches):
         exampleFaceSet = False
-        
 
         for face in batch.faces:
             for v in face:
@@ -135,6 +135,12 @@ def setup_blender_object(**kwargs):
             for loop in vert.link_loops:
                 # loop[vcols] = colors[vert.index]
                 loop[vcols] = wmo_read_color(color_list[vert.index], 'CImVector')
+
+    if merge_verts:
+        before=len(bm.verts)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
+        removed = before - len(bm.verts)
+        print(f"vertex deduplication cleaned {removed} of {before} verts from {blender_object.name}")
 
     bm.to_mesh(mesh)
     bm.free()
@@ -282,20 +288,20 @@ def initialize_mesh(mesh_path):
     # print(f_count)
     return obj
 
-def import_obj(file, directory, reuse_mats, name_override, import_container, **kwargs):
+def import_obj(file, directory, reuse_mats, name_override, merge_verts, import_container, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all(action='DESELECT')
 
     if name_override:
         mesh_name = name_override
     else:
-        mesh_name = file.split('.')[0]
+        mesh_name = os.path.splitext(file)[0]
 
     mesh_data = initialize_mesh(os.path.join(directory, file))
 
     newMesh = bpy.data.meshes.new(mesh_name)
     newMesh.use_auto_smooth = True
-    newMesh.auto_smooth_angle = 1.0472
+    newMesh.auto_smooth_angle = radians(60)
 
     newObj = bpy.data.objects.new(mesh_name, newMesh)
 
@@ -324,7 +330,7 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
         objects = []
 
         for group in wmo_groups:
-            bl_obj = setup_blender_object(name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict)
+            bl_obj = setup_blender_object(name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts)
             objects.append(bl_obj)
 
         return objects
@@ -342,7 +348,7 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
         create_mat = True
         exampleFaceSet = False
         mat_name = mesh_name + "_" + component.name + "_mat"
-        fallback_name = file.split('.')[0] + "_" + component.name + "_mat"
+        fallback_name = os.path.splitext(file)[0] + "_" + component.name + "_mat"
 
         if reuse_mats:
             for bl_mat in bpy.data.materials:
@@ -417,7 +423,7 @@ def import_obj(file, directory, reuse_mats, name_override, import_container, **k
     bm.free()
 
     # needed to have a mesh before we can create vertex groups, so do that now
-    # for i, component in enumerate(sorted(mesh_data.components, key=lambda m: m.name.lower())):
+    # FIXME: Can we do this without doing bm.to_mesh first?
     for i, component in enumerate(mesh_data.components):
         vg = newObj.vertex_groups.new(name=f"{component.name}")
         vg.add(list(component.verts), 1.0, "REPLACE")

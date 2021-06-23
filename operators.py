@@ -90,15 +90,23 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         default=''
     )
 
+    merge_verts: bpy.props.BoolProperty(
+        name='Dedupe Vertices',
+        description='Deduplicate and merge vertices (WMO only)',
+        default=True
+    )
+
     reuse_materials: bpy.props.BoolProperty(
         name='Reuse Materials',
         description='Re-use the existing materials in the scene if they match',
-        default=False)
+        default=False
+    )
 
     create_aovs: bpy.props.BoolProperty(
         name='Create AOVs',
         description='[NOT IMPLEMENTED] Create AOVs for materials that use special blending modes',
-        default=False)
+        default=False
+    )
 
     base_shader_items = [
                         ("EMIT", "Emission Shader", "Standard unlit look"),
@@ -172,6 +180,9 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         row = root.row(align=True)
         row.prop(self, 'reuse_materials')
+
+        row = root.row(align=True)
+        row.prop(self, 'merge_verts')
 
         col = root.column(align=True)
         col.use_property_split = True

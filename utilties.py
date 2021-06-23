@@ -170,7 +170,7 @@ class import_container():
             # EditBones and PoseBones don't hold references to each other.
             # Which means that we have to manuall map M2CompBone:EditBone:PoseBone by name,
             # in order to do all the things we need to do.
-            bone_dict = {} 
+            bone_dict = {}
 
             for i, bone in enumerate(self.bones):
 
@@ -228,7 +228,7 @@ class import_container():
                             w = (comp_quat.w + 32768)/32767 if comp_quat.w < 0 else (comp_quat.w - 32767)/32767
                             bone_quat = mathutils.Quaternion((w, x, y, z))
                             fquat = mathutils.Quaternion((1.0, 0.0, 0.0), radians(90))
-                            pbone.rotation_quaternion = bone_quat      
+                            pbone.rotation_quaternion = bone_quat
 
         # Won't make up for missing JSON data (will need to kaitai .skin files for texUnit data)
         if self.damage_control:
@@ -293,6 +293,7 @@ class import_container():
             self.source_directory,
             self.reuse_mats,
             self.op_args.get("name_override"),
+            self.op_args.get("merge_verts"),
             self
             )
 
