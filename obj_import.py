@@ -419,14 +419,22 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, import_c
             for loop in face.loops:
                 loop[uv2_layer].uv = mesh_data.uv2[loop.vert.index]
 
+    if merge_verts:
+        before = len(bm.verts)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
+        removed = before - len(bm.verts)
+        print(f"vertex deduplication cleaned {removed} of {before} verts from {newObj.name}")
+
     bm.to_mesh(newMesh)
     bm.free()
 
     # needed to have a mesh before we can create vertex groups, so do that now
     # FIXME: Can we do this without doing bm.to_mesh first?
-    for i, component in enumerate(mesh_data.components):
-        vg = newObj.vertex_groups.new(name=f"{component.name}")
-        vg.add(list(component.verts), 1.0, "REPLACE")
+    # FIXME: disabled pending further consideration. If re-enabled, ensure
+    # it happens before vertex deduplication happens.
+    # for i, component in enumerate(mesh_data.components):
+    #     vg = newObj.vertex_groups.new(name=f"{component.name}")
+    #     vg.add(list(component.verts), 1.0, "REPLACE")
 
     ## Rotate object the right way
     newObj.rotation_euler = [0, 0, 0]
