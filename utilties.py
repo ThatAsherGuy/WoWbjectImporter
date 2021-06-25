@@ -73,7 +73,6 @@ class import_container():
 
         self.wmo = False
 
-
     def do_setup(self, files, directory, op_args, **kwargs):
         # ProgressReport is the thing that does the fancy print messages and changes the cursor.
         # I'm 50/50 on it. There's also no documentation for it, outside of comments in the source code.
@@ -217,7 +216,6 @@ class import_container():
                     if bpy.context.scene.camera:
                         bb_constraint.target = bpy.context.scene.camera
 
-
                 if 'transformed' in bone_flags:
                     if bone.rotation.values.num > 0: # There's some janky shit going on here
                         if bone.rotation.values.values[0].num > 0:
@@ -243,7 +241,6 @@ class import_container():
                     json_textures[i] = {tex.flags, tex.filename}
 
         return True
-
 
     def setup_json_data(self, **kwargs):
         if not kwargs.get('config') == None:
@@ -272,7 +269,6 @@ class import_container():
 
         return True
 
-
     def setup_bl_object(self):
         '''
         Calls the actual OBJ importer and sets up an object in Blender.
@@ -294,11 +290,11 @@ class import_container():
             self.reuse_mats,
             self.op_args.get("name_override"),
             self.op_args.get("merge_verts"),
+            self.op_args.get("use_collections"),
             self
-            )
+        )
 
         return True
-
 
     def setup_textures(self):
         '''
@@ -343,7 +339,6 @@ class import_container():
 
         return True
 
-
     def get_fallback_tex(self):
         if self.fallback_generated:
             return self.fallback_texture
@@ -365,7 +360,6 @@ class import_container():
             self.fallback_generated = True
             self.fallback_texture = img
             return img
-
 
     def setup_materials(self):
         '''
@@ -622,7 +616,7 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
         op_args,
         reuse_mats=reuse_mats,
         base_shader=base_shader
-        )
+    )
     return reports
 
 # TODO: Logging

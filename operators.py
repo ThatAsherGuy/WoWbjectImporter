@@ -72,7 +72,7 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
     # The importer can handle multi-file, multi-type selections
     # So these are technically optional
-    filename_ext   = '.obj'
+    filename_ext = '.obj'
     filter_glob: bpy.props.StringProperty(default='*.obj')
 
     files: bpy.props.CollectionProperty(name = 'Files', type= bpy.types.OperatorFileListElement)
@@ -92,7 +92,13 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
     merge_verts: bpy.props.BoolProperty(
         name='Dedupe Vertices',
-        description='Deduplicate and merge vertices (WMO only)',
+        description='Deduplicate and merge vertices)',
+        default=True
+    )
+
+    use_collections: bpy.props.BoolProperty(
+        name='Use Collections',
+        description='Create objects inside collections when possible (WMO only)',
         default=True
     )
 
@@ -131,7 +137,6 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
-
     def execute(self, context):
         prefs = preferences.get_prefs()
         verbosity = prefs.reporting
@@ -169,7 +174,6 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
     def draw(self, context):
         layout = self.layout
         root = layout.column(align=True)
@@ -183,6 +187,9 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         row = root.row(align=True)
         row.prop(self, 'merge_verts')
+
+        row = root.row(align=True)
+        row.prop(self, 'use_collections')
 
         col = root.column(align=True)
         col.use_property_split = True

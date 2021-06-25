@@ -41,11 +41,13 @@ def setup_blender_object(**kwargs):
     mesh_data = kwargs.get("mesh_data")
     mat_dict = kwargs.get("mat_dict", {})
     merge_verts = kwargs.get("merge_verts")
+    use_collections = kwargs.get("use_collections")
 
     group = kwargs.get("group")
     json_group = group.json_group
 
     full_name = base_name + "_" + json_group.get("groupName", "section")
+    collection_name = json_group.get("groupDescription", None)
 
     mesh = bpy.data.meshes.new(base_name)
     mesh.use_auto_smooth = True
@@ -137,16 +139,29 @@ def setup_blender_object(**kwargs):
                 loop[vcols] = wmo_read_color(color_list[vert.index], 'CImVector')
 
     if merge_verts:
-        before=len(bm.verts)
+        before = len(bm.verts)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
         removed = before - len(bm.verts)
         print(f"vertex deduplication cleaned {removed} of {before} verts from {blender_object.name}")
 
     bm.to_mesh(mesh)
     bm.free()
-    bpy.context.view_layer.active_layer_collection.collection.objects.link(blender_object)
+
     blender_object.rotation_euler = [0, 0, 0]
     blender_object.rotation_euler.x = radians(90)
+
+    if use_collections and collection_name:
+        if collection_name in bpy.data.collections:
+            collection = bpy.data.collections[collection_name]
+        else:
+            collection = bpy.data.collections.new(collection_name)
+            bpy.context.scene.collection.children.link(collection)
+
+        collection.objects.link(blender_object)
+    else:
+        bpy.context.view_layer.active_layer_collection.collection.objects.link(
+            blender_object)
+
     return blender_object
 
 # TL;DR:
@@ -288,7 +303,7 @@ def initialize_mesh(mesh_path):
     # print(f_count)
     return obj
 
-def import_obj(file, directory, reuse_mats, name_override, merge_verts, import_container, **kwargs):
+def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_collections, import_container, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all(action='DESELECT')
 
@@ -330,7 +345,8 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, import_c
         objects = []
 
         for group in wmo_groups:
-            bl_obj = setup_blender_object(name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts)
+            bl_obj = setup_blender_object(
+                name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts, use_collections=use_collections)
             objects.append(bl_obj)
 
         return objects
@@ -436,7 +452,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, import_c
     #     vg = newObj.vertex_groups.new(name=f"{component.name}")
     #     vg.add(list(component.verts), 1.0, "REPLACE")
 
-    ## Rotate object the right way
+    # Rotate object the right way
     newObj.rotation_euler = [0, 0, 0]
     newObj.rotation_euler.x = radians(90)
 
