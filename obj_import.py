@@ -162,6 +162,10 @@ def setup_blender_object(**kwargs):
         bpy.context.view_layer.active_layer_collection.collection.objects.link(
             blender_object)
 
+    bpy.ops.object.select_all(action='DESELECT')
+    blender_object.select_set(True)
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+
     return blender_object
 
 # TL;DR:
@@ -458,6 +462,5 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
 
     # Defaults to main collection if no collection exists.
     bpy.context.view_layer.active_layer_collection.collection.objects.link(newObj)
-    # newObj.select_set(True)
 
     return newObj
