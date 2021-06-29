@@ -666,13 +666,32 @@ def do_wmo_combiner(**kwargs):
         
     elif shader_info[0] == "Specular":
         tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+        shader_out.inputs[7].default_value = 0.5
 
     elif shader_info[0] == "Metal":
         tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+        shader_out.inputs[4].default_value = 1.0
+        shader_out.inputs[7].default_value = 0.5
 
     elif shader_info[0] == "Env":
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
 
+        env_map = nodes.new('ShaderNodeGroup')
+        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+
+        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
+
+        mix_node = nodes.new("ShaderNodeMixRGB")
+        mix_node.location += Vector((-600.0, 0.0))
+        mix_node.label = "Env"
+        mix_node.blend_type = 'ADD'
+
+        tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
+        tree.links.new(tex_nodes[-1].outputs[0], mix_node.inputs[2])
+
+        tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
+
+        tex_nodes[-1].projection = 'SPHERE'
     elif shader_info[0] == "Opaque":
         tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
 
@@ -682,12 +701,12 @@ def do_wmo_combiner(**kwargs):
         v_colors.location += Vector((-900.0, 325.0))
 
         vcol_invert = nodes.new("ShaderNodeMath")
-        vcol_invert.operation = 'MULTIPLY'
+        vcol_invert.operation = 'SUBTRACT'
         vcol_invert.location += Vector((-600.0, 325.0))
         vcol_invert.inputs[0].default_value = 1.0
 
-        tree.links.new(v_colors.outputs[1], vcol_invert.inputs[0])
-        tree.links.new(tex_nodes[0].outputs[1], vcol_invert.inputs[1])
+        tree.links.new(v_colors.outputs[1], vcol_invert.inputs[1])
+        tree.links.new(tex_nodes[0].outputs[1], vcol_invert.inputs[0])
 
         mix_node = nodes.new("ShaderNodeMixRGB")
         mix_node.location += Vector((-600.0, 0.0))
@@ -702,13 +721,15 @@ def do_wmo_combiner(**kwargs):
 
         tree.links.new(vcol_invert.outputs[0], mix_node.inputs[0])
 
-        # Tex 1 Alpha and Color
         tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
-
-        # Tex 2 Color
         tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[2])
 
         tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
+
+        shader_out.inputs[4].default_value = 1.0
+        shader_out.inputs[7].default_value = 0.5
+
+        tex_nodes[-1].projection = 'SPHERE'
 
     elif shader_info[0] == "TwoLayerDiffuse":
 
@@ -770,9 +791,12 @@ def do_wmo_combiner(**kwargs):
         tree.links.new(tex_nodes[0].outputs[0], mix_node_1.inputs[1])
         tree.links.new(tex_nodes[1].outputs[0], mix_node_1.inputs[2])
 
+        tex_nodes[-1].projection = 'SPHERE'
+
         # Mixer 1 to Mixer 2
         tree.links.new(mix_node_1.outputs[0], mix_node_2.inputs[1])
-        tree.links.new(tex_nodes[2].outputs[0], mix_node_2.inputs[2])
+        if len(tex_nodes) > 2:
+            tree.links.new(tex_nodes[2].outputs[0], mix_node_2.inputs[2])
 
         # Texture 1 Alpha to Mixer 2 Factor
         tree.links.new(tex_nodes[0].outputs[1], mix_node_2.inputs[0])
@@ -851,6 +875,8 @@ def do_wmo_combiner(**kwargs):
         tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[2])
 
         tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
+
+        tex_nodes[-1].projection = 'SPHERE'
 
     elif shader_info[0] == "TwoLayerDiffuseOpaque":
 
