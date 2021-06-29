@@ -12,6 +12,7 @@ TL;DR: This Blender add-on + WoW.Export = Streamlined material assignment with a
 - Automatically applies game textures, using game-accurate shaders, reproduced using standard Blender node trees
 - Automatically sets up UV animations (for magic effects, etc.) to animate in the correct ways, with correct timings
 - Can create node trees based on emissive shaders (most true to WoW), diffuse shaders, specular shaders, or the principled shader
+- Handles both M2 files (weapons, items, doodads, etc.) and WMO files (rocks, buildings, towns, etc.)
 
 
 ### Current Non-features/Mis-features
@@ -50,9 +51,13 @@ WoWbject Import is built to work with WoW.Export, and it reads both the JSON fil
 
 - **Enable Shared Textures** must be *disabled*
 - **Export UV2 Data** must be *enabled*
-- **Export Meta Data** must be *enabled for M2 files*
+- **Export Meta Data** must be *enabled for both M2 and WMO files*
 
 **You will need to export the model twice:** The importer needs two different types of files from wow.export, so  Use "**export as OBJ**", followed by "**export as M2 / WMO (Raw)**". If you are in a hurry you can skip the M2/RAW step, though you will lose some features by doing so (primarily UV animation setup). We may remove the double-export requirement at some point in the future, but it's easy enough to do the double export that it's not at the top of our list.
+
+### A quick note on textures
+
+WoW likes to store masks in alpha channels. This is especially prevalent with WMO assets, as they frequently use these masks to blend in (fairly subtle) reflection textures. While WoW.Export gives you the option to export textures without alpha, and WoWbject Import can usually piece together a reasonably accurate material setup with them, you'll lose out on the finer details.
 
 Like most Blender importers, you'll find the WoWbject import operator in the File→Import menu. Click it, and it'll pop up a file browser that looks something like this:
 
@@ -102,6 +107,10 @@ This add-on relies on an external python module called `kaitastruct`, which it u
 
 And finally, many kudos to the [Blender Foundation](https://www.blender.org/foundation/) and the numerous contributors to the Blender project, for providing such amazing software for us to build on. For all its flaws, it is still amazing that software of this size and breadth is available for free to anyone who cares to use it.
 
+## Links
+
+- [Asher's Patreon](https://patreon.com/thatasherguy/)
+- [Insert Social Media Here?]
 
 ## Changelog
 

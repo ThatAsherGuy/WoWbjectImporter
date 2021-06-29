@@ -160,7 +160,7 @@ def setup_blender_object(**kwargs):
         before = len(bm.verts)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
         removed = before - len(bm.verts)
-        print(f"vertex deduplication cleaned {removed} of {before} verts from {blender_object.name}")
+        # print(f"vertex deduplication cleaned {removed} of {before} verts from {blender_object.name}")
 
     bm.to_mesh(mesh)
     bm.free()
@@ -362,7 +362,7 @@ def initialize_mesh(mesh_path):
                 obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
     return obj
 
-def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_collections, import_container, **kwargs):
+def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_collections, import_container, progress, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
 
@@ -371,6 +371,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
     else:
         mesh_name = os.path.splitext(file)[0]
 
+    progress.step("Reading OBJ File")
     mesh_data = initialize_mesh(os.path.join(directory, file))
 
     newMesh = bpy.data.meshes.new(mesh_name)
@@ -403,11 +404,17 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
 
         objects = []
 
-        for group in wmo_groups:
+        steps = len(wmo_groups)
+        progress.step()
+        progress.enter_substeps(steps, "Generating Meshes")
+
+        for i, group in enumerate(wmo_groups):
+            progress.step(f"Constructing object {i + 1}/{steps}")
             bl_obj = setup_blender_object(
                 name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts, use_collections=use_collections)
             objects.append(bl_obj)
 
+        progress.leave_substeps("Mesh Generation Complete")
         return objects
 
     for i, v in enumerate(mesh_data.verts):

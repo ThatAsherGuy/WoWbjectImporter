@@ -121,10 +121,13 @@ class import_container():
             # if not load_step:
             #     self.reports.append('Failed to load textures')
 
-            progress.step("Initializing Object")
-            load_step = self.setup_bl_object()
+            progress.step()
+            progress.enter_substeps(2, "Initializing Object")
+            load_step = self.setup_bl_object(progress)
             if not load_step:
                 self.reports.errors.append('Failed to initialize blender object')
+
+            progress.leave_substeps()
 
             raw = self.source_files.get('M2')
             if len(raw) > 0:
@@ -141,6 +144,8 @@ class import_container():
             load_step = self.setup_materials()
             if not load_step:
                 self.reports.errors.append('Failed to setup materials')
+
+            progress.leave_substeps("WMO Loaded")
 
             return self.reports
 
@@ -269,7 +274,7 @@ class import_container():
 
         return True
 
-    def setup_bl_object(self):
+    def setup_bl_object(self, progress):
         '''
         Calls the actual OBJ importer and sets up an object in Blender.
         Materials are assigned to face during this process, but the material setup happens later.
@@ -291,7 +296,8 @@ class import_container():
             self.op_args.get("name_override"),
             self.op_args.get("merge_verts"),
             self.op_args.get("use_collections"),
-            self
+            self,
+            progress
         )
 
         return True

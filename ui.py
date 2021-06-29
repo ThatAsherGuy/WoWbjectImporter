@@ -57,3 +57,6 @@ class VIEW3D_PT_wowbject_combiner_panel(bpy.types.Panel):
             "wowbj.get_combiner",
             "combiner"
         )
+
+        if context.active_node:
+            root.prop(context.active_node, "location")
