@@ -183,6 +183,8 @@ def setup_blender_object(**kwargs):
     bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
     blender_object.select_set(True)
     bpy.ops.object.origin_set('INVOKE_DEFAULT', False, type='ORIGIN_GEOMETRY', center='MEDIAN')
+    bpy.ops.object.shade_smooth('INVOKE_DEFAULT', False)
+
 
     return blender_object
 
@@ -362,7 +364,7 @@ def initialize_mesh(mesh_path):
 
 def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_collections, import_container, **kwargs):
     if bpy.ops.object.select_all.poll():
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
 
     if name_override:
         mesh_name = name_override
