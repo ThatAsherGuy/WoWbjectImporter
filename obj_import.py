@@ -56,20 +56,21 @@ def setup_blender_object(**kwargs):
     blender_object = bpy.data.objects.new(full_name, mesh)
 
     bm = bmesh.new()
-    vcols = bm.loops.layers.color.new("vcols")
+    # vcols = bm.loops.layers.color.new("vcols")
     uv_layer = bm.loops.layers.uv.new()
 
     batches = group.mesh_batches
     json_batches = group.json_batches
-    color_list = group.colors
+    color_list = [clist for clist in group.colors if len(clist) > 0]
+    do_colors = True if len(color_list) > 0 else False
 
-    batch_offset = 0
     colors = {}
 
     # print("JSON Batches: %i" % len(json_batches))
     # print("Direct Batches: %i" % len(batches))
     v_dict = {}
     uv_dict = {}
+
     for i, batch in enumerate(batches):
         exampleFaceSet = False
 
@@ -81,8 +82,18 @@ def setup_blender_object(**kwargs):
                 # The data layer for vertex color is actually in the face loop.
                 # We can't set the color until after all of the faces are made,
                 # So we throw it all into a dictionary and brute-force it later.
-                # v_color = wmo_read_color(color_list[v], 'CImVector')
-                # colors[vert.index] = v_color
+                # Note: There can theoretically be two sets of vertex colors.
+                if do_colors:
+                    if type(color_list[0]) == list:
+                        v_color = []
+                        for sublist in color_list:
+                            try:
+                                v_color.append(wmo_read_color(sublist[v-1], 'CImVector'))
+                            except:
+                                print(len(sublist))
+                    else:
+                        v_color = wmo_read_color(color_list[v-1], 'CImVector')
+                    colors[vert] = v_color
             try:
                 if exampleFaceSet == False:
                     face = bm.faces.new((
@@ -119,6 +130,9 @@ def setup_blender_object(**kwargs):
     if len(mesh_data.uv2) > 0:
         uv2_layer = bm.loops.layers.uv.new('UV2Map')
 
+    if len(mesh_data.uv3) > 0:
+        uv3_layer = bm.loops.layers.uv.new('UV3Map')
+
     bm.faces.ensure_lookup_table()
 
     face_list = [batch.faces for batch in batches]
@@ -127,16 +141,24 @@ def setup_blender_object(**kwargs):
     for i, face in enumerate(face_list):
         for j, loop in enumerate(bm.faces[i].loops):
             loop[uv_layer].uv = mesh_data.uv[face[j] -1]
+
             if len(mesh_data.uv2) > 0:
                 loop[uv2_layer].uv = mesh_data.uv2[face[j]-1]
+
+            if len(mesh_data.uv3) > 0:
+                loop[uv3_layer].uv = mesh_data.uv3[face[j]-1]
 
     bm.verts.ensure_lookup_table()
 
     if len(color_list) > 0:
-        for vert in bm.verts:
+        vcols = []
+        for i, clist in enumerate(color_list):
+            vcols.append(bm.loops.layers.color.new(f"vcols_{i}"))
+    
+        for i, vert in enumerate(bm.verts):
             for loop in vert.link_loops:
-                # loop[vcols] = colors[vert.index]
-                loop[vcols] = wmo_read_color(color_list[vert.index], 'CImVector')
+                for i, vcol_list in enumerate(vcols):
+                    loop[vcol_list] = colors[vert][i]
 
     if merge_verts:
         before = len(bm.verts)
@@ -162,9 +184,9 @@ def setup_blender_object(**kwargs):
         bpy.context.view_layer.active_layer_collection.collection.objects.link(
             blender_object)
 
-    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
     blender_object.select_set(True)
-    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+    bpy.ops.object.origin_set('INVOKE_DEFAULT', False, type='ORIGIN_GEOMETRY', center='MEDIAN')
 
     return blender_object
 
@@ -202,10 +224,27 @@ def repack_wmo(**kwargs):
     container = kwargs.get("import_container")
     json_groups = container.json_config.get("groups")
     mesh_data = kwargs.get("mesh_data")
-
     groups = []
-
     offset = 0
+    len(json_groups)
+    do_list = True if type(json_groups[0].get("vertexColours", [-1])[0]) == list else False
+
+    if do_list:
+        flat_colors = [[],[],[]]
+    else:
+        flat_colors = [[],[],[]]
+
+    for group in json_groups:
+        colors = group.get("vertexColours", [])
+        if len(colors) == 2:
+            flat_colors[0] += colors[0]
+            flat_colors[1] += colors[1]
+        elif len(colors) == 1:
+            colors.append([0 for j in colors[0]])
+        elif len(colors) == 0:
+            vertex_count = len(group.get("materialInfo", [])) * 3
+            colors.append([0 for j in range(vertex_count)])
+            colors.append([0 for j in range(vertex_count)])
 
     for group in json_groups:
         g_batches = group.get("renderBatches", [])
@@ -221,7 +260,7 @@ def repack_wmo(**kwargs):
             wmo_group.batch_count = g_length
 
             wmo_group.mesh_data = mesh_data
-            wmo_group.colors = group.get("vertexColours", [])
+            wmo_group.colors = flat_colors
 
             groups.append(wmo_group)
 
@@ -248,6 +287,7 @@ class meshObject:
         self.normals = []
         self.uv = []
         self.uv2 = []
+        self.uv3 = []
         self.components = []
 
 def initialize_mesh(mesh_path):
@@ -288,8 +328,13 @@ def initialize_mesh(mesh_path):
                 obj.verts.append([float(v) for v in line_split[1:]])
             elif line_start == b'vn':
                 obj.normals.append([float(v) for v in line_split[1:]])
+            elif line_start == b'vt3':
+                obj.uv3.append([float(v) for v in line_split[1:]])
             elif line_start == b'vt2':
-                obj.uv2.append([float(v) for v in line_split[1:]])
+                if not line_split[1] == b'undefined':
+                    obj.uv2.append([float(v) for v in line_split[1:]])
+                else:
+                    obj.uv2.append([0.0,0.0])
             elif line_start == b'vt':
                 obj.uv.append([float(v) for v in line_split[1:]])
             elif line_start == b'f':
@@ -304,7 +349,6 @@ def initialize_mesh(mesh_path):
                 obj.components[meshIndex].name = line_split[1].decode('utf-8')
             elif line_start == b'usemtl':
                 obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
-    # print(f_count)
     return obj
 
 def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_collections, import_container, **kwargs):
@@ -443,7 +487,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
         before = len(bm.verts)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
         removed = before - len(bm.verts)
-        print(f"vertex deduplication cleaned {removed} of {before} verts from {newObj.name}")
+        # print(f"vertex deduplication cleaned {removed} of {before} verts from {newObj.name}")
 
     bm.to_mesh(newMesh)
     bm.free()
@@ -457,6 +501,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
     #     vg.add(list(component.verts), 1.0, "REPLACE")
 
     # Rotate object the right way
+    # TODO: Add an option to rotate the geometry instead of the object
     newObj.rotation_euler = [0, 0, 0]
     newObj.rotation_euler.x = radians(90)
 
