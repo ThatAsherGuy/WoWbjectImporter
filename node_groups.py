@@ -22,7 +22,7 @@ import bmesh
 import bpy
 from mathutils import Vector
 from . import preferences
-from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, WMO_Shaders_New, read_wmo_face_flags
+from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, WMO_Shaders_New, read_wmo_face_flags, wmo_read_mat_flags
 import os
 import json
 
@@ -629,40 +629,6 @@ def get_tex(container, tex_num):
     else:
         return None
 
-# UNUSED, likely redundant.
-def setup_wmo_batches(container, config):
-    # bpy.ops.object.editmode_toggle()
-    obj = container.bl_obj
-    mesh = obj.data
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.faces.ensure_lookup_table()
-    bm.verts.ensure_lookup_table()
-    vcols = bm.loops.layers.color.new("vcols")
-
-    groups = config.get("groups")
-    color_offset = 0
-
-    for group in groups:
-        colors = group.get("vertexColours")
-
-        if colors:
-            for j, col in enumerate(colors):
-                j += color_offset
-                if j < (len(bm.verts)):
-                    for loop in bm.verts[j].link_loops:
-                        loop[vcols] = wmo_read_color(col, 'CImVector')
-                else:
-                    break
-
-            color_offset += j
-
-    bm.to_mesh(mesh)
-    mesh.update()
-    bm.free()
-
-# FIXME: WMOs can have up to 3 UV layers.
-
 def do_wmo_combiner(**kwargs):
 
     tex_nodes = kwargs.get("tex_nodes")
@@ -679,8 +645,20 @@ def do_wmo_combiner(**kwargs):
 
     shader_out.label = shader_info[0]
 
-    if blend_info & 2:
+    bl_mat.use_backface_culling = True
+
+    flags = wmo_read_mat_flags(mat_info.get("flags", 0))
+
+    for flag in flags:
+        if flag == 'TWO_SIDED':
+            bl_mat.use_backface_culling = False
+
+
+    if blend_info == 2:
         bl_mat.blend_method = 'BLEND'
+        tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
+    elif blend_info == 1:
+        bl_mat.blend_method = 'CLIP'
         tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
 
     if shader_info[0] == "Diffuse":

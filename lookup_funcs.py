@@ -330,4 +330,33 @@ def read_wmo_face_flags(flag_in, func):
         result = True if ((flag_in & F_COLLISION) or (flag_in & F_RENDER) or not (flag_in & F_DETAIL)) else False
         return result
 
+def wmo_read_mat_flags(flag):
+    flag_list = []
+    if flag & 1:
+        flag_list.append('UNLIT')
 
+    if flag & 2:
+        flag_list.append('UNFOGGED')
+
+    if flag & 4:
+        flag_list.append('TWO_SIDED')
+
+    if flag & 8:
+        flag_list.append('EXT_LIGHT')
+
+    if flag & 16:
+        flag_list.append('SIDN')
+
+    if flag & 32:
+        flag_list.append('WINDOW')
+
+    if flag & 64:
+        flag_list.append('CLAMP_S')
+
+    if flag & 128:
+        flag_list.append('CLAMP_T')
+
+    if flag & 256:
+        flag_list.append('0x100')
+
+    return flag_list

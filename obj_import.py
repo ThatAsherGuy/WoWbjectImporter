@@ -87,10 +87,7 @@ def setup_blender_object(**kwargs):
                     if type(color_list[0]) == list:
                         v_color = []
                         for sublist in color_list:
-                            try:
-                                v_color.append(wmo_read_color(sublist[v-1], 'CImVector'))
-                            except:
-                                print(len(sublist))
+                            v_color.append(wmo_read_color(sublist[v-1], 'CImVector'))
                     else:
                         v_color = wmo_read_color(color_list[v-1], 'CImVector')
                     colors[vert] = v_color
@@ -159,7 +156,6 @@ def setup_blender_object(**kwargs):
             for loop in vert.link_loops:
                 for i, vcol_list in enumerate(vcols):
                     loop[vcol_list] = colors[vert][i]
-
     if merge_verts:
         before = len(bm.verts)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
@@ -227,12 +223,7 @@ def repack_wmo(**kwargs):
     groups = []
     offset = 0
     len(json_groups)
-    do_list = True if type(json_groups[0].get("vertexColours", [-1])[0]) == list else False
-
-    if do_list:
-        flat_colors = [[],[],[]]
-    else:
-        flat_colors = [[],[],[]]
+    flat_colors = [[],[],[]]
 
     for group in json_groups:
         colors = group.get("vertexColours", [])
@@ -243,8 +234,8 @@ def repack_wmo(**kwargs):
             colors.append([0 for j in colors[0]])
         elif len(colors) == 0:
             vertex_count = len(group.get("materialInfo", [])) * 3
-            colors.append([0 for j in range(vertex_count)])
-            colors.append([0 for j in range(vertex_count)])
+            flat_colors[0] += [0 for j in range(vertex_count)]
+            flat_colors[1] += [0 for j in range(vertex_count)]
 
     for group in json_groups:
         g_batches = group.get("renderBatches", [])
@@ -263,6 +254,19 @@ def repack_wmo(**kwargs):
             wmo_group.colors = flat_colors
 
             groups.append(wmo_group)
+
+            colors = group.get("vertexColours", [])
+            if len(colors) == 2:
+                flat_colors[0] += colors[0]
+                flat_colors[1] += colors[1]
+            elif len(colors) == 1:
+                colors.append([0 for j in colors[0]])
+            elif len(colors) == 0:
+                vertex_count = 0
+                for comp in wmo_group.mesh_batches:
+                    vertex_count += len(comp.verts) - 1
+                colors.append([0 for j in range(vertex_count)])
+                colors.append([0 for j in range(vertex_count)])
 
             offset += g_length
             wmo_group.group_offset = offset
