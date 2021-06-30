@@ -1,41 +1,66 @@
 # WoWbject: A World of Warcraft Model Importer
 
-TL;DR: This Blender add-on + WoW.Export = Streamlined material assignment with accurate shaders and animated UVs, with more features to come.
+TL;DR: This Blender add-on + WoW.Export = Streamlined import and material assignment with accurate shaders and animated UVs, with more features to come. This add-on *requires* files exported via wow.export and will not work with files exported from WoW via other methods. Be sure to read *Using*, below.
 
 ![example](img/before_and_after.png)
 
 ## Features
 
-### Current Features
+### Current Features ()
 
-- Imports OBJ files as exported by wow.export
-- Automatically applies game textures, using game-accurate shaders, reproduced using standard Blender node trees
-- Automatically sets up UV animations (for magic effects, etc.) to animate in the correct ways, with correct timings
-- Can create node trees based on emissive shaders (most true to WoW), diffuse shaders, specular shaders, or the principled shader
+- M2 Imports (Objects, NPCs, Creatures, Weapons, Armor, Skyboxes, etc)
+  - Automatically applies game textures and materials, using game-accurate shaders, reproduced using standard Blender node trees
+  - This includes properly mapped specular highlights (via the standard WoW `armorreflect` textures)
+  - Automatically sets up UV animations (for magic effects, etc) to animate in the correct ways, with correct timings
+  - Allows your choice of emissive shaders (most true to WoW), diffuse shaders, specular shaders, or the principled shader
+  - Optional duplicate vertex deduplication (_WARNING_: Will prevent the binding of the object to a separately imported armature)
+
+- WMO Imports (WoW Map Objects -- Buildings and Architecture)
+  - Automatically applies game textures and materials (which, because WoW is WoW, is done completely differently from M2 models)
+  - Emissive map components (e.g. lit windows) are properly created as emissive textures (though they will only illuminate their surroundings when rendering with Cycles, not Eevee)
+  - Imported WMOs are split into individual 'building block' objects by group (generally individual buildings or small groups of buildings in larger WMOs like cities)
+  - Individual building block objects are grouped into collections (by general classification, usually, e.g. different districts in Stormwind) when possible. Only a limited number of WMO files support this.
+  - Each building block is given an origin at the center of its bounding box (we are open to suggestions for a better selection of origin points)
+  - Optional duplicate vertex deduplication (_strongly_ recommended -- most WMO models have a large number of duplicate vertices and many disconnected faces)
 
 
 ### Current Non-features/Mis-features
 
-- For full functionality, you will need to export the model from wow.export twice (see "Using")
-- Other than UV animation, does not attempt any sort of model animation (this will be addressed when wow.export supports animation export)
-- Design and testing has been focused primarily on weapons and armors, other things (characters, monsters, maps) have not been particularly tested, though the set of shader nodes provided should be largely applicable to anything you might import, even if the texture assignment isn't automatic
-- In particular, you're on your own when it comes to character models (though our collection of shaders should be quite useful for them)
-- Particle system ... particles ... are not supported
-- It is possible that models originated in older expansions may not import, or may not import correctly (we haven't investigated)
-- It's possible that some shaders are not implemented completely correctly and we simply haven't observed them in a situation that makes the error obvious
-- Objects that are themselves translucent will not perfectly match in-game translucency effects, because Blender does not have all of the blending modes available to do so (though a future release may provide some tooling for helping with this)
-- "billboard" textures and sub-meshes (ones where the same side always "faces" the camera) are not currently supported.
+- M2 Imports
+  - Animation beyond UV animation is not currently supported (planned)
+  - Particle and ribbon effects are not currently supported (planned)
+  - Player character imports are not supported (other than being able to import the base components as any other objects)
+  - "billboard" textures and sub-meshes (ones where the same side always "faces" the camera) are not currently supported. (planned)
+  - Some types of model have not been well-tested (but we'd _really_ like to hear about failures if you encounter them)
+  - Models that originated in older expansions may or may not import correctly (please report this if you run into it)
+  - We have not done exhaustive testing of every individual shader, it's possible some are not implemented completely correctly (please report this)
+  - Objects that are themselves translucent will not perfectly match in-game translucency effects, because Blender does not have all of the blending modes available to do so (a future release *may* provide some tooling for helping with this, especially if there is demand)
+
+- WMO Imports
+  - Doodads are not supported, though you can of course import them as M2 models and place them yourself (better support planned)
+  - Water and magma are not supported
+  - UV animations are not supported (planned)
+  - THe texturing behavior for WMOs is much different than for M2s, and our implementation is fairly young, so may have issues (please report)
+
+- ADT Imports (Map tiles, terrain height, WMO positioning)
+  - Not supported
+
+- Magic & Spell Effects
+  - Not supported (planned)
 
 
-### Future Plans
+### Possible Future Plans
 
 Things we are actively looking at doing in the near(ish) future:
 
 - Item animations (spinning crystals, that kind of thing)
+- Full monster/character animation support
 - Simple particle effects (magic auras and such on items)
 - Less-simple particle effects
-- Spell effects
+- Magic & spell effects
 - Automatic texture upscaling with correct handling of alpha channels
+- Doodad support
+- ADT support
 - Other things that a human shouldn't have to do but currently have to (feel free to make suggestions)
 
 
@@ -104,6 +129,12 @@ And finally, many kudos to the [Blender Foundation](https://www.blender.org/foun
 
 
 ## Changelog
+
+**v1.1.0:**
+
+- Fixed: Specular highlights ("armorreflect" textures) are more correct now
+- Added: WMO support (see 'features' above)
+- Added: Optional vertex deduplication
 
 **v1.0.0:**
 
