@@ -18,9 +18,11 @@
 
 # Hell is other people's code
 
-import bpy
 import os
 import json
+import time
+
+import bpy
 import bmesh
 import mathutils
 from math import radians
@@ -290,6 +292,7 @@ class import_container():
             self.reuse_mats,
             self.op_args.get("name_override"),
             self.op_args.get("merge_verts"),
+            self.op_args.get("make_quads"),
             self.op_args.get("use_collections"),
             self
         )
