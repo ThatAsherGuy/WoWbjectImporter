@@ -6,15 +6,8 @@ TL;DR: This Blender add-on + WoW.Export = Streamlined import and material assign
 
 ## Features
 
-### Current Features ()
+### Current Features
 
-<<<<<<< HEAD
-- Imports OBJ files as exported by wow.export
-- Automatically applies game textures, using game-accurate shaders, reproduced using standard Blender node trees
-- Automatically sets up UV animations (for magic effects, etc.) to animate in the correct ways, with correct timings
-- Can create node trees based on emissive shaders (most true to WoW), diffuse shaders, specular shaders, or the principled shader
-- Handles both M2 files (weapons, items, doodads, etc.) and WMO files (rocks, buildings, towns, etc.)
-=======
 - M2 Imports (Objects, NPCs, Creatures, Weapons, Armor, Skyboxes, etc)
   - Automatically applies game textures and materials, using game-accurate shaders, reproduced using standard Blender node trees
   - This includes properly mapped specular highlights (via the standard WoW `armorreflect` textures)
@@ -29,7 +22,6 @@ TL;DR: This Blender add-on + WoW.Export = Streamlined import and material assign
   - Individual building block objects are grouped into collections (by general classification, usually, e.g. different districts in Stormwind) when possible. Only a limited number of WMO files support this.
   - Each building block is given an origin at the center of its bounding box (we are open to suggestions for a better selection of origin points)
   - Optional duplicate vertex deduplication (_strongly_ recommended -- most WMO models have a large number of duplicate vertices and many disconnected faces)
->>>>>>> 2aae2e9c6d828d9d557570e5c25a689aeb2f999f
 
 
 ### Current Non-features/Mis-features

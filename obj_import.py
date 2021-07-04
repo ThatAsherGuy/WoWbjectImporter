@@ -26,14 +26,16 @@
 
 # It'd be cool do a direct M2→BMesh conversion, though.
 
-import bpy
-import os
 import bmesh
+import bpy
+from itertools import chain
 from math import radians
+import os
+import time
+
 from bpy_extras.io_utils import unpack_list
 from bpy_extras.image_utils import load_image
 from .lookup_funcs import wmo_read_color
-from itertools import chain
 
 
 def setup_blender_object(**kwargs):
@@ -41,6 +43,7 @@ def setup_blender_object(**kwargs):
     mesh_data = kwargs.get("mesh_data")
     mat_dict = kwargs.get("mat_dict", {})
     merge_verts = kwargs.get("merge_verts")
+    make_quads = kwargs.get("make_quads")
     use_collections = kwargs.get("use_collections")
 
     group = kwargs.get("group")
@@ -151,16 +154,15 @@ def setup_blender_object(**kwargs):
         vcols = []
         for i, clist in enumerate(color_list):
             vcols.append(bm.loops.layers.color.new(f"vcols_{i}"))
-    
+
         for i, vert in enumerate(bm.verts):
             for loop in vert.link_loops:
                 for i, vcol_list in enumerate(vcols):
                     loop[vcol_list] = colors[vert][i]
+
     if merge_verts:
-        before = len(bm.verts)
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
-        removed = before - len(bm.verts)
-        # print(f"vertex deduplication cleaned {removed} of {before} verts from {blender_object.name}")
+        st = recursive_remove_doubles(bm, verts=bm.verts, dist=0.00001)
+        print(f"{blender_object.name}: {st['removed_verts']} of {st['start_verts']} verts removed in {st['merge_passes']} passes in {st['total_time']:1.6f}s ({st['end_verts']} verts remain)")
 
     bm.to_mesh(mesh)
     bm.free()
@@ -180,11 +182,16 @@ def setup_blender_object(**kwargs):
         bpy.context.view_layer.active_layer_collection.collection.objects.link(
             blender_object)
 
+
+    if make_quads:
+        st = tris_to_quads(blender_object, 5.0)
+        print(f"{blender_object.name}: {st['removed_faces']} of {st['start_faces']} faces removed in {st['total_time']:1.6f}s ({st['end_faces']} faces remain)")
+
+    # Give us a reasonable origin on everything
     bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
     blender_object.select_set(True)
     bpy.ops.object.origin_set('INVOKE_DEFAULT', False, type='ORIGIN_GEOMETRY', center='MEDIAN')
     bpy.ops.object.shade_smooth('INVOKE_DEFAULT', False)
-
 
     return blender_object
 
@@ -362,7 +369,7 @@ def initialize_mesh(mesh_path):
                 obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
     return obj
 
-def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_collections, import_container, progress, **kwargs):
+def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_quads, use_collections, import_container, progress, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
 
@@ -411,7 +418,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
         for i, group in enumerate(wmo_groups):
             progress.step(f"Constructing object {i + 1}/{steps}")
             bl_obj = setup_blender_object(
-                name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts, use_collections=use_collections)
+                name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts, make_quads=make_quads, use_collections=use_collections)
             objects.append(bl_obj)
 
         progress.leave_substeps("Mesh Generation Complete")
@@ -502,10 +509,8 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
                 loop[uv2_layer].uv = mesh_data.uv2[loop.vert.index]
 
     if merge_verts:
-        before = len(bm.verts)
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
-        removed = before - len(bm.verts)
-        # print(f"vertex deduplication cleaned {removed} of {before} verts from {newObj.name}")
+        st = recursive_remove_doubles(bm, verts=bm.verts, dist=0.00001)
+        print(f"{newObj.name}: {st['removed_verts']} of {st['start_verts']} verts removed in {st['merge_passes']} passes in {st['total_time']:1.6f}s ({st['end_verts']} verts remain)")
 
     bm.to_mesh(newMesh)
     bm.free()
@@ -526,4 +531,62 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, use_coll
     # Defaults to main collection if no collection exists.
     bpy.context.view_layer.active_layer_collection.collection.objects.link(newObj)
 
+    if make_quads:
+        st = tris_to_quads(newObj, 5.0)
+        print(
+            f"{newObj.name}: {st['removed_faces']} of {st['start_faces']} faces removed in {st['total_time']:1.6f}s ({st['end_faces']} faces remain)")
+
     return newObj
+
+
+def recursive_remove_doubles(bm, verts, dist=0.00001):
+    start_time = time.time()
+    start_verts = len(bm.verts)
+
+    merge_passes = 0
+    while True:
+        merge_passes += 1
+        before_verts = len(bm.verts)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
+        after_verts = len(bm.verts)
+        if after_verts == before_verts:
+            removed_verts = start_verts - after_verts
+            total_time = time.time() - start_time
+            stats = {
+                "start_verts": start_verts,
+                "end_verts": after_verts,
+                "removed_verts": start_verts - after_verts,
+                "merge_passes": merge_passes,
+                "total_time": total_time,
+            }
+
+            return stats
+
+
+# No bmesh version of tris-to-quads, so we need to use an operator. Make sure
+# object is linked into the current scene before calling.
+def tris_to_quads(obj, face_threshold=5.0):
+    start_time = time.time()
+    old_active = bpy.context.view_layer.objects.active
+
+    before_faces = len(obj.data.polygons)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.tris_convert_to_quads(
+        face_threshold=radians(face_threshold), uvs=True, vcols=True, seam=True,
+        sharp=True, materials=True)
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    after_faces = before_faces - len(obj.data.polygons)
+
+    bpy.context.view_layer.objects.active = old_active
+
+    total_time = time.time() - start_time
+    stats = {
+        "start_faces": before_faces,
+        "end_faces": after_faces,
+        "removed_faces": before_faces - after_faces,
+        "total_time": total_time,
+    }
+    return stats

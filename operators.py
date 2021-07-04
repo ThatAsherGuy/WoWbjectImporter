@@ -92,9 +92,16 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
     merge_verts: bpy.props.BoolProperty(
         name='Dedupe Vertices',
-        description='Deduplicate and merge vertices)',
+        description='Deduplicate and merge vertices',
         default=True
     )
+
+    make_quads: bpy.props.BoolProperty(
+        name='Tris to Quads',
+        description='Automatically convert to quad-based geometry where possible',
+        default=False
+    )
+
 
     use_collections: bpy.props.BoolProperty(
         name='Use Collections',
@@ -187,6 +194,9 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         row = root.row(align=True)
         row.prop(self, 'merge_verts')
+
+        row = root.row(align=True)
+        row.prop(self, 'make_quads')
 
         row = root.row(align=True)
         row.prop(self, 'use_collections')

@@ -171,7 +171,7 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
 		description="Where it come from",
 		default="",
 		subtype='FILE_NAME',
-		# get=lambda self : self["source_asset"] 
+		# get=lambda self : self["source_asset"]
 		# options={''}
 	)
 
@@ -180,7 +180,7 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
 		description="Where it come from",
 		default="",
 		subtype='DIR_PATH',
-		# get=lambda self : self["source_directory"] 
+		# get=lambda self : self["source_directory"]
 	)
 
 	textures: bpy.props.CollectionProperty(
@@ -236,4 +236,3 @@ class WoWbject_BoneProperties(bpy.types.PropertyGroup):
 		name="Billboard Type",
 		default=-1
 	)
-
