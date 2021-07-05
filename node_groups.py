@@ -176,7 +176,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         tree.links.new(uv_map.outputs[0], map_node.inputs[0+sb])
         tree.links.new(map_node.outputs[0], t_node.inputs[0])
 
-        if textures[i].get("name") in bpy.data.images:
+        if textures[i].get("name", "ERR") in bpy.data.images:
             image = bpy.data.images[textures[i].get("name")]
             if not os.path.isfile(image.filepath):
                 import_container.reports.warnings.append(textures[i].get("name") + " has an invalid path.")
@@ -199,7 +199,8 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
 
 def load_texture(tex, import_container, mapping):
-    if os.path.isfile(tex.get("path")):
+    path = tex.get("path")
+    if path and os.path.isfile(path):
         image = bpy.data.images.load(tex.get("path"))
         image.name = tex.get("name")
     else:
@@ -663,7 +664,7 @@ def do_wmo_combiner(**kwargs):
     if shader_info[0] == "Diffuse":
         tex_nodes[0].location = Vector((-270.0, 300.0))
         tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-        
+
     elif shader_info[0] == "Specular":
         tex_nodes[0].location = Vector((-270.0, 300.0))
         tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
@@ -985,4 +986,3 @@ def do_wmo_combiner(**kwargs):
     elif shader_info[0] == "Parallax":
         tex_nodes[0].location = Vector((-270.0, 300.0))
         tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
