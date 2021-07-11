@@ -38,6 +38,9 @@ venv.bak/
 *.blend2
 *.blend3
 
+# Alinsa's backup saves directory
+blend.saves
+
 # Misc
 .vscode
 wowbjectifier_updater
