@@ -629,6 +629,7 @@ def get_tex(container, tex_num):
         return None
 
 def do_wmo_combiner(**kwargs):
+    use_combiner_nodes = True
 
     tex_nodes = kwargs.get("tex_nodes")
     bl_mat = kwargs.get("bl_mat")
@@ -660,6 +661,71 @@ def do_wmo_combiner(**kwargs):
     elif blend_info == 1:
         bl_mat.blend_method = 'CLIP'
         tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
+
+    mixer = nodes.new('ShaderNodeGroup')
+    mixer.node_tree = get_utility_group(name=shader_info[2])
+    mixer.location = Vector((-575.0, 30.0))
+
+    offset = 0
+    if use_combiner_nodes:
+        for node_input in mixer.inputs:
+            if node_input.name == "Vertex RGB":
+                v_colors = nodes.new("ShaderNodeVertexColor")
+                v_colors.layer_name = 'vcols_1'
+                v_colors.location = Vector((-975.0, 30.0))
+
+                # This part doesn't work yet; need to figure out vertex lighting.
+                # tree.links.new(v_colors.outputs[0], mixer.inputs[0])
+                # tree.links.new(v_colors.outputs[1], mixer.inputs[1])
+
+            elif node_input.name == "Vertex2 RGB":
+                v_colors = nodes.new("ShaderNodeVertexColor")
+                v_colors.layer_name = 'vcols_1'
+                v_colors.location = Vector((-975.0, 30.0))
+                tree.links.new(v_colors.outputs[0], mixer.inputs[2])
+                tree.links.new(v_colors.outputs[1], mixer.inputs[3])
+                offset += 2
+
+            elif node_input.name == "Tex0 RGB":
+                tex_nodes[0].location = Vector((-975.0, -100.0))
+                tree.links.new(tex_nodes[0].outputs[0], mixer.inputs[2 + offset])
+                tree.links.new(tex_nodes[0].outputs[1], mixer.inputs[3 + offset])
+
+            elif node_input.name == "Tex1 RGB":
+                if len(tex_nodes) > 1:
+                    tex_nodes[1].location = Vector((-975.0, -200.0))
+                    tree.links.new(tex_nodes[1].outputs[0], mixer.inputs[4 + offset])
+                    tree.links.new(tex_nodes[1].outputs[1], mixer.inputs[5 + offset])
+
+                    if "Env" in shader_info[2]:
+                        env_map = nodes.new('ShaderNodeGroup')
+                        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+                        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+                        tree.links.new(env_map.outputs[0], tex_nodes[1].inputs[0])
+                else:
+                    mixer.inputs[5].default_value = 0.0
+
+            elif node_input.name == "Tex2 RGB":
+                if len(tex_nodes) > 2:
+                    tex_nodes[2].location = Vector((-975.0, -400.0))
+                    tree.links.new(tex_nodes[2].outputs[0], mixer.inputs[6 + offset])
+                    tree.links.new(tex_nodes[2].outputs[1], mixer.inputs[7 + offset])
+
+        if len(mixer.outputs) > 2:
+            mix_1 = nodes.new("ShaderNodeMixRGB")
+            mix_1.blend_type = 'ADD'
+            mix_1.label = "Mix 1"
+            mix_1.location = Vector((-275.0, 200.0))
+            mix_1.inputs[0].default_value = 1.0
+
+            tree.links.new(mixer.outputs[0], mix_1.inputs[1])
+            tree.links.new(mixer.outputs[2], mix_1.inputs[2])
+            tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
+
+        else:
+            tree.links.new(mixer.outputs[0], shader_out.inputs[0])
+        # tree.links.new(mixer.outputs[1], shader_out.inputs[19])
+        return
 
     if shader_info[0] == "Diffuse":
         tex_nodes[0].location = Vector((-270.0, 300.0))
