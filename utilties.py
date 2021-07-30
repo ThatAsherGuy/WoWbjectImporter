@@ -67,7 +67,8 @@ class import_container():
         self.fallback_generated = False
         self.damage_control = False
 
-        self.reports = namedtuple('log_group', ['warnings', 'errors', 'info', 'sub_steps'])
+        self.reports = namedtuple(
+            'log_group', ['warnings', 'errors', 'info', 'sub_steps'])
         self.reports.warnings = []
         self.reports.errors = []
         self.reports.info = []
@@ -79,7 +80,8 @@ class import_container():
         # ProgressReport is the thing that does the fancy print messages and changes the cursor.
         # I'm 50/50 on it. There's also no documentation for it, outside of comments in the source code.
         with ProgressReport(bpy.context.window_manager) as progress:
-            progress.enter_substeps(5, "Importing Files From %r..." % directory)
+            progress.enter_substeps(
+                5, "Importing Files From %r..." % directory)
 
             self.op_args = op_args
             self.source_directory = directory
@@ -127,7 +129,8 @@ class import_container():
             progress.enter_substeps(2, "Initializing Object")
             load_step = self.setup_bl_object(progress)
             if not load_step:
-                self.reports.errors.append('Failed to initialize blender object')
+                self.reports.errors.append(
+                    'Failed to initialize blender object')
 
             progress.leave_substeps()
 
@@ -158,7 +161,8 @@ class import_container():
 
         # Kaitai is now bundled, no need to import
         # load_kaitai()
-        self.use_m2, self.m2_dict, self.anim_combos, self.anim_transforms, self.bones = read_m2(self.source_directory, self.m2)
+        self.use_m2, self.m2_dict, self.anim_combos, self.anim_transforms, self.bones = read_m2(
+            self.source_directory, self.m2)
 
         main_chunk = self.m2_dict
 
@@ -167,11 +171,13 @@ class import_container():
             armature = bpy.data.armatures.new("ARM")
             arm_obj = bpy.data.objects.new("ARM_OBJ", armature)
 
-            bpy.context.view_layer.active_layer_collection.collection.objects.link(arm_obj)
+            bpy.context.view_layer.active_layer_collection.collection.objects.link(
+                arm_obj)
             arm_obj.select_set(True)
 
             bpy.context.view_layer.objects.active = arm_obj
-            bpy.ops.object.mode_set('INVOKE_DEFAULT', False, mode='EDIT', toggle=False)
+            bpy.ops.object.mode_set(
+                'INVOKE_DEFAULT', False, mode='EDIT', toggle=False)
 
             # EditBones and PoseBones don't hold references to each other.
             # Which means that we have to manuall map M2CompBone:EditBone:PoseBone by name,
@@ -199,14 +205,15 @@ class import_container():
                 if bone.parent_bone > -1:
                     parent = armature.edit_bones[bone.parent_bone]
 
-                    if not parent.parent: # Not sure about this
+                    if not parent.parent:  # Not sure about this
                         parent.tail = ebone.head
 
                     ebone.parent = parent
                     ebone.use_connect = True
 
             bpy.ops.object.editmode_toggle()
-            bpy.ops.object.mode_set('INVOKE_DEFAULT', False, mode='POSE', toggle=False)
+            bpy.ops.object.mode_set(
+                'INVOKE_DEFAULT', False, mode='POSE', toggle=False)
 
             for pbone in arm_obj.pose.bones:
                 do_billboard = False
@@ -224,15 +231,24 @@ class import_container():
                         bb_constraint.target = bpy.context.scene.camera
 
                 if 'transformed' in bone_flags:
-                    if bone.rotation.values.num > 0: # There's some janky shit going on here
+                    if bone.rotation.values.num > 0:  # There's some janky shit going on here
                         if bone.rotation.values.values[0].num > 0:
                             comp_quat = bone.rotation.values.values[0].values[0]
-                            x = (comp_quat.x + 32768)/32767 if comp_quat.x < 0 else (comp_quat.x - 32767)/32767
-                            y = (comp_quat.y + 32768)/32767 if comp_quat.y < 0 else (comp_quat.y - 32767)/32767
-                            z = (comp_quat.z + 32768)/32767 if comp_quat.z < 0 else (comp_quat.z - 32767)/32767
-                            w = (comp_quat.w + 32768)/32767 if comp_quat.w < 0 else (comp_quat.w - 32767)/32767
+                            x = (comp_quat.x + 32768) / \
+                                32767 if comp_quat.x < 0 else (
+                                    comp_quat.x - 32767) / 32767
+                            y = (comp_quat.y + 32768) / \
+                                32767 if comp_quat.y < 0 else (
+                                    comp_quat.y - 32767) / 32767
+                            z = (comp_quat.z + 32768) / \
+                                32767 if comp_quat.z < 0 else (
+                                    comp_quat.z - 32767) / 32767
+                            w = (comp_quat.w + 32768) / \
+                                32767 if comp_quat.w < 0 else (
+                                    comp_quat.w - 32767) / 32767
                             bone_quat = mathutils.Quaternion((w, x, y, z))
-                            fquat = mathutils.Quaternion((1.0, 0.0, 0.0), radians(90))
+                            fquat = mathutils.Quaternion(
+                                (1.0, 0.0, 0.0), radians(90))
                             pbone.rotation_quaternion = bone_quat
 
         # Won't make up for missing JSON data (will need to kaitai .skin files for texUnit data)
@@ -268,11 +284,14 @@ class import_container():
         if ".wmo" in self.json_config.get("fileName", ""):
             self.wmo = True
 
-        self.json_textures = self.json_config.get("textures", self.json_config.get("fileDataIDs", []))
+        self.json_textures = self.json_config.get(
+            "textures", self.json_config.get("fileDataIDs", []))
         self.json_tex_combos = self.json_config.get("textureCombos", [])
-        self.json_tex_units = self.json_config.get("skin", {}).get("textureUnits", [])
+        self.json_tex_units = self.json_config.get(
+            "skin", {}).get("textureUnits", [])
         self.json_mats = self.json_config.get("materials", [])
-        self.json_submeshes = self.json_config.get("skin", {}).get("subMeshes", [])
+        self.json_submeshes = self.json_config.get(
+            "skin", {}).get("subMeshes", [])
 
         return True
 
@@ -358,7 +377,8 @@ class import_container():
                 self.fallback_generated = True
                 return img
 
-            img = bpy.data.images.new("WoWbject_Fallback_Texture", 512, 512, alpha=True)
+            img = bpy.data.images.new(
+                "WoWbject_Fallback_Texture", 512, 512, alpha=True)
             if self.fallback_type == '':
                 img.generated_type = 'COLOR_GRID'
             else:
@@ -380,7 +400,8 @@ class import_container():
         else:
             # if self.damage_control == True, self.json_tex_units wil be empty.
             for unit in self.json_tex_units:
-                bl_mat = self.bl_obj.material_slots[unit.get("skinSectionIndex")].material
+                bl_mat = self.bl_obj.material_slots[unit.get(
+                    "skinSectionIndex")].material
                 tree = bl_mat.node_tree
 
                 # Lazy check to avoid re-building existing materials
@@ -393,9 +414,9 @@ class import_container():
                             self.json_textures,
                             self.json_tex_combos,
                             self.base_shader,
-                            import_container = self,
+                            import_container=self,
                             anim_combos=self.anim_combos,
-                            )
+                        )
                     else:
                         build_shader(
                             unit,
@@ -404,8 +425,8 @@ class import_container():
                             self.json_textures,
                             self.json_tex_combos,
                             self.base_shader,
-                            import_container = self
-                            )
+                            import_container=self
+                        )
 
         return True
 
@@ -416,9 +437,11 @@ class import_container():
             return
 
         emitter_geom = bpy.data.meshes.new("Particle_Thingy_Geom")
-        emmitter_obj = bpy.data.objects.new("Particle_Thingy_Obj", emitter_geom)
+        emmitter_obj = bpy.data.objects.new(
+            "Particle_Thingy_Obj", emitter_geom)
 
-        bpy.context.view_layer.active_layer_collection.collection.objects.link(emmitter_obj)
+        bpy.context.view_layer.active_layer_collection.collection.objects.link(
+            emmitter_obj)
         bpy.context.view_layer.objects.active = emmitter_obj
 
         # Initialize groups before entering edit mode.
@@ -435,18 +458,23 @@ class import_container():
 
         for i, emitter in enumerate(self.m2_dict.particle_emitters.values):
             particle = emitter.old
-            p_tex = [emitter.multi_texture_param0, emitter.multi_texture_param1]
+            p_tex = [emitter.multi_texture_param0,
+                     emitter.multi_texture_param1]
 
-            mat = mathutils.Matrix.Translation((particle.position.x, particle.position.y, particle.position.z))
+            mat = mathutils.Matrix.Translation(
+                (particle.position.x, particle.position.y, particle.position.z))
 
             if particle.emitter_type.value == 1:
-                verts = bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=0.1, matrix=mat)
+                verts = bmesh.ops.create_grid(
+                    bm, x_segments=1, y_segments=1, size=0.1, matrix=mat)
                 nverts = 4
             elif particle.emitter_type.value == 2:
-                verts = bmesh.ops.create_icosphere(bm, subdivisions=1, diameter=0.1, matrix=mat)
+                verts = bmesh.ops.create_icosphere(
+                    bm, subdivisions=1, diameter=0.1, matrix=mat)
                 nverts = 12
             else:
-                verts = bmesh.ops.create_icosphere(bm, subdivisions=1, diameter=0.05, matrix=mat)
+                verts = bmesh.ops.create_icosphere(
+                    bm, subdivisions=1, diameter=0.05, matrix=mat)
                 nverts = 12
 
             bmesh.update_edit_mesh(emmitter_obj.data)
@@ -508,15 +536,25 @@ def debug_print(string):
     if do_debug:
         print(string)
 
+# old call:
+#   reports = do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
+# new call:
+#   reports = do_import(self, context, filepath=self.filepath, self.reuse_materials, self.base_shader, args)
 
-def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
+# orig def:
+#   def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
+def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **kwargs):
     '''
     The pre-sorting and initializing function called by the import operator.
     Most of the actual data-handling is handled by an import_container object.
     '''
 
-    files = op_args.get("files")
-    directory = op_args.get("directory")
+    # files = op_args.get("files")
+    # directory = op_args.get("directory")
+    file = os.path.basename(filepath)
+    directory = os.path.dirname(filepath)
+
+    # FIXME: these first two aren't needed?
     reuse_mats = op_args.get("reuse_materials")
     base_shader = op_args.get("base_shader")
     name_override = op_args.get("name_override")
@@ -527,19 +565,20 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
     configs = []
     m2 = []
 
-    for file in files:
-        name, ext = os.path.splitext(file.name)
+    # for file in files:
+    name, ext = os.path.splitext(file)
 
-        if ext == '.png':
-            textures.append(file.name)
-        elif ext == '.obj':
-            objects.append(file.name)
-        elif ext == '.mtl':
-            mtl.append(file.name)
-        elif ext == '.json':
-            configs.append(file.name)
-        elif ext == '.m2':
-            m2.append(file.name)
+    # FIXME: Do we actually need this? We're not multi-selecting non-obj files now
+    if ext == '.png':
+        textures.append(file)
+    elif ext == '.obj':
+        objects.append(file)
+    elif ext == '.mtl':
+        mtl.append(file)
+    elif ext == '.json':
+        configs.append(file)
+    elif ext == '.m2':
+        m2.append(file)
 
     file_lists = (textures, objects, configs, m2)
 
@@ -553,7 +592,7 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
     if do_search:
         ref_name = ''
         if len(objects) == 1:
-            ref_name = objects[0].split('.')[0]
+            ref_name = os.path.splitext(objects[0])[0]
 
         dir_files = []
         subdirs = []
@@ -608,7 +647,7 @@ def do_import(files, directory, reuse_mats, base_shader, op_args, **kwargs):
 
         if len(objects) == 1:
             if name_override == '':
-                name = objects[0].split('.')[0]
+                name = os.path.splitext(objects[0])[0]
             else:
                 name = name_override
 

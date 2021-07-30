@@ -29,6 +29,7 @@ import json
 # This function does a lot; likely too much.
 # A lot of the code here is rote node-connecting, though.
 def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs):
+    cwd = os.getcwd()
     texCount = unit.get("textureCount")
     texOffset = unit.get("textureComboIndex")
 
@@ -199,9 +200,9 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
 
 def load_texture(tex, import_container, mapping):
-    path = tex.get("path")
+    path = os.path.realpath(tex.get("path"))
     if path and os.path.isfile(path):
-        image = bpy.data.images.load(tex.get("path"))
+        image = bpy.data.images.load(path)
         image.name = tex.get("name")
     else:
         image = import_container.get_fallback_tex()
@@ -892,7 +893,7 @@ def do_wmo_combiner(**kwargs):
         tree.links.new(mix_0.outputs[0], mix_1.inputs[1])
         tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[2])
         tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
-    
+
         env_map = nodes.new('ShaderNodeGroup')
         env_map.node_tree = get_utility_group(name="SphereMap_Alt")
         env_map.location += Vector((-1200.0, -320.0))
