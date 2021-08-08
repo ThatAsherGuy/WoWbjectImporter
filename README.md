@@ -143,6 +143,8 @@ And finally, many kudos to the [Blender Foundation](https://www.blender.org/foun
 - Fixed: Specular highlights ("armorreflect" textures) are more correct now
 - Added: WMO support (see 'features' above)
 - Added: Optional vertex deduplication
+- Added: Optional tris-to-quads
+- Added: render results test suite (see [tests/README.md](tests/README.md))
 
 **v1.0.0:**
 
