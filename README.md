@@ -74,8 +74,8 @@ Install as any other addon, access via `File > Import > WoWbject`. You will also
 WoWbject Import is built to work with WoW.Export, and it reads both the JSON files that WoW.Export produces and the raw m2 files that it can export. You will need to install wow.export and have it configured in a specific way (in the wow.export settings page):
 
 - **Enable Shared Textures** must be *disabled*
-- **Export UV2 Data** must be *enabled*
-- **Export Meta Data** must be *enabled for both M2 and WMO files*
+- **Export Additional UV Layers** must be *enabled*
+- **Export Meta Data** must be *enabled for at least M2 files*
 
 **You will need to export the model twice:** The importer needs two different types of files from wow.export, so  Use "**export as OBJ**", followed by "**export as M2 / WMO (Raw)**". If you are in a hurry you can skip the M2/RAW step, though you will lose some features by doing so (primarily UV animation setup). We may remove the double-export requirement at some point in the future, but it's easy enough to do the double export that it's not at the top of our list.
 
