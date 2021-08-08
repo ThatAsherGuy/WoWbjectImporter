@@ -18,10 +18,12 @@
 
 # Hell is other people's code
 
-import bpy
 import os
 
-from bpy.props import StringProperty
+import bpy
+import bpy.props
+from bpy_extras.io_utils import ImportHelper
+
 from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
@@ -52,7 +54,7 @@ class WOWBJ_OT_SetDefaultDir(bpy.types.Operator):
     bl_label = 'WoWbject Set Default Directory'
     bl_options = {'INTERNAL', 'UNDO'}
 
-    new_dir: StringProperty(
+    new_dir: bpy.props.StringProperty( # type: ignore
         name="Directory",
         default="",
         subtype='DIR_PATH'
@@ -64,41 +66,65 @@ class WOWBJ_OT_SetDefaultDir(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class WOWBJ_OT_Import(bpy.types.Operator):
+class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
     """Load a WoW .OBJ, with associated JSON and .m2 data"""
-    bl_idname = 'wowbj.import'
+    bl_idname = 'import_scene.wowbject'
     bl_label = 'WoWbject Import'
     bl_options = {'PRESET', 'UNDO'}
 
-    # The importer can handle multi-file, multi-type selections
-    # So these are technically optional
-    filename_ext   = '.obj'
-    filter_glob: bpy.props.StringProperty(default='*.obj')
+    directory: bpy.props.StringProperty(subtype='DIR_PATH')  # type: ignore
 
-    files: bpy.props.CollectionProperty(name = 'Files', type= bpy.types.OperatorFileListElement)
-    directory: bpy.props.StringProperty(subtype = 'DIR_PATH')
-    filepath: bpy.props.StringProperty(
-        name="File Path",
-        description="Filepath used for importing the file",
-        maxlen=1024,
-        subtype='FILE_PATH',
+    filename_ext = '.obj'
+    filter_glob: bpy.props.StringProperty(default='*.obj')  # type: ignore
+
+    files: bpy.props.CollectionProperty(  # type: ignore
+        name = 'File Path',
+        type= bpy.types.OperatorFileListElement,
     )
 
-    name_override: bpy.props.StringProperty(
+    # filepath: bpy.props.StringProperty(  # type: ignore
+    #     name="File Path",
+    #     description="Filepath used for importing the file",
+    #     maxlen=1024,
+    #     subtype='FILE_PATH',
+    # )
+
+    name_override: bpy.props.StringProperty(  # type: ignore
         name="Name",
         description="Defaults to asset name when left blank",
         default=''
     )
 
-    reuse_materials: bpy.props.BoolProperty(
+    merge_verts: bpy.props.BoolProperty(  # type: ignore
+        name='Dedupe Vertices',
+        description='Deduplicate and merge vertices',
+        default=True
+    )
+
+    make_quads: bpy.props.BoolProperty(  # type: ignore
+        name='Tris to Quads',
+        description='Automatically convert to quad-based geometry where possible',
+        default=False
+    )
+
+
+    use_collections: bpy.props.BoolProperty(  # type: ignore
+        name='Use Collections',
+        description='Create objects inside collections when possible (WMO only)',
+        default=True
+    )
+
+    reuse_materials: bpy.props.BoolProperty(  # type: ignore
         name='Reuse Materials',
         description='Re-use the existing materials in the scene if they match',
-        default=False)
+        default=False
+    )
 
-    create_aovs: bpy.props.BoolProperty(
+    create_aovs: bpy.props.BoolProperty(  # type: ignore
         name='Create AOVs',
         description='[NOT IMPLEMENTED] Create AOVs for materials that use special blending modes',
-        default=False)
+        default=False
+    )
 
     base_shader_items = [
                         ("EMIT", "Emission Shader", "Standard unlit look"),
@@ -108,10 +134,10 @@ class WOWBJ_OT_Import(bpy.types.Operator):
                         ("EXPE", "Experimental", "You probably won't want to use this one"),
                       ]
 
-    base_shader: bpy.props.EnumProperty(
+    base_shader: bpy.props.EnumProperty(  # type: ignore
                                 name="Shader Base",
                                 items=base_shader_items,
-                                default="EMIT",
+                                default='EMIT',
                                 )
 
 
@@ -128,8 +154,22 @@ class WOWBJ_OT_Import(bpy.types.Operator):
         prefs = preferences.get_prefs()
         verbosity = prefs.reporting
         default_dir = prefs.default_dir
-        args = self.as_keywords(ignore=("filter_glob",))
-        reports = do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
+        args = self.as_keywords(ignore=("filter_glob", "directory", "filepath", "files"))
+
+        # FIXME: Fix up our calls so this works right
+        # if self.files:
+        #     ret = {'CANCELLED'}
+        #     dirname = os.path.dirname(self.filepath)
+        #     for file in self.files:
+        #         path = os.path.join(dirname, file.name)
+        #         if do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args) == {'FINISHED'}:
+        #             ret = {'FINISHED'}
+        #         return ret
+        # else:
+
+        # original:
+        #   reports = do_import(self.files, self.directory, self.reuse_materials, self.base_shader, args)
+        reports = do_import(self, context, self.filepath, self.reuse_materials, self.base_shader, args)
 
         if (len(reports.warnings) > 0):
             if 'WARNING' in verbosity:
@@ -161,7 +201,6 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
     def draw(self, context):
         layout = self.layout
         root = layout.column(align=True)
@@ -172,6 +211,15 @@ class WOWBJ_OT_Import(bpy.types.Operator):
 
         row = root.row(align=True)
         row.prop(self, 'reuse_materials')
+
+        row = root.row(align=True)
+        row.prop(self, 'merge_verts')
+
+        row = root.row(align=True)
+        row.prop(self, 'make_quads')
+
+        row = root.row(align=True)
+        row.prop(self, 'use_collections')
 
         col = root.column(align=True)
         col.use_property_split = True

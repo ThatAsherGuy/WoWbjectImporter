@@ -1,3 +1,7 @@
+# macos stupid
+.DS_Store
+._*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -34,7 +38,18 @@ venv.bak/
 *.blend2
 *.blend3
 
+# Alinsa's backup saves directory
+blend.saves
+
 # Misc
 .vscode
 wowbjectifier_updater
 .diff
+typings/
+
+# various test images and such
+tests/render_references/*.png
+tests/render_results/*.png
+tests/render_diffs/*.png
+tests/test_data/
+tests/test_data_*/

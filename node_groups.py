@@ -22,13 +22,14 @@ import bmesh
 import bpy
 from mathutils import Vector
 from . import preferences
-from .lookup_funcs import get_vertex_shader, get_shadereffects
+from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, WMO_Shaders_New, read_wmo_face_flags, wmo_read_mat_flags
 import os
 import json
 
 # This function does a lot; likely too much.
 # A lot of the code here is rote node-connecting, though.
 def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs):
+    cwd = os.getcwd()
     texCount = unit.get("textureCount")
     texOffset = unit.get("textureComboIndex")
 
@@ -176,7 +177,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         tree.links.new(uv_map.outputs[0], map_node.inputs[0+sb])
         tree.links.new(map_node.outputs[0], t_node.inputs[0])
 
-        if textures[i].get("name") in bpy.data.images:
+        if textures[i].get("name", "ERR") in bpy.data.images:
             image = bpy.data.images[textures[i].get("name")]
             if not os.path.isfile(image.filepath):
                 import_container.reports.warnings.append(textures[i].get("name") + " has an invalid path.")
@@ -199,8 +200,9 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
 
 def load_texture(tex, import_container, mapping):
-    if os.path.isfile(tex.get("path")):
-        image = bpy.data.images.load(tex.get("path"))
+    path = os.path.realpath(tex.get("path"))
+    if path and os.path.isfile(path):
+        image = bpy.data.images.load(path)
         image.name = tex.get("name")
     else:
         image = import_container.get_fallback_tex()
@@ -398,14 +400,6 @@ def set_blend(mat, flags):
     return blend_values[flags][0]
 
 
-# def fetch_fallback_texture(import_container):
-#     print("fetching")
-#     if import_container.has_fallback:
-#         return import_container.fallback
-#     else:
-
-
-
 def socket_type_helper(sock_type):
     if sock_type == "RGBA":
         return "NodeSocketColor"
@@ -548,65 +542,75 @@ def generate_nodegroups(path):
 
 
 def do_wmo_mats(**kwargs):
-    print("Setting up WMO Materials")
-
     container = kwargs.get("container")
     config = kwargs.get("json")
-
-    groups = config.get("groups")
-    matinfo = groups[0].get("materialInfo")
-    batches = groups[0].get("renderBatches")
     mats = config.get("materials")
-    print(len(mats))
 
-    for i, mat in enumerate(mats):
-        # i = min(i, (len(container.bl_obj.material_slots)-1) )
+    configured_mats = set()
 
-        tex1 = get_tex(container, str(mat.get("texture1")))
-        tex2 = get_tex(container, str(mat.get("texture2")))
-        tex3 = get_tex(container, str(mat.get("texture3")))
+    for obj in container.bl_obj:
+        for slot in obj.material_slots:
+            mat_number = slot.material.name.split('_')[-1]
+            if '.' in mat_number:
+                mat_number = mat_number.split('.')[0]
+            mat = mats[int(mat_number)]
 
-        if i >= len(container.bl_obj.material_slots):
-            bl_mat = bpy.data.materials.new(name="jim bob")
-            bl_mat.use_nodes = True
-            container.bl_obj.data.materials.append(bl_mat)
-        else:
-            bl_mat = container.bl_obj.material_slots[i].material
-        tree = bl_mat.node_tree
-        nodes= tree.nodes
+            tex1 = get_tex(container, str(mat.get("texture1")))
+            tex2 = get_tex(container, str(mat.get("texture2")))
+            tex3 = get_tex(container, str(mat.get("texture3")))
 
-        shader = None
-        out_node = None
-        for node in nodes:
-            if node.type == 'BSDF_PRINCIPLED':
-                shader = node
+            tex_list = (tex1, tex2, tex3)
 
-            if node.type == 'OUTPUT_MATERIAL':
-                out_node = node
+            bl_mat = slot.material
+            tree = bl_mat.node_tree
+            nodes = tree.nodes
 
-            if shader and out_node:
-                break
+            if bl_mat in configured_mats:
+                continue
 
-        if not out_node:
-            out_node = nodes.new('ShaderNodeOutputMaterial')
+            shader = None
+            out_node = None
+            for node in nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    shader = node
+                    shader.inputs[7].default_value = 1.0
 
-        if not shader:
-            print("DO LATER")
+                if node.type == 'OUTPUT_MATERIAL':
+                    out_node = node
 
-        baseColor = nodes.new('ShaderNodeRGB')
-        baseColor.location += Vector((-1200.0, 400.0))
-        baseColor.outputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
-        baseColor.label = 'BASE COLOR'
+                if shader and out_node:
+                    break
 
-        if tex1:
-            tex1_node = nodes.new('ShaderNodeTexImage')
-            tex1_node.image = tex1
-            tex1_node.location += Vector((-1200.0, (200 - 1 * 300.0)))
+            if not out_node:
+                out_node = nodes.new('ShaderNodeOutputMaterial')
 
-            tree.links.new(tex1_node.outputs[0], shader.inputs[0])
+            if not shader:
+                print("DO LATER")
 
+            baseColor = nodes.new('ShaderNodeRGB')
+            baseColor.location += Vector((-1200.0, 400.0))
+            baseColor.outputs[0].default_value = wmo_read_color(mat.get("color2"), 'CArgb')
+            baseColor.label = 'BASE COLOR'
 
-    setup_wmo_batches(container, matinfo)
+            tex_nodes = []
+
+            for i, tex in enumerate(tex_list):
+                if tex:
+                    tex_node = nodes.new('ShaderNodeTexImage')
+                    tex_node.image = tex
+                    tex_node.location += Vector((-1200.0, (200 - i * 300.0)))
+                    tex_node.label = ("TEXTURE_%s" % str(i + 1))
+                    tex_nodes.append(tex_node)
+
+            do_wmo_combiner(
+                tex_nodes=tex_nodes,
+                bl_mat=bl_mat,
+                shader_out=shader,
+                mat_info=mat)
+
+            configured_mats.add(bl_mat)
+
+        # setup_wmo_batches(container, config)
 
 
 def get_tex(container, tex_num):
@@ -625,17 +629,427 @@ def get_tex(container, tex_num):
     else:
         return None
 
-def setup_wmo_batches(container, batches):
-    # bpy.ops.object.editmode_toggle()
-    obj = container.bl_obj
-    mesh = obj.data
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.faces.ensure_lookup_table()
+def do_wmo_combiner(**kwargs):
+    use_combiner_nodes = True
 
-    for i, tri in enumerate(batches):
-        i = min(i, len(bm.faces)-1)
-        bm.faces[i].material_index = tri.get("materialID")
+    tex_nodes = kwargs.get("tex_nodes")
+    bl_mat = kwargs.get("bl_mat")
+    shader_out = kwargs.get("shader_out")
+    mat_info = kwargs.get("mat_info")
 
-    bm.to_mesh(mesh)
-    bm.free()
+    shader_info = WMO_Shaders_New[mat_info.get("shader", 0)]
+    blend_info = mat_info.get("blendMode")
+    group_type = mat_info.get("groupType", -1)
+
+    tree = bl_mat.node_tree
+    nodes = tree.nodes
+
+    shader_out.label = shader_info[0]
+    shader_out.inputs[5].default_value = 0.0 # Breaking all measures of physical accuracy here.
+
+    bl_mat.use_backface_culling = True
+
+    flags = wmo_read_mat_flags(mat_info.get("flags", 0))
+
+    for flag in flags:
+        if flag == 'TWO_SIDED':
+            bl_mat.use_backface_culling = False
+
+
+    if blend_info == 2:
+        bl_mat.blend_method = 'BLEND'
+        tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
+    elif blend_info == 1:
+        bl_mat.blend_method = 'CLIP'
+        tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
+
+    mixer = nodes.new('ShaderNodeGroup')
+    mixer.node_tree = get_utility_group(name=shader_info[2])
+    mixer.location = Vector((-575.0, 30.0))
+
+    offset = 0
+    if use_combiner_nodes:
+        for node_input in mixer.inputs:
+            if node_input.name == "Vertex RGB":
+                v_colors = nodes.new("ShaderNodeVertexColor")
+                v_colors.layer_name = 'vcols_1'
+                v_colors.location = Vector((-975.0, 30.0))
+
+                # This part doesn't work yet; need to figure out vertex lighting.
+                # tree.links.new(v_colors.outputs[0], mixer.inputs[0])
+                # tree.links.new(v_colors.outputs[1], mixer.inputs[1])
+
+            elif node_input.name == "Vertex2 RGB":
+                v_colors = nodes.new("ShaderNodeVertexColor")
+                v_colors.layer_name = 'vcols_1'
+                v_colors.location = Vector((-975.0, 30.0))
+                tree.links.new(v_colors.outputs[0], mixer.inputs[2])
+                tree.links.new(v_colors.outputs[1], mixer.inputs[3])
+                offset += 2
+
+            elif node_input.name == "Tex0 RGB":
+                tex_nodes[0].location = Vector((-975.0, -100.0))
+                tree.links.new(tex_nodes[0].outputs[0], mixer.inputs[2 + offset])
+                tree.links.new(tex_nodes[0].outputs[1], mixer.inputs[3 + offset])
+
+            elif node_input.name == "Tex1 RGB":
+                if len(tex_nodes) > 1:
+                    tex_nodes[1].location = Vector((-975.0, -200.0))
+                    tree.links.new(tex_nodes[1].outputs[0], mixer.inputs[4 + offset])
+                    tree.links.new(tex_nodes[1].outputs[1], mixer.inputs[5 + offset])
+
+                    if "Env" in shader_info[2]:
+                        env_map = nodes.new('ShaderNodeGroup')
+                        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+                        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+                        tree.links.new(env_map.outputs[0], tex_nodes[1].inputs[0])
+                else:
+                    mixer.inputs[5].default_value = 0.0
+
+            elif node_input.name == "Tex2 RGB":
+                if len(tex_nodes) > 2:
+                    tex_nodes[2].location = Vector((-975.0, -400.0))
+                    tree.links.new(tex_nodes[2].outputs[0], mixer.inputs[6 + offset])
+                    tree.links.new(tex_nodes[2].outputs[1], mixer.inputs[7 + offset])
+
+        if len(mixer.outputs) > 2:
+            mix_1 = nodes.new("ShaderNodeMixRGB")
+            mix_1.blend_type = 'ADD'
+            mix_1.label = "Mix 1"
+            mix_1.location = Vector((-275.0, 200.0))
+            mix_1.inputs[0].default_value = 1.0
+
+            tree.links.new(mixer.outputs[0], mix_1.inputs[1])
+            tree.links.new(mixer.outputs[2], mix_1.inputs[2])
+            tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
+
+        else:
+            tree.links.new(mixer.outputs[0], shader_out.inputs[0])
+        # tree.links.new(mixer.outputs[1], shader_out.inputs[19])
+        return
+
+    if shader_info[0] == "Diffuse":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "Specular":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+        shader_out.inputs[5].default_vaule = 0.5
+        shader_out.inputs[7].default_value = 0.5
+
+    elif shader_info[0] == "Metal":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+        shader_out.inputs[4].default_value = 1.0
+        shader_out.inputs[5].default_vaule = 0.5
+        shader_out.inputs[7].default_value = 0.5
+
+    elif shader_info[0] == "Env":
+
+        env_map = nodes.new('ShaderNodeGroup')
+        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+
+        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
+
+        mix_node = nodes.new("ShaderNodeMixRGB")
+        mix_node.location += Vector((-600.0, 0.0))
+        mix_node.label = "Env"
+        mix_node.blend_type = 'ADD'
+
+        tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
+        tree.links.new(tex_nodes[-1].outputs[0], mix_node.inputs[2])
+
+        tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
+
+        tex_nodes[-1].projection = 'SPHERE'
+    elif shader_info[0] == "Opaque":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "EnvMetal":
+        tex_nodes[0].location = Vector((-1250.0, 200.0))
+        tex_nodes[1].location = Vector((-1000.0, -120.0))
+
+        v_colors = nodes.new("ShaderNodeVertexColor")
+        v_colors.layer_name = 'vcols_1'
+        v_colors.location = Vector((-975.0, 30.0))
+
+        mix_0 = nodes.new("ShaderNodeMath")
+        mix_0.operation = 'MULTIPLY'
+        mix_0.label = "Mix 0"
+        mix_0.location = Vector((-800.0, 150.0))
+        mix_0.inputs[0].default_value = 1.0
+
+        tree.links.new(v_colors.outputs[1], mix_0.inputs[1])
+        tree.links.new(tex_nodes[0].outputs[1], mix_0.inputs[0])
+
+        mix_1 = nodes.new("ShaderNodeMixRGB")
+        mix_1.blend_type = 'MULTIPLY'
+        mix_1.label = "Mix 1"
+        mix_1.location = Vector((-575.0, 480.0))
+        mix_1.inputs[0].default_value = 1.0
+
+        tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[1])
+        tree.links.new(mix_0.outputs[0], mix_1.inputs[2])
+
+        mix_2 = nodes.new("ShaderNodeMixRGB")
+        mix_2.blend_type = 'MULTIPLY'
+        mix_2.label = "Mix 2"
+        mix_2.location = Vector((-400.0, 450.0))
+        mix_2.inputs[0].default_value = 1.0
+
+        tree.links.new(tex_nodes[1].outputs[0], mix_2.inputs[1])
+        tree.links.new(mix_1.outputs[0], mix_2.inputs[2])
+
+        mix_3 = nodes.new("ShaderNodeMixRGB")
+        mix_3.blend_type = 'ADD'
+        mix_3.label = "Mix 2"
+        mix_3.location = Vector((-190.0, 300.0))
+        mix_3.inputs[0].default_value = 1.0
+
+        tree.links.new(tex_nodes[0].outputs[0], mix_3.inputs[1])
+        tree.links.new(mix_2.outputs[0], mix_3.inputs[2])
+        tree.links.new(mix_3.outputs[0], shader_out.inputs[0])
+
+        env_map = nodes.new('ShaderNodeGroup')
+        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+
+        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
+        tree.links.new(mix_0.outputs[0], shader_out.inputs[4])
+
+        shader_out.inputs[4].default_value = 1.0
+        # shader_out.inputs[7].default_value = 0.5
+
+        tex_nodes[-1].projection = 'SPHERE'
+
+    elif shader_info[0] == "TwoLayerDiffuse":
+        tex_nodes[0].location = Vector((-475.0, 150.0))
+        tex_nodes[1].location = Vector((-750.0, 200.0))
+        tex_nodes[1].extension = 'CLIP'
+
+        map_node = nodes.new("ShaderNodeUVMap")
+        map_node.location += Vector((-950.0, 60.0))
+        map_node.uv_map = "UV2Map"
+
+        tree.links.new(map_node.outputs[0], tex_nodes[1].inputs[0])
+
+        v_colors = nodes.new("ShaderNodeVertexColor")
+        v_colors.layer_name = 'vcols_1'
+        v_colors.location += Vector((-1000.0, 300))
+
+        mix_0 = nodes.new("ShaderNodeMath")
+        mix_0.operation = 'MULTIPLY'
+        mix_0.label = 'Mix 0'
+        mix_0.location += Vector((-450.0, 335.0))
+        mix_0.inputs[0].default_value = 1.0
+
+        tree.links.new(v_colors.outputs[1], mix_0.inputs[0])
+        tree.links.new(tex_nodes[1].outputs[1], mix_0.inputs[1])
+
+        mix_1 = nodes.new("ShaderNodeMixRGB")
+        mix_1.location += Vector((-190.0, 300.0))
+        mix_1.label = "Mix 1"
+        mix_1.blend_type = 'MIX'
+
+        if group_type == 2:
+            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[2])
+            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[1])
+        else:
+            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[1])
+            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[2])
+
+        tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "TwoLayerEnvMetal":
+
+        tex_nodes[0].location = Vector((-1000.0, 120.0))
+        tex_nodes[1].location = Vector((-620.0, 20.0))
+        tex_nodes[2].location = Vector((-1000.0, -160.0))
+        tex_nodes[-1].projection = 'SPHERE'
+
+        mix_0 = nodes.new("ShaderNodeMixRGB")
+        mix_0.location += Vector((-620.0, 200.0))
+        mix_0.label = "Mix 0"
+        mix_0.blend_type = 'MIX'
+        mix_0.inputs[0].default_value = 1.0
+
+        tree.links.new(tex_nodes[0].outputs[1], mix_0.inputs[0])
+        tree.links.new(tex_nodes[0].outputs[0], mix_0.inputs[1])
+        tree.links.new(tex_nodes[2].outputs[0], mix_0.inputs[2])
+
+        mix_1 = nodes.new("ShaderNodeMixRGB")
+        mix_1.location += Vector((-190.0, 300.0))
+        mix_1.label = "Mix 1"
+        mix_1.blend_type = 'MIX'
+
+        v_colors = nodes.new("ShaderNodeVertexColor")
+        v_colors.layer_name = 'vcols_1'
+        v_colors.location = Vector((-380.0, 350.0))
+
+        tree.links.new(v_colors.outputs[1], mix_1.inputs[0])
+        tree.links.new(mix_0.outputs[0], mix_1.inputs[1])
+        tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[2])
+        tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
+
+        env_map = nodes.new('ShaderNodeGroup')
+        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+        env_map.location += Vector((-1200.0, -320.0))
+
+        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
+
+    elif shader_info[0] == "TwoLayerTerrain":
+
+        v_colors = nodes.new("ShaderNodeVertexColor")
+        v_colors.layer_name = 'vcols_1'
+        v_colors.location += Vector((-800.0, 0.0))
+
+        mix_node = nodes.new("ShaderNodeMixRGB")
+        mix_node.location += Vector((-600.0, 0.0))
+        mix_node.label = "TwoLayerTerrain"
+        mix_node.blend_type = 'ADD'
+        mix_node.inputs[0].default_value = 0.0
+
+        map_node = nodes.new("ShaderNodeUVMap")
+        map_node.location += Vector((-1800.0, 0.0))
+        map_node.uv_map = "UV2Map"
+        tree.links.new(map_node.outputs[0], tex_nodes[1].inputs[0])
+
+        tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[2])
+        tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[1])
+
+        tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "DiffuseEmissive":
+        tex_nodes[0].location = Vector((-290.0, 260.0))
+        tex_nodes[1].location = Vector((-780.0, -137.0))
+
+        v_colors = nodes.new("ShaderNodeVertexColor")
+        v_colors.layer_name = 'vcols_1'
+        v_colors.location = Vector((-520.0, -300.0))
+
+        mix_0 = nodes.new("ShaderNodeMath")
+        mix_0.operation = 'MULTIPLY'
+        mix_0.label = "Mix 0"
+        mix_0.location = Vector((-360.0, -180.0))
+        mix_0.inputs[0].default_value = 1.0
+
+        tree.links.new(tex_nodes[1].outputs[1], mix_0.inputs[0])
+        tree.links.new(v_colors.outputs[1], mix_0.inputs[1])
+
+        mix_1 = nodes.new("ShaderNodeMixRGB")
+        mix_1.blend_type = 'MULTIPLY'
+        mix_1.label = "Mix 1"
+        mix_1.location = Vector((-190.0, -40.0))
+        mix_1.inputs[0].default_value = 1.0
+
+        tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[1])
+        tree.links.new(mix_0.outputs[0], mix_1.inputs[2])
+
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+        tree.links.new(mix_1.outputs[0], shader_out.inputs[17])
+        shader_out.inputs[18].default_value = 2.0
+
+    elif shader_info[0] == "waterWindow":
+        tex_nodes[0].location = Vector((-475.0, 220.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[17])
+        tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[18])
+
+    elif shader_info[0] == "MaskedEnvMetal":
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "EnvMetalEmissive":
+
+        mix_node = nodes.new("ShaderNodeMixRGB")
+        mix_node.location += Vector((-600.0, 0.0))
+        mix_node.label = "EnvMetal"
+        mix_node.blend_type = 'ADD'
+
+        env_map = nodes.new('ShaderNodeGroup')
+        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+
+        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
+
+        # Tex 1 Alpha and Color
+        tree.links.new(tex_nodes[0].outputs[1], mix_node.inputs[0])
+        tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
+
+        # Tex 2 Color
+        tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[2])
+
+        tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
+
+        tex_nodes[-1].projection = 'SPHERE'
+
+    elif shader_info[0] == "TwoLayerDiffuseOpaque":
+        tex_nodes[0].location = Vector((-860.0, 40.0))
+        tex_nodes[1].location = Vector((-660.0, 500.0))
+
+        v_colors = nodes.new("ShaderNodeVertexColor")
+        v_colors.layer_name = 'vcols_1'
+        v_colors.location += Vector((-760.0, 220.0))
+
+        mix_0 = nodes.new("ShaderNodeMath")
+        mix_0.operation = 'MULTIPLY'
+        mix_0.label = ("Mix 0")
+        mix_0.location += Vector((-560.0, 220.0))
+        mix_0.inputs[0].default_value = 1.0
+
+        tree.links.new(v_colors.outputs[1], mix_0.inputs[0])
+        tree.links.new(tex_nodes[0].outputs[1], mix_0.inputs[1])
+
+        mix_1 = nodes.new("ShaderNodeMixRGB")
+        mix_1.location += Vector((-190.0, 300.0))
+        mix_1.label = "Mix 1"
+        mix_1.blend_type = 'MIX'
+
+        tree.links.new(mix_0.outputs[0], mix_1.inputs[0])
+
+        if group_type == 2:
+            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[2])
+            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[1])
+        else:
+            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[1])
+            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[2])
+
+        tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "submarineWindow":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "TwoLayerDiffuseEmissive":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "DiffuseTerrain":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "AdditiveMaskedEnvMetal":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "TwoLayerDiffuseMod2x":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "TwoLayerDiffuseMod2xNA":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "TwoLayerDiffuseAlpha":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "Lod":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
+
+    elif shader_info[0] == "Parallax":
+        tex_nodes[0].location = Vector((-270.0, 300.0))
+        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
