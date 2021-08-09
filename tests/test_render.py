@@ -13,6 +13,10 @@ from typing import *
 import pytest
 from pytest_dependency import depends
 
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
 def run_blender_python(scriptpath: str, scriptargs: List[str], timeout: int = 60, stdin=None):
     blender_bin = "blender"
     blender_args = [
@@ -218,13 +222,13 @@ def t_render(request, capsys):
     if os.path.exists(outimg):
         os.remove(outimg)
 
-    obj = r["obj_file"].replace(posixpath.sep, os.sep)
+    objdata = os.path.join(
+        "test_data", r["obj_file"].replace(posixpath.sep, os.sep))
+    assert os.path.exists(objdata), f"no source file '{objdata}'"
+
     success, failmsg = run_blender_python(
         "wowbject_render.py",
-        [
-            "-o", outimg,
-            os.path.join("test_data", obj),
-        ]
+        ["-o", outimg, objdata, ]
     )
 
     # This clears stdout/stderr captures, so that we don't get the blender
