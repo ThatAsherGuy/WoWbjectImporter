@@ -623,7 +623,7 @@ def get_tex(container, tex_num):
         if name in bpy.data.images:
             return bpy.data.images[name]
         else:
-            img = bpy.data.images.load(path)
+            img = bpy.data.images.load(os.path.realpath(path))
             img.alpha_mode = 'CHANNEL_PACKED'
             return img
     else:
