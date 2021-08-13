@@ -11,7 +11,6 @@ import sys
 from typing import *
 
 import pytest
-from pytest_dependency import depends
 
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
@@ -146,7 +145,6 @@ def tlist(category=None):
     return tests
 
 
-@pytest.mark.dependency(name="test_render")
 def test_render(t_render):
     r = t_render.param
     success = t_render.success
@@ -154,17 +152,9 @@ def test_render(t_render):
     assert success, t_render.failmsg
 
 
-@pytest.mark.dependency(name="test_render_check")
 def test_render_check(request, t_render):
     r = t_render.param
     fn = mkname(r['category'], r['subcategory'], r['test_name'])
-
-    # FIXME: Make this work
-    # For some reason, this depends() doesn't work, and makes this test
-    # always get skipped, even though it seems like it should work right,
-    # and even appears to be looking at the right test results in the
-    # output... wtf?
-    # depends(request, [f"test_render[{fn}]"])
 
     refimg = os.path.join("render_references", f"{fn}.png")
     checkimg = os.path.join("render_results", f"{fn}.png")
