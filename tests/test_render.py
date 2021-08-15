@@ -132,17 +132,56 @@ def compare_images(refimg: str, checkimg: str, diffimg: str = None, threshold: f
     if os.path.exists(diffimg):
         os.remove(diffimg)
 
+marklist = {
+    # Needs to be kept in sync with pytest.ini  (grrf)
+    "m2": pytest.mark.m2,
+    "wmo": pytest.mark.wmo,
+    "top10m2": pytest.mark.top10m2,
+    "top10wmo": pytest.mark.top10wmo,
+    "top10": pytest.mark.top10,
+    "fancy": pytest.mark.fancy,
+    "bug": pytest.mark.bug,
+    "superfast": pytest.mark.superfast,
+
+    # built-in marks, do not need to be in sync with pytest.ini
+    "xfail": pytest.mark.xfail,
+    "knownfail": pytest.mark.xfail(reason="Known currently broken (not executed)", run=False)
+}
 
 def tlist(category=None):
+    marked_tests = []
     with open("testlist.csv", newline="") as csvfile:
         reader = csv.DictReader(csvfile, dialect='excel')
-        if category:
-            tests = [v for v in reader if v["category"] == category]
-        else:
-            tests = [v for v in reader]
-        # tests = [v for v in reader]
 
-    return tests
+        for test in reader:
+            marks = []
+            cat = test["category"]
+            if cat in marklist:
+                marks.append(marklist[cat])
+
+            m = test["marks"].split(",")
+
+            if len(m) > 0:
+                for mark in m:
+                    if mark in marklist:
+                        marks.append(marklist[mark])
+
+            marked_tests.append(pytest.param(test, marks=marks))
+        # if category:
+        #     tests = [v for v in reader if v["category"] == category]
+        # else:
+        #     tests = [v for v in reader]
+
+    # marked_tests=[]
+    # for test in tests:
+    #     marks = []
+    #     if test["category"]
+    #     if test["category"] == "m2":
+    #         marked_tests.append(pytest.param(test, marks=pytest.mark.m2))
+    #     elif test["category"] == "wmo":
+    #         marked_tests.append(pytest.param(test, marks=pytest.mark.wmo))
+
+    return marked_tests
 
 
 def test_render(t_render):
@@ -218,7 +257,10 @@ def t_render(request, capsys):
 
     success, failmsg = run_blender_python(
         "wowbject_render.py",
-        ["-o", outimg, objdata, ]
+        [
+            "--cameraloc", r["cameraloc"], "--camerarot", r["camerarot"],
+            "-o", outimg, objdata,
+        ]
     )
 
     # This clears stdout/stderr captures, so that we don't get the blender

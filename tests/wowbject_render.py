@@ -13,7 +13,7 @@ sys.path.append(os.getcwd())
 from testutil import util
 
 # FIXME: Do we want to be able to give this camera parameters and such?
-def sceneprep() -> None:
+def sceneprep(args) -> None:
     # bpy.ops.object.light_add(type='SUN', radius=1, align='WORLD',
     #                          location=(0, 0, 0), scale=(1, 1, 1))
 
@@ -23,8 +23,12 @@ def sceneprep() -> None:
     # zoomed lens, then zoom it out to what we really want to be at, and we
     # get a little buffer on the edges of the image
     camera = util.add_camera(lens_length=52.0)
-    camera.rotation_euler = Euler(
-        (math.radians(-90), math.radians(-145), math.radians(0)), 'XYZ')
+
+    if args.cameraloc == "front":
+        camera.rotation_euler =Euler((math.radians(75), 0, math.radians(75)), 'XYZ')
+    else:
+        camera.rotation_euler = Euler(
+            (math.radians(-90), math.radians(-145), math.radians(0)), 'XYZ')
 
     bpy.ops.view3d.camera_to_view_selected()
     camera.data.lens = 50.0
@@ -43,7 +47,7 @@ def sceneprep() -> None:
 
 
 def dorender(args):
-    camera = sceneprep()
+    camera = sceneprep(args)
     # set a nonzero frame so that animated UVs that aren't animating will
     # get caught
     bpy.context.scene.frame_set(50)
@@ -87,6 +91,26 @@ def parse_arguments(args):
         const=True,
         default=False,
         # help="Read objects and prepare them for decimation",
+    )
+
+    parser.add_argument(
+        "--cameraloc",
+        action='store',
+        type=str,
+        required=False,
+        default="default",
+
+        help="location camera should be placed (see source for valid options)",
+    )
+
+    parser.add_argument(
+        "--camerarot",
+        action='store',
+        type=str,
+        required=False,
+        default="default",
+
+        help="rotation camera should have when placed (see source for valid options)",
     )
 
     # FIXME: make output name automatic if not specified
