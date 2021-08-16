@@ -25,7 +25,8 @@ def sceneprep(args) -> None:
     camera = util.add_camera(lens_length=52.0)
 
     if args.cameraloc == "front":
-        camera.rotation_euler =Euler((math.radians(75), 0, math.radians(75)), 'XYZ')
+        camera.rotation_euler = Euler(
+            (math.radians(75), 0, math.radians(75)), 'XYZ')
     else:
         camera.rotation_euler = Euler(
             (math.radians(-90), math.radians(-145), math.radians(0)), 'XYZ')
@@ -119,9 +120,18 @@ def parse_arguments(args):
         "-o",
         action='store',
         type=str,
-        required=True,
+        # required=True,
 
         help="file to output resulting render to",
+    )
+
+    parser.add_argument(
+        "--ping",
+        action='store_const',
+        const=True,
+        default=False,
+
+        help="print PONG and exit (for testing)"
     )
 
     parser.add_argument(
@@ -135,6 +145,7 @@ def parse_arguments(args):
     parser.add_argument(
         "file",
         action='store',
+        nargs='?',
         help="input file to be processed",
     )
 
@@ -169,6 +180,14 @@ def main(argv):
     argv = argv[args_start:]
 
     args = parse_arguments(argv)
+
+    if args.ping:
+        print("PONG")
+        sys.exit(0)
+
+    if not args.output or not args.file:
+        print("error: the following arguments are required: --output/-o, file", file=sys.stderr)
+        sys.exit(1)
 
     util.init_blender()
     util.delete_all()

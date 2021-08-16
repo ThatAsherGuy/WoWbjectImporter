@@ -16,10 +16,28 @@ abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
 
-def run_blender_python(scriptpath: str, scriptargs: List[str], timeout: int = 60, stdin=None):
-    blender_bin = "blender"
+@pytest.fixture()
+def blender_exe(pytestconfig):
+    return pytestconfig.getoption("blender_executable")
+
+
+@pytest.mark.tryfirst
+def test_blender_exe(blender_exe):
+    success, failmsg = run_blender_python(
+        "wowbject_render.py",
+        ["--ping"],
+        blender_exe=blender_exe,
+    )
+
+    # is this the best way to abort everything if we can't run blender?
+    if not success:
+        pytest.exit(f"couldn't exec blender with executable '{blender_exe}'")
+
+
+def run_blender_python(scriptpath: str, scriptargs: List[str], timeout: int = 60, blender_exe: str = "blender"):
+    # blender_bin = "blender"
     blender_args = [
-        blender_bin,
+        blender_exe,
         "--background",
         "-noaudio",
         "--factory-startup",
@@ -37,7 +55,7 @@ def run_blender_python(scriptpath: str, scriptargs: List[str], timeout: int = 60
     try:
         # subprocess.run(blender_args, stdin=stdin, stdout=testlog,
         #                stderr=testlog, timeout=timeout, check=True)
-        subprocess.run(blender_args, stdin=stdin,
+        subprocess.run(blender_args, stdin=None,
                        timeout=timeout, check=True)
 
     except (subprocess.CalledProcessError) as e:
@@ -132,6 +150,7 @@ def compare_images(refimg: str, checkimg: str, diffimg: str = None, threshold: f
     if os.path.exists(diffimg):
         os.remove(diffimg)
 
+
 marklist = {
     # Needs to be kept in sync with pytest.ini  (grrf)
     "m2": pytest.mark.m2,
@@ -145,7 +164,7 @@ marklist = {
 
     # built-in marks, do not need to be in sync with pytest.ini
     "xfail": pytest.mark.xfail,
-    "knownfail": pytest.mark.xfail(reason="Known currently broken (not executed)", run=False)
+    "knownfail": pytest.mark.xfail(reason="Known currently broken", run=False)
 }
 
 def tlist(category=None):
