@@ -46,10 +46,15 @@ blend.saves
 wowbjectifier_updater
 .diff
 typings/
+*.bak
+
+# Probably don't need to commit logs
+*.log
 
 # various test images and such
 tests/render_references/*.png
 tests/render_results/*.png
 tests/render_diffs/*.png
+tests/render_wowtools/*.png
 tests/test_data/
 tests/test_data_*/

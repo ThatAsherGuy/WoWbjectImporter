@@ -3,6 +3,7 @@
 import argparse
 import math
 import os
+import re
 import sys
 from typing import *
 
@@ -12,7 +13,68 @@ from mathutils import Euler
 sys.path.append(os.getcwd())
 from testutil import util
 
-# FIXME: Do we want to be able to give this camera parameters and such?
+
+locrot_re = re.compile(r"""
+^\s*
+(?P<degrad>d|r)?
+\(\s*
+    (?P<x> -?[\d.]+)
+    \s*,\s*
+    (?P<y> -?[\d.]+)
+    \s*,\s*
+    (?P<z> -?[\d.]+)
+    \s*
+\)\s*$
+""", re.VERBOSE)
+
+camera_loc_types = ["", "default", "front", "left"]
+
+def cameraprep_simple(camera: bpy.types.Camera, loc: str) -> None:
+    if loc == "front":
+        camera.rotation_euler = Euler(
+            (math.radians(75), 0, math.radians(75)), 'XYZ')
+    elif loc == "left":
+        camera.rotation_euler = Euler(
+            (math.radians(75), 0, math.radians(15)), 'XYZ')
+    else:
+        camera.rotation_euler = Euler(
+            (math.radians(-90), math.radians(-145), math.radians(0)), 'XYZ')
+
+    bpy.ops.view3d.camera_to_view_selected()
+
+
+def cameraprep(camera: bpy.types.Camera, loc: str, rot: str) -> None:
+    # one of our special cases?
+    if loc in camera_loc_types:
+        return cameraprep_simple(camera, loc)
+
+    # not special, so do the full thing
+    m = locrot_re.match(loc)
+    if not m or m.group("degrad") is not None:
+        raise ValueError(f"invalid location string: {loc}")
+
+    camera.location.x = float(m.group("x"))
+    camera.location.y = float(m.group("y"))
+    camera.location.z = float(m.group("z"))
+
+
+    m = locrot_re.match(rot)
+    if not m:
+        raise ValueError(f"invalid rotation string: {rot}")
+    if m:
+        x = float(m.group("x"))
+        y = float(m.group("y"))
+        z = float(m.group("z"))
+
+    # convert to radians if we're not already there
+    if m.group("degrad") != "r":
+        x = math.radians(x)
+        y = math.radians(y)
+        z = math.radians(z)
+
+    camera.rotation_euler = Euler((x, y, z), 'XYZ')
+
+
 def sceneprep(args) -> None:
     # bpy.ops.object.light_add(type='SUN', radius=1, align='WORLD',
     #                          location=(0, 0, 0), scale=(1, 1, 1))
@@ -24,14 +86,8 @@ def sceneprep(args) -> None:
     # get a little buffer on the edges of the image
     camera = util.add_camera(lens_length=52.0)
 
-    if args.cameraloc == "front":
-        camera.rotation_euler = Euler(
-            (math.radians(75), 0, math.radians(75)), 'XYZ')
-    else:
-        camera.rotation_euler = Euler(
-            (math.radians(-90), math.radians(-145), math.radians(0)), 'XYZ')
+    cameraprep(camera, args.cameraloc, args.camerarot)
 
-    bpy.ops.view3d.camera_to_view_selected()
     camera.data.lens = 50.0
 
     # FIXME: Should this be configurable?

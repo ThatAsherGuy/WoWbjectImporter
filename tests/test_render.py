@@ -164,6 +164,7 @@ marklist = {
 
     # built-in marks, do not need to be in sync with pytest.ini
     "xfail": pytest.mark.xfail,
+    "skip": pytest.mark.skip,
     "knownfail": pytest.mark.xfail(reason="Known currently broken", run=False)
 }
 
@@ -173,6 +174,9 @@ def tlist(category=None):
         reader = csv.DictReader(csvfile, dialect='excel')
 
         for test in reader:
+            if not test["category"]:
+                continue
+
             marks = []
             cat = test["category"]
             if cat in marklist:
