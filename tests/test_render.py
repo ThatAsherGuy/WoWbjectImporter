@@ -16,13 +16,25 @@ abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
 
+def mktestid(category, subcategory, test_name):
+    """make id for a test based on category, (optional) subcategory, and test name"""
+    if subcategory is None or len(subcategory) == 0:
+        return str.join("_", [category, test_name])
+    else:
+        return str.join("_", [category, subcategory, test_name])
+
+
+# Just gives us the name of the blender executable, which is configurable
+# with the --blender-exe command line option
 @pytest.fixture()
 def blender_exe(pytestconfig):
+    """Gives the name of the blender executable (set w/ --blender-exe)"""
     return pytestconfig.getoption("blender_executable")
 
 
 @pytest.mark.tryfirst
 def test_blender_exe(blender_exe):
+    """Test to verify that blender works, before running tests depending on it"""
     success, failmsg = run_blender_python(
         "wowbject_render.py",
         ["--ping"],
@@ -34,8 +46,9 @@ def test_blender_exe(blender_exe):
         pytest.exit(f"couldn't exec blender with executable '{blender_exe}'")
 
 
-def run_blender_python(scriptpath: str, scriptargs: List[str], timeout: int = 60, blender_exe: str = "blender"):
-    # blender_bin = "blender"
+def run_blender_python(scriptpath: str, scriptargs: List[str],
+                       timeout: int = 60, blender_exe: str = "blender"):
+    """Run a python script with blender, with optional script arguments"""
     blender_args = [
         blender_exe,
         "--background",
@@ -53,35 +66,36 @@ def run_blender_python(scriptpath: str, scriptargs: List[str], timeout: int = 60
     failmsg = None
 
     try:
-        # subprocess.run(blender_args, stdin=stdin, stdout=testlog,
-        #                stderr=testlog, timeout=timeout, check=True)
-        subprocess.run(blender_args, stdin=None,
-                       timeout=timeout, check=True)
+        subprocess.run(blender_args, stdin=None, timeout=timeout, check=True)
 
     except (subprocess.CalledProcessError) as e:
-        # If I don"t raise a new exception from None, pytest tries to show us
-        # the origin of the error inside the subprocess module, and that"s
-        # pretty useless.
         t = type(e).__name__
-        # raise Exception(f"blender import/rendering failed ({t})") from None
+
         success = False
         failmsg = f"blender import/rendering failed ({t})"
 
     except (OSError) as e:
         t = type(e).__name__
-        # raise Exception(f"error executing blender: {t} - {e}") from None
+
         success = False
         failmsg = f"error executing blender: {t} - {e}"
 
-    # assert success, failmsg
-    #
-    # FIXME: This apparently doesn't work? Things that render but don't
-    # compare ok still return the blender output?
-    # capsys.readouterr()
 
     return success, failmsg
 
 
+# FIXME: Use PIL here instead, maybe?
+#
+# output format being parsed:
+#
+#   Image Difference(MeanAbsoluteError):
+#              Normalized    Absolute
+#             ============  ==========
+#        Red: 0.0509441923     3338.6
+#      Green: 0.0482937613     3164.9
+#       Blue: 0.0434155269     2845.2
+#    Opacity: 0.0000000000        0.0
+#      Total: 0.0356633701     2337.2
 compare_re = re.compile(r"""
     \s*
     (?P<field>Red|Green|Blue|Opacity|Total):
@@ -92,6 +106,7 @@ compare_re = re.compile(r"""
 """, re.VERBOSE)
 
 def parse_gm_compare(output: str):
+    """Parse the output of 'gm compare' and return a map with the values"""
     ret = {}
     for line in output.split("\n"):
         m = compare_re.search(line)
@@ -108,7 +123,9 @@ def parse_gm_compare(output: str):
     return ret
 
 
-def compare_images(refimg: str, checkimg: str, diffimg: str = None, threshold: float = 0.0, timeout: int = 10):
+def compare_images(refimg: str, checkimg: str, diffimg: str = None,
+                   threshold: float = 0.0, timeout: int = 10):
+    """Compare two images for similarity and assert based on a threshold"""
     gm_bin = "gm"
     gm_args = [
         gm_bin,
@@ -168,60 +185,105 @@ marklist = {
     "knownfail": pytest.mark.xfail(reason="Known currently broken", run=False)
 }
 
+
+# I'm not exactly thrilled with how multi-image tests are set up, but here's
+# at least a defense of why it is as it is...   --A
+#
+# So, there are times we want to do tests of things, where we want to render
+# multiple images from the same import. Right now, "import obj + render scene +
+# compare image" is a single pair of pytest steps (one for import + render, one
+# for compare). If we wanted to have a separate pair of tests for every
+# individual image in a set of N, we would have to import the scene N separate
+# times, which isn't so bad for small imports, but sucks for something like,
+# say, Stormwind. And since there's not really a way (currently) to have
+# separate tests that all work off the same blender instance, that's our
+# only choie if we want separate tests. That sucks.
+#
+# So, instead, we need to make things so that one 'test' can render multiple
+# images, and compares all of them. This sucks because only the entire test
+# will end up failing (or not), but it's the best I can figure out right now,
+# without having the test suite run entirely within Blender (which is damned
+# tempting, tbh)
+#
+# The way this ends up working is if a test in the CSV has no category but
+# has a camera location specified for it, the camera info will be added to
+# the camera info for the previous test (etc), and passed as a list to all
+# the various code. And then the various code has special cases for outputting
+# and checking the whatever_imgXX.png results. It'll do, but man some of the
+# special-case code makes things long-winded in places.
 def tlist(category=None):
-    marked_tests = []
+    """Generate a list of image-generation tests and associated parameters"""
+    tests = []
     with open("testlist.csv", newline="") as csvfile:
         reader = csv.DictReader(csvfile, dialect='excel')
 
         for test in reader:
-            if not test["category"]:
+            # no category && no camera location == no test on this line
+            if not test["category"] and not test["cameraloc"]:
                 continue
 
+            # no category && yes cameraloc == multi-image test
+            if not test["category"]:
+                prev = tests[-1]
+
+                # Convert camera loc & rot to lists if they're not
+                if not isinstance(prev["cameraloc"], list):
+                    prev["cameraloc"] = [prev["cameraloc"]]
+                if not isinstance(prev["camerarot"], list):
+                    prev["camerarot"] = [prev["camerarot"]]
+
+                # FIXME: should probably check to make sure both fields set
+                prev["cameraloc"].append(test["cameraloc"])
+                prev["camerarot"].append(test["camerarot"])
+
+                # We're just adjusting an existing test, no need to do more
+                # processing, just go to next line
+                continue
+
+            tests.append(test)
+
+        # We have all our tests (and multi-image subtests), add marks
+        marked_tests = []
+
+        for test in tests:
             marks = []
+
+            # set marks based on categories, where those marks exist
             cat = test["category"]
             if cat in marklist:
                 marks.append(marklist[cat])
 
+            # set marks based on explicit "marks" column of CSV
             m = test["marks"].split(",")
-
             if len(m) > 0:
                 for mark in m:
                     if mark in marklist:
                         marks.append(marklist[mark])
 
-            marked_tests.append(pytest.param(test, marks=marks))
-        # if category:
-        #     tests = [v for v in reader if v["category"] == category]
-        # else:
-        #     tests = [v for v in reader]
+            # generate an id for the test
+            id = mktestid(test['category'], test['subcategory'],
+                          test['test_name'])
 
-    # marked_tests=[]
-    # for test in tests:
-    #     marks = []
-    #     if test["category"]
-    #     if test["category"] == "m2":
-    #         marked_tests.append(pytest.param(test, marks=pytest.mark.m2))
-    #     elif test["category"] == "wmo":
-    #         marked_tests.append(pytest.param(test, marks=pytest.mark.wmo))
+            # done with this test, add it to the list and move on
+            marked_tests.append(pytest.param(test, marks=marks, id=id))
 
     return marked_tests
 
 
+# t_render is automatically run as a fixture, with its return value being
+# a named tuple with 'success' and 'failure message' fields. All the work
+# for this test is done in that fixture, with the test itself just checking
+# for success.
 def test_render(t_render):
-    r = t_render.param
+    """Validate a test render happens without error"""
     success = t_render.success
 
     assert success, t_render.failmsg
 
 
-def test_render_check(request, t_render):
-    r = t_render.param
-    fn = mkname(r['category'], r['subcategory'], r['test_name'])
-
-    refimg = os.path.join("render_references", f"{fn}.png")
-    checkimg = os.path.join("render_results", f"{fn}.png")
-    diffimg = os.path.join("render_diffs", f"{fn}.png")
-
+def checkimage(refimg, checkimg, diffimg, threshold=0.00001):
+    """Verify we have a reference image and compare to test render"""
+    # FIXME: verify this skips correctly from a subroutine
     if not os.path.exists(refimg):
         pytest.skip(f"no image {refimg}")
 
@@ -229,68 +291,88 @@ def test_render_check(request, t_render):
         pytest.skip(f"no image {checkimg}")
 
     compare_images(refimg=refimg, checkimg=checkimg, diffimg=diffimg,
-                   threshold=0.00001)
+                   threshold=threshold)
 
 
-def mkname(category, subcategory, test_name):
-    if subcategory is None or len(subcategory) == 0:
-        return str.join("_", [category, test_name])
+def test_render_check(request, t_render):
+    "Verify the result of a test render looks like it's expected to look"
+    r = t_render.param
+    id = mktestid(r['category'], r['subcategory'], r['test_name'])
+
+    if isinstance(r["cameraloc"], list):
+        fn = f"{id}_img%02d.png"
+        # cameraloc = ",".join(r["cameraloc"])
+        # camerarot = ",".join(r["camerarot"])
+        # outimg = os.path.join("render_results", f"{fn}_img%02d.png")
+
+        for i in range(1, len(r["cameraloc"]) + 1):
+            refimg = os.path.join("render_references", fn % (i))
+            checkimg = os.path.join("render_results", fn % (i))
+            diffimg = os.path.join("render_diffs", fn % (i))
+
+            checkimage(refimg, checkimg, diffimg)
     else:
-        return str.join("_", [category, subcategory, test_name])
+        refimg = os.path.join("render_references", f"{id}.png")
+        checkimg = os.path.join("render_results", f"{id}.png")
+        diffimg = os.path.join("render_diffs", f"{id}.png")
 
+        checkimage(refimg, checkimg, diffimg)
 
-def idfn(fv):
-    return mkname(fv['category'], fv['subcategory'], fv['test_name'])
-
-
-# @pytest.fixture(params=tlist(), ids=idfn)
-# def t_render(request):
-#     r = request.param
-
-#     fn = str.join("_", [r['category'], r['subcategory'], r['test_name']])
-#     obj = r["obj_file"].replace(posixpath.sep, os.sep)
-#     run_blender_python(
-#         "wowbject_render.py",
-#         [
-#             "-o", os.path.join("render_results", f"{fn}.png"),
-#             os.path.join("test_data", obj),
-#         ]
-#     )
-
-#     compare_renders(os.path.join("render_references", f"{fn}.png"),
-#                     os.path.join("render_results", f"{fn}.png"),
-#                     os.path.join("render_diffs", f"{fn}.png"))
 
 RenderReturn = collections.namedtuple(
     "RenderReturn", ["param", "success", "failmsg"])
 
-@pytest.fixture(params=tlist(), ids=idfn)
+@pytest.fixture(params=tlist())
 def t_render(request, capsys):
+    """test fixture that performs a test render on a test from our test list"""
     r = request.param
 
-    fn = mkname(r['category'], r['subcategory'], r['test_name'])
-    outimg = os.path.join("render_results", f"{fn}.png")
-
-    if os.path.exists(outimg):
-        os.remove(outimg)
-
+    # normalize our input file path, and make sure it exists
     objdata = os.path.join(
         "test_data", r["obj_file"].replace(posixpath.sep, os.sep))
     assert os.path.exists(objdata), f"no source file '{objdata}'"
 
+    id = mktestid(r['category'], r['subcategory'], r['test_name'])
+
+    # if we have multiple cameras, generate a "template" output filename and
+    # a list of camera parameters, otherwise just use a straight output
+    # filename and normal camera params.
+    #
+    # Also, remove any existing output images of the same names, first, so
+    # that we don't end up accidentally comparing against the wrong image if
+    # something goes wrong and doesn't get caught at this stage.
+    if isinstance(r["cameraloc"], list):
+        cameraloc = ",".join(r["cameraloc"])
+        camerarot = ",".join(r["camerarot"])
+        outimg = os.path.join("render_results", f"{id}_img%02d.png")
+
+        for i in range(1, len(r["cameraloc"]) + 1):
+            checkfn = outimg % (i)
+            if os.path.exists(checkfn):
+                os.remove(checkfn)
+
+    else:
+        cameraloc = r["cameraloc"]
+        camerarot = r["camerarot"]
+        outimg = os.path.join("render_results", f"{id}.png")
+
+        if os.path.exists(outimg):
+            os.remove(outimg)
+
+
+    # Call the render script w/ blender + our arguments
     success, failmsg = run_blender_python(
         "wowbject_render.py",
         [
-            "--cameraloc", r["cameraloc"], "--camerarot", r["camerarot"],
+            "--cameraloc", cameraloc, "--camerarot", camerarot,
             "-o", outimg, objdata,
         ]
     )
 
     # This clears stdout/stderr captures, so that we don't get the blender
     # output if something fails further along (is there a better way to
-    # do this?)
+    # do this? (does this even work?)
     if success:
         capsys.readouterr()
 
-    # just give the whole test blob back
     return RenderReturn(r, success, failmsg)
