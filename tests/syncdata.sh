@@ -4,8 +4,8 @@
 #
 # This should really only be run from the WoWbject 'tests' directory
 
-if [ ! -d "test_data" ]; then
-    echo "ERROR: 'test_data' subdirectory doesn't exist, cwd wrong?"
+if [ ! -d "render_references" ]; then
+    echo "ERROR: 'render_references' subdirectory doesn't exist, cwd wrong?"
     exit 1
 fi
 
