@@ -159,7 +159,8 @@ wmo,,shader_0,world/wmo/darkmoonfaire/darkmoon_blockringtoss01.obj,575758,front,
 wmo,,shader_1,world/wmo/brokenisles/eredar/7er_cliffbuilding01_nobase.obj,1621771,left,default,"top10,top10wmo",,515,Specular,
 wmo,,shader_2,world/wmo/brokenisles/eredar/7er_colosseum.obj,1572503,default,default,skip,,168,Metal,"""ring"" group only, tower bits"
 ,,shader_3,,,,,,,367,Env,
-wmo,,shader_4,world/wmo/darkmoonfaire/8df_darkmoon_rollercoaster.obj,2339687,"(6.85,-60.73,71.63)","(82.4,0,23.6)","top10,top10wmo",,20803,Opaque,sun flames in particular
+wmo,,shader_4,world/wmo/darkmoonfaire/8df_darkmoon_rollercoaster.obj,2339687,default,default,"top10,top10wmo",,20803,Opaque,sun flames in particular
+,,,,,"(6.85,-60.73,71.63)","(82.4,0,23.6)",,,,,
 ,,shader_5,,,,,"top10,top10wmo",,6833,EnvMetal,
 ,,shader_6,,,,,"top10,top10wmo",,1898,TwoLayerDiffuse,
 ,,shader_7,,,,,"top10,top10wmo",,6297,TwoLayerEnvMetal,
@@ -186,3 +187,4 @@ bug,,GH-12,creature/madscientist2/madscientist2.obj,3515267,,,,norender,,,
 bug,,GH-13,creature/faeriedragon/faeriedragon.obj,123816,,,,norender,,,
 bug,,GH-14,character/troll/female/trollfemale_hd_sdr.obj,1838588,,,,norender,,,
 bug,,GH-16,world/wmo/brokenisles/eredar/7er_colosseum.obj,1572503,,,,,,partial exports broken,
+,,,,,,,,,,,
