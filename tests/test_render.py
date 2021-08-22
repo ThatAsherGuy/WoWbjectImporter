@@ -168,7 +168,7 @@ def compare_images(refimg: str, checkimg: str, diffimg: str = None,
         os.remove(diffimg)
 
 
-marklist = {
+valid_marks = {
     # Needs to be kept in sync with pytest.ini  (grrf)
     "m2": pytest.mark.m2,
     "wmo": pytest.mark.wmo,
@@ -211,7 +211,7 @@ marklist = {
 # the various code. And then the various code has special cases for outputting
 # and checking the whatever_imgXX.png results. It'll do, but man some of the
 # special-case code makes things long-winded in places.
-def tlist(category=None):
+def tlist():
     """Generate a list of image-generation tests and associated parameters"""
     tests = []
     with open("testlist.csv", newline="") as csvfile:
@@ -240,9 +240,17 @@ def tlist(category=None):
                 # processing, just go to next line
                 continue
 
+            # convert our flags text list into a real boy^W list^W set
+            textflags = test["flags"]
+            test["flags"] = set()
+            for flag in textflags.split(","):
+                if len(flag) > 0:
+                    test["flags"].add(flag)
+
+            # done, add the test to the list to be marked and shipped
             tests.append(test)
 
-        # We have all our tests (and multi-image subtests), add marks
+        # We have all our tests (and multi-image subtests), add metadata
         marked_tests = []
 
         for test in tests:
@@ -250,15 +258,15 @@ def tlist(category=None):
 
             # set marks based on categories, where those marks exist
             cat = test["category"]
-            if cat in marklist:
-                marks.append(marklist[cat])
+            if cat in valid_marks:
+                marks.append(valid_marks[cat])
 
             # set marks based on explicit "marks" column of CSV
             m = test["marks"].split(",")
             if len(m) > 0:
                 for mark in m:
-                    if mark in marklist:
-                        marks.append(marklist[mark])
+                    if mark in valid_marks:
+                        marks.append(valid_marks[mark])
 
             # generate an id for the test
             id = mktestid(test['category'], test['subcategory'],
@@ -283,20 +291,31 @@ def test_render(t_render):
 
 def checkimage(refimg, checkimg, diffimg, threshold=0.00001):
     """Verify we have a reference image and compare to test render"""
-    # FIXME: verify this skips correctly from a subroutine
     if not os.path.exists(refimg):
-        pytest.skip(f"no image {refimg}")
+        pytest.skip(f"no reference image {refimg}")
 
     if not os.path.exists(checkimg):
-        pytest.skip(f"no image {checkimg}")
+        pytest.skip(f"no image to check {checkimg}")
 
     compare_images(refimg=refimg, checkimg=checkimg, diffimg=diffimg,
                    threshold=threshold)
 
 
-def test_render_check(request, t_render):
+def test_render_check(t_render):
     "Verify the result of a test render looks like it's expected to look"
     r = t_render.param
+
+    print(f"flags are: {r['flags']}")
+
+    if "norender" in r["flags"]:
+        pytest.skip("import-only (--no-render) test, nothing to check")
+
+    if not t_render.success:
+        pytest.skip("image render failed, nothing to check")
+
+    knownbad = "badrender" in r["flags"]
+    assert not knownbad, "known bad render, not running comparison"
+
     id = mktestid(r['category'], r['subcategory'], r['test_name'])
 
     if isinstance(r["cameraloc"], list):
@@ -322,11 +341,12 @@ def test_render_check(request, t_render):
 RenderReturn = collections.namedtuple(
     "RenderReturn", ["param", "success", "failmsg"])
 
-@pytest.fixture(params=tlist())
-def t_render(request, capsys):
+@pytest.fixture(scope="module", params=tlist())
+def t_render(request):
     """test fixture that performs a test render on a test from our test list"""
     r = request.param
 
+    print(f"flags: {r['flags']}")
     # normalize our input file path, and make sure it exists
     objdata = os.path.join(
         "test_data", r["obj_file"].replace(posixpath.sep, os.sep))
@@ -372,7 +392,7 @@ def t_render(request, capsys):
     # This clears stdout/stderr captures, so that we don't get the blender
     # output if something fails further along (is there a better way to
     # do this? (does this even work?)
-    if success:
-        capsys.readouterr()
+    # if success:
+    #     capsys.readouterr()
 
     return RenderReturn(r, success, failmsg)

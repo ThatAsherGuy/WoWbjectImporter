@@ -28,9 +28,6 @@ def camera_reset(camera: bpy.types.Camera):
     camera.location.z = 0.0
 
 
-# Types of 'simple' camera placement currently implemented
-camera_loc_types = ["default", "front", "left"]
-
 locseries_re = re.compile(r"""
 # Either of the following
 (
@@ -53,11 +50,14 @@ locseries_re = re.compile(r"""
 [\s,]*
 """, re.VERBOSE)
 
+# Types of 'simple' camera placement currently implemented
+camera_loc_types = ["default", "front", "left", "top"]
 
 def camera_set_position_simple(camera: bpy.types.Camera, loc: str) -> None:
     """Position a camera in a 'simple' automatic way useful on many models"""
     if loc not in camera_loc_types:
-        raise ValueError(f"unimplemented camera location type '{loc}' specified")
+        raise ValueError(
+            f"unimplemented camera location type '{loc}' specified")
 
     if loc == "front":
         camera.rotation_euler = Euler(
@@ -65,6 +65,9 @@ def camera_set_position_simple(camera: bpy.types.Camera, loc: str) -> None:
     elif loc == "left":
         camera.rotation_euler = Euler(
             (math.radians(75), 0, math.radians(15)), 'XYZ')
+    elif loc == "top":
+        camera.rotation_euler = Euler(
+            (0, 0, 0), 'XYZ')
     else:
         camera.rotation_euler = Euler(
             (math.radians(-90), math.radians(-145), math.radians(0)), 'XYZ')
@@ -76,7 +79,7 @@ def camera_set_position_simple(camera: bpy.types.Camera, loc: str) -> None:
     # FIXME: We might want to do this less for a larger model. Needs study.
     camera.data.lens = camera.data.lens + 2
     bpy.ops.view3d.camera_to_view_selected()
-    camera.data.lens = camera.data.lens - 2
+    camera.data.lens = camera.data.lens - 0
 
 
 # FIXME: Accepting regex match objects is FUGLY
@@ -135,7 +138,7 @@ def dorender(args):
 
     # set a nonzero frame so that animated UVs that aren't animating will
     # get caught
-    bpy.context.scene.frame_set(50)
+    bpy.context.scene.frame_set(25)
 
     # We can add a sun to our render if we need one, but we don't right now
     # bpy.ops.object.light_add(type='SUN', radius=1, align='WORLD',
@@ -186,6 +189,7 @@ def dorender(args):
         tsize = f"{bpy.context.scene.render.tile_x},{bpy.context.scene.render.tile_y}"
 
         # Do the actual render
+        print(f"camera len: {camera.data.lens}")
         print(
             f"Starting render #{rendercount} with tile size ({tsize})")
         start_time = now()
@@ -261,7 +265,17 @@ def parse_arguments(args):
         "--no-exit",
         action='store_true',
         default=False,
+
         help="run Blender in foreground and don't exit",
+    )
+
+    parser.add_argument(
+        "--norender",
+        "--no-render",
+        action='store_true',
+        default=False,
+
+        help="import model but do not render",
     )
 
     parser.add_argument(
@@ -303,9 +317,12 @@ def main(argv):
     util.load_wowobj(args.file)
     print("COMPLETED WOWBJECT IMPORT SUCCESSFULLY")
 
-    print("STARTING WOWBJECT RENDER(S)")
-    dorender(args)
-    print("COMPLETED WOWBJECT RENDER(S) SUCCESSFULLY")
+    if args.norender:
+        print("SKIPPING RENDER BECAUSE --NO-RENDER WAS SPECIFIED")
+    else:
+        print("STARTING WOWBJECT RENDER(S)")
+        dorender(args)
+        print("COMPLETED WOWBJECT RENDER(S) SUCCESSFULLY")
 
     # exit unless we've been explicitly asked not to (for testing)
     if not args.noexit:
