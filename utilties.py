@@ -398,10 +398,11 @@ class import_container():
         if self.wmo:
             do_wmo_mats(container=self, json=self.json_config)
         else:
+            limit = len(self.bl_obj.material_slots) - 1
             # if self.damage_control == True, self.json_tex_units wil be empty.
             for unit in self.json_tex_units:
-                bl_mat = self.bl_obj.material_slots[unit.get(
-                    "skinSectionIndex")].material
+                bl_mat = self.bl_obj.material_slots[
+                    min(unit.get("skinSectionIndex"), limit)].material
                 tree = bl_mat.node_tree
 
                 # Lazy check to avoid re-building existing materials
@@ -643,7 +644,7 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                     tex_defs = json_config.get("textures")
                     for tdef in tex_defs:
                         tID = tdef.get("fileDataID")
-                        textures.append(tID + ".png")
+                        textures.append(str(tID) + ".png")
 
         if len(objects) == 1:
             if name_override == '':

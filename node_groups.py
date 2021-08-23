@@ -62,6 +62,10 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     mat.pass_index = 1
     mat.use_backface_culling = True
 
+    blend_seq = blend_type.split('_')
+    if blend_seq[2] == 'Opaque':
+        mat.blend_method = 'CLIP'
+
     blend_flag = mat_flags.get('blendingMode')
     downmix = set_blend(mat, blend_flag)
 
@@ -83,10 +87,6 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
             mat.pass_index = 6
         else:
             print("NOFLAG")
-
-    blend_seq = blend_type.split('_')
-    if blend_seq[2] == 'Opaque':
-        mat.blend_method = 'CLIP'
 
     # TODO: this should use node.bl_idname instead of node.type
     for node in nodes:
@@ -200,7 +200,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
 
 def load_texture(tex, import_container, mapping):
-    path = os.path.realpath(tex.get("path"))
+    path = os.path.realpath(tex.get("path", ""))
     if path and os.path.isfile(path):
         image = bpy.data.images.load(path)
         image.name = tex.get("name")
@@ -287,14 +287,35 @@ def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
 
     # TODO: This doesn't work for materials with specular output below 0.5
     if len(combiner.outputs) > 2:
+        combiner.location = Vector((-600.0, 100.0))
+        shader.location += Vector((-200.0, 0.0))
+
         mixer = nodes.new('ShaderNodeGroup')
         mixer.node_tree = get_utility_group('SpecDownmix')
-        mixer.location += Vector((-200.0, 0.0))
+        mixer.location += Vector((-380.0, 0.0))
+
+        transparent = nodes.new("ShaderNodeBsdfTransparent")
+        transparent.location += Vector((-200.0, 140.0))
 
         tree.links.new(combiner.outputs[0], mixer.inputs[0])
         tree.links.new(combiner.outputs[2], mixer.inputs[1])
-        tree.links.new(mixer.outputs[0], shader.inputs[0])
-        tree.links.new(shader.outputs[0], output.inputs[0])
+
+        if downmix in {'M2BLEND_NO_ALPHA_ADD', 'M2BLEND_ADD', 'M2BLEND_BLENDADD'}:
+            mix_shader = nodes.new("ShaderNodeAddShader")
+            tree.links.new(transparent.outputs[0], mix_shader.inputs[0])
+            tree.links.new(shader.outputs[0], mix_shader.inputs[1])
+            tree.links.new(mixer.outputs[0], shader.inputs[0])
+
+        else:
+            mix_shader = nodes.new("ShaderNodeMixShader")
+            tree.links.new(shader.outputs[0], mix_shader.inputs[2])
+            tree.links.new(combiner.outputs[1], mix_shader.inputs[0])
+            tree.links.new(transparent.outputs[0], mix_shader.inputs[1])
+            tree.links.new(mixer.outputs[0], shader.inputs[0])
+
+        mix_shader.location += Vector((50.0, 100.0))
+
+        tree.links.new(mix_shader.outputs[0], output.inputs[0])
     else:
         tree.links.new(combiner.outputs[0], shader.inputs[0])
         if base == 'ShaderNodeBsdfPrincipled':
@@ -340,7 +361,7 @@ def setup_panner(node, index, **kwargs):
             settings_container = val
             break
 
-    if settings_container:
+    if not (settings_container == None) and (len(settings_container.anim_transforms) > 0):
         anim_transforms = settings_container.anim_transforms
         panner_vectors = anim_transforms[min(index, len(anim_transforms))]
         # print(str(panner_vectors))
@@ -357,7 +378,7 @@ def setup_panner(node, index, **kwargs):
                 # Scaling hasn't been implemented yet.
                 pass
     else:
-        node.inputs[3].default_value = 0.2
+        node.inputs[3].default_value = 0.0
 
 
 def read_render_flags(flags):
@@ -394,7 +415,7 @@ def set_blend(mat, flags):
         ('M2BLEND_ADD', 'BLEND'),
         ('M2BLEND_MOD', 'BLEND'),
         ('M2BLEND_MOD2X', 'BLEND'),
-        ('M2BLEND_BlendAdd', 'BLEND'),
+        ('M2BLEND_BLENDADD', 'BLEND'),
     )
     mat.blend_method = blend_values[flags][1]
     return blend_values[flags][0]

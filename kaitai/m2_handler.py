@@ -186,21 +186,10 @@ def read_m2(directory, file):
                     transform_container['translate'] = translate_vectors
 
                 if do_rotate:
-                    if rotate_interp == 'CONST':
-                        i = 0
-                        rate = 20
-                    else:
-                        i = 1
-                        rate = rotation.timestamps.values[0].values[1] / 1000  # TODO: Double-check time unit
-
-                    r_vec = rotation.values.values[0].values[i]
-                    rotate_vectors = mathutils.Quaternion((r_vec.w, r_vec.x, r_vec.y, r_vec.z))
-                    transform_container['rotate'] = rotate_vectors
+                    transform_container['rotate'] = rotate_rate
 
                 if do_scale:
-                    rate = scaling.timestamps.values[0].values[-1] / 1000 if not (scale_interp == 'CONST') else 15
-                    scale_vectors = scaling.values.values[0].values[-1]
-                    transform_container['scale'] = (scale_vectors.x / rate, scale_vectors.y / rate, scale_vectors.z / rate)
+                    transform_container['scale'] = scale_rate
 
                 unpacked_transforms.append(transform_container)
 
@@ -209,14 +198,14 @@ def read_m2(directory, file):
         return (False, None, None, None, None)
 
 
-def read_track(track, type):
+def read_track(track, vec_type):
     track_type = get_interpolation_type(track.interpolation_type)
-    has_values = True if len(track.timestamps.values) > 0 else False
+    has_values = True if (len(track.timestamps.values) > 0 and len(track.values.values[0].values) > 0) else False
 
     if has_values:
         nvals = len(track.values.values[0].values)
         
-        if type == 'VEC':
+        if vec_type == 'VEC':
             delta = (0.0, 0.0, 0.0)
             prev = (0.0, 0.0, 0.0)
             for val in track.values.values[0].values:
@@ -229,7 +218,7 @@ def read_track(track, type):
 
             avg = (delta[0]/nvals, delta[1]/nvals, delta[2]/nvals)
             
-        elif type == 'QUAT':
+        elif vec_type == 'QUAT':
             delta = (0.0, 0.0, 0.0, 0.0)
             prev = (0.0, 0.0, 0.0, 0.0)
             for val in track.values.values[0].values:
@@ -245,7 +234,7 @@ def read_track(track, type):
 
         # True if the interp type is constant
         if nvals == 1:
-            avg = 4
+            avg = mathutils.Vector((0, 2, 0))
         elif nvals == 2:
             rate = track.timestamps.values[0].values[1] / 1000
             avg = mathutils.Vector([i/rate for i in avg])
