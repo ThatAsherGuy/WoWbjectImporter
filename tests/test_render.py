@@ -11,10 +11,17 @@ import sys
 from typing import *
 
 import pytest
+from pytest_html import extras
 
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
+
+
+# returns from an underlying check
+CheckReturn = collections.namedtuple(
+    "CheckReturn", ["param", "success", "failmsg"])
+
 
 def mktestid(category, subcategory, test_name):
     """make id for a test based on category, (optional) subcategory, and test name"""
@@ -124,7 +131,7 @@ def parse_gm_compare(output: str):
 
 
 def compare_images(refimg: str, checkimg: str, diffimg: str = None,
-                   threshold: float = 0.0, timeout: int = 10):
+                   timeout: int = 10):
     """Compare two images for similarity and assert based on a threshold"""
     gm_bin = "gm"
     gm_args = [
@@ -149,7 +156,7 @@ def compare_images(refimg: str, checkimg: str, diffimg: str = None,
         gm_args += ["-file", diffimg]
 
     try:
-        res = subprocess.run(gm_args, stdin=None, check=True,
+        res = subprocess.run(gm_args, stdin=None, check=True, timeout=timeout,
                              capture_output=True, text=True)
 
     except (subprocess.CalledProcessError, OSError) as e:
@@ -159,13 +166,7 @@ def compare_images(refimg: str, checkimg: str, diffimg: str = None,
         t = type(e).__name__
         raise Exception(f"{t}: {e}") from None
 
-    compared = parse_gm_compare(res.stdout)
-
-    assert compared["Total"] <= threshold, "image difference exceeds threshold"
-
-    # if we tested ok, delete the diff image
-    if os.path.exists(diffimg):
-        os.remove(diffimg)
+    return parse_gm_compare(res.stdout)
 
 
 valid_marks = {
@@ -178,6 +179,7 @@ valid_marks = {
     "fancy": pytest.mark.fancy,
     "bug": pytest.mark.bug,
     "superfast": pytest.mark.superfast,
+    "test": pytest.mark.test,
 
     # built-in marks, do not need to be in sync with pytest.ini
     "xfail": pytest.mark.xfail,
@@ -271,6 +273,7 @@ def tlist():
             # generate an id for the test
             id = mktestid(test['category'], test['subcategory'],
                           test['test_name'])
+            test['id'] = id
 
             # done with this test, add it to the list and move on
             marked_tests.append(pytest.param(test, marks=marks, id=id))
@@ -282,14 +285,22 @@ def tlist():
 # a named tuple with 'success' and 'failure message' fields. All the work
 # for this test is done in that fixture, with the test itself just checking
 # for success.
-def test_render(t_render):
+def test_render(t_render, extra):
     """Validate a test render happens without error"""
     success = t_render.success
 
     assert success, t_render.failmsg
 
+    r = t_render.param
+    id = r['id']
+    # Not sure how to display images if it's a multi-image
+    if not isinstance(r["cameraloc"], list):
+        imgpath = os.path.join("render_results", f"{id}.png")
+        extra.append(caption_png_extra(imgpath, "Rendered Image"))
 
-def checkimage(refimg, checkimg, diffimg, threshold=0.00001):
+
+
+def checkimage(refimg, checkimg, diffimg):
     """Verify we have a reference image and compare to test render"""
     if not os.path.exists(refimg):
         pytest.skip(f"no reference image {refimg}")
@@ -297,15 +308,27 @@ def checkimage(refimg, checkimg, diffimg, threshold=0.00001):
     if not os.path.exists(checkimg):
         pytest.skip(f"no image to check {checkimg}")
 
-    compare_images(refimg=refimg, checkimg=checkimg, diffimg=diffimg,
-                   threshold=threshold)
+    return compare_images(refimg=refimg, checkimg=checkimg, diffimg=diffimg)
 
 
-def test_render_check(t_render):
+def caption_png_extra(img, caption):
+    img_html = f"""
+    <div class="image">
+        <a href="{img}">
+            <img src="{img}" />
+        </a>
+        <div class="caption">
+            {caption}
+        </div>
+    </div>
+    """
+
+    return extras.html(img_html)
+
+def test_render_check(t_render, extra):
     "Verify the result of a test render looks like it's expected to look"
+    threshold = 0.00001
     r = t_render.param
-
-    print(f"flags are: {r['flags']}")
 
     if "norender" in r["flags"]:
         pytest.skip("import-only (--no-render) test, nothing to check")
@@ -316,7 +339,7 @@ def test_render_check(t_render):
     knownbad = "badrender" in r["flags"]
     assert not knownbad, "known bad render, not running comparison"
 
-    id = mktestid(r['category'], r['subcategory'], r['test_name'])
+    id = r["id"]
 
     if isinstance(r["cameraloc"], list):
         fn = f"{id}_img%02d.png"
@@ -329,24 +352,44 @@ def test_render_check(t_render):
             checkimg = os.path.join("render_results", fn % (i))
             diffimg = os.path.join("render_diffs", fn % (i))
 
-            checkimage(refimg, checkimg, diffimg)
+            compared = checkimage(refimg, checkimg, diffimg)
+
+            # FIXME: verify the filename/test name/subname is visible in the assert
+            difference = compared["Total"]
+            assert difference <= threshold, f"image difference {difference} greater than threshold {threshold}"
+
+            # if we didn't assert, get rid of the difference image
+            if os.path.exists(diffimg):
+                os.remove(diffimg)
+
     else:
         refimg = os.path.join("render_references", f"{id}.png")
         checkimg = os.path.join("render_results", f"{id}.png")
         diffimg = os.path.join("render_diffs", f"{id}.png")
 
-        checkimage(refimg, checkimg, diffimg)
+        compared = checkimage(refimg, checkimg, diffimg)
 
 
-RenderReturn = collections.namedtuple(
-    "RenderReturn", ["param", "success", "failmsg"])
+        difference = compared["Total"]
+        if difference > threshold:
+            # extra.append(extras.png(diffimg, name="Images Diff"))
+            # extra.append(extras.png(checkimg, name="Rendered Image"))
+            # extra.append(extras.png(refimg, name="Reference Image"))
+            extra.append(caption_png_extra(diffimg, "Image Diff"))
+            extra.append(caption_png_extra(checkimg, "Rendered Image"))
+            extra.append(caption_png_extra(refimg, "Reference Image"))
+
+        assert difference <= threshold, f"image difference {difference} greater than threshold {threshold}"
+
+        extra.append(caption_png_extra(checkimg, "Rendered Image"))
+        extra.append(caption_png_extra(refimg, "Reference Image"))
+
 
 @pytest.fixture(scope="module", params=tlist())
 def t_render(request):
     """test fixture that performs a test render on a test from our test list"""
     r = request.param
 
-    print(f"flags: {r['flags']}")
     # normalize our input file path, and make sure it exists
     objdata = os.path.join(
         "test_data", r["obj_file"].replace(posixpath.sep, os.sep))
@@ -395,4 +438,4 @@ def t_render(request):
     # if success:
     #     capsys.readouterr()
 
-    return RenderReturn(r, success, failmsg)
+    return CheckReturn(r, success, failmsg)

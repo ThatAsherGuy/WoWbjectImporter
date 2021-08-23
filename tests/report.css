@@ -1,0 +1,13 @@
+#results-table .extra img {
+	width: 180px;
+	height: 180px;
+}
+
+#results-table .extra div.image {
+        width: 180px;
+}
+
+div.caption {
+	text-align: center;
+	color: #000000;
+}

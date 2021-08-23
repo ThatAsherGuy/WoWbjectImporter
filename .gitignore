@@ -59,3 +59,4 @@ tests/render_diffs/*.png
 tests/render_wowtools/*.png
 tests/test_data/
 tests/test_data_*/
+tests/report.html
