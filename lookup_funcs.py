@@ -299,8 +299,31 @@ def wmo_read_color(color, type):
         blue = c_bytes[2]
         alpha = c_bytes[3]
 
-    cvec = (float(red)/255, float(green)/255, float(blue)/255, float(alpha)/255)
-    return cvec
+    do_gamma = False
+
+    if do_gamma:
+        if (0 <= float(red)/255 <=0.04045):
+            red = (float(red)/255)/12.92
+        else:
+            red = pow((float(red)/255 + 0.55)/1.055, 2.4)
+
+        if (0 <= float(green)/255 <=0.04045):
+            green = (float(green)/255)/12.92
+        else:
+            green = pow((float(green)/255 + 0.55)/1.055, 2.4)
+
+        if (0 <= float(blue)/255 <=0.04045):
+            blue = (float(blue)/255)/12.92
+        else:
+            blue = pow((float(blue)/255 + 0.55)/1.055, 2.4)
+    else:
+        red = (float(red)/255)
+        green = (float(green)/255)
+        blue = (float(blue)/255)
+
+    alpha = float(alpha)/255
+
+    return (red, green, blue, alpha)
 
 def read_wmo_face_flags(flag_in, func):
 
@@ -358,5 +381,106 @@ def wmo_read_mat_flags(flag):
 
     if flag & 256:
         flag_list.append('0x100')
+
+    return flag_list
+
+def wmo_read_group_flags(flag):
+    flag_list = set()
+
+    if flag & 0x1:
+        flag_list.add('HAS_BSP')
+
+    if flag & 0x2:
+        flag_list.add('HAS_LIGHTMAP')
+
+    if flag & 0x4:
+        flag_list.add('HAS_VC1')
+
+    if flag & 0x8:
+        flag_list.add('EXTERIOR')
+
+    if flag & 0x10:
+        pass # unused flag
+
+    if flag & 0x20:
+        pass # unused flag
+
+    if flag & 0x40:
+        flag_list.add('EXT_LIT')
+
+    if flag & 0x80:
+        flag_list.add('UNREACHABLE')
+
+    if flag & 0x100:
+        flag_list.add('EXT_SKY')
+
+    if flag & 0x200:
+        flag_list.add('HAS_LIGHTS')
+
+    if flag & 0x400:
+        flag_list.add('HAS_LOD')
+
+    if flag & 0x800:
+        flag_list.add('HAS_DOODADS')
+
+    if flag & 0x1000:
+        flag_list.add('HAS_WATER')
+
+    if flag & 0x2000:
+        flag_list.add('INTERIOR')
+
+    if flag & 0x4000:
+        pass # unused
+
+    if flag & 0x8000:
+        flag_list.add('QUERY_MOUNT')
+
+    if flag & 0x10000:
+        flag_list.add('ALWAYS_DRAW')
+
+    if flag & 0x20000:
+        pass # unused
+
+    if flag & 0x40000:
+        flag_list.add('SHOW_SKY')
+
+    if flag & 0x80000:
+        flag_list.add('HAS_OCEAN')
+
+    if flag & 0x100000:
+        pass # unused
+
+    if flag & 0x200000:
+        flag_list.add('MOUNT_ALLOWED')
+
+    if flag & 0x400000:
+        pass # unused
+
+    if flag & 0x800000:
+        pass # unused
+
+    if flag & 0x1000000:
+        flag_list.add('HAS_VC2')
+
+    if flag & 0x2000000:
+        flag_list.add('HAS_UV2')
+
+    if flag & 0x4000000:
+        flag_list.add('ANTIPORTAL')
+
+    if flag & 0x8000000:
+        flag_list.add('0x8000000') # Unknown, but not unused
+
+    if flag & 0x10000000:
+        pass # unused
+
+    if flag & 0x20000000:
+        flag_list.add('EXT_CULL')
+
+    if flag & 0x40000000:
+        flag_list.add('HAS_UV3')
+
+    if flag & 0x80000000:
+        flag_list.add('0x80000000') # Unknown, but not unused
 
     return flag_list

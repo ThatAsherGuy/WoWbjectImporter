@@ -623,11 +623,15 @@ def do_wmo_mats(**kwargs):
                     tex_node.label = ("TEXTURE_%s" % str(i + 1))
                     tex_nodes.append(tex_node)
 
+            ambColor = wmo_read_color(config.get("ambientColor"), 'CImVector')
+
             do_wmo_combiner(
                 tex_nodes=tex_nodes,
                 bl_mat=bl_mat,
                 shader_out=shader,
-                mat_info=mat)
+                mat_info=mat,
+                ambient=ambColor,
+                do_vertex_lighting=container.op_args.get("use_vertex_lighting", False))
 
             configured_mats.add(bl_mat)
 
@@ -652,11 +656,13 @@ def get_tex(container, tex_num):
 
 def do_wmo_combiner(**kwargs):
     use_combiner_nodes = True
+    do_vertex_lighting = kwargs.get("do_vertex_lighting", False)
 
     tex_nodes = kwargs.get("tex_nodes")
     bl_mat = kwargs.get("bl_mat")
     shader_out = kwargs.get("shader_out")
     mat_info = kwargs.get("mat_info")
+    ambColor = kwargs.get("ambient")
 
     shader_info = WMO_Shaders_New[mat_info.get("shader", 0)]
     blend_info = mat_info.get("blendMode")
@@ -676,7 +682,6 @@ def do_wmo_combiner(**kwargs):
         if flag == 'TWO_SIDED':
             bl_mat.use_backface_culling = False
 
-
     if blend_info == 2:
         bl_mat.blend_method = 'BLEND'
         tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
@@ -690,22 +695,35 @@ def do_wmo_combiner(**kwargs):
 
     offset = 0
     if use_combiner_nodes:
+        v_colors = None
+        v_colors2 = None
+
         for node_input in mixer.inputs:
             if node_input.name == "Vertex RGB":
-                v_colors = nodes.new("ShaderNodeVertexColor")
-                v_colors.layer_name = 'vcols_1'
-                v_colors.location = Vector((-975.0, 30.0))
 
-                # This part doesn't work yet; need to figure out vertex lighting.
-                # tree.links.new(v_colors.outputs[0], mixer.inputs[0])
-                # tree.links.new(v_colors.outputs[1], mixer.inputs[1])
+
+                if do_vertex_lighting:
+                    v_colors = nodes.new("ShaderNodeVertexColor")
+                    v_colors.layer_name = 'vcols_0'
+                    v_colors.location = Vector((-975.0, 200.0))
+
+                    lighting = nodes.new('ShaderNodeGroup')
+                    lighting.node_tree = get_utility_group(name="WMO_VertexLightingFancy")
+                    lighting.location = Vector((-775.0, 150.0))
+
+                    lighting.inputs[2].default_value = ambColor
+
+                    tree.links.new(lighting.outputs[0], mixer.inputs[0])
+
+                    tree.links.new(v_colors.outputs[0], lighting.inputs[4])
+                    tree.links.new(v_colors.outputs[1], mixer.inputs[1])
 
             elif node_input.name == "Vertex2 RGB":
-                v_colors = nodes.new("ShaderNodeVertexColor")
-                v_colors.layer_name = 'vcols_1'
-                v_colors.location = Vector((-975.0, 30.0))
-                tree.links.new(v_colors.outputs[0], mixer.inputs[2])
-                tree.links.new(v_colors.outputs[1], mixer.inputs[3])
+                v_colors2 = nodes.new("ShaderNodeVertexColor")
+                v_colors2.layer_name = 'vcols_1'
+                v_colors2.location = Vector((-975.0, 30.0))
+                tree.links.new(v_colors2.outputs[0], mixer.inputs[2])
+                tree.links.new(v_colors2.outputs[1], mixer.inputs[3])
                 offset += 2
 
             elif node_input.name == "Tex0 RGB":

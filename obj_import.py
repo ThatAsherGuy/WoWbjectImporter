@@ -35,7 +35,7 @@ import time
 
 from bpy_extras.io_utils import unpack_list
 from bpy_extras.image_utils import load_image
-from .lookup_funcs import wmo_read_color
+from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 
 
 def setup_blender_object(**kwargs):
@@ -51,12 +51,16 @@ def setup_blender_object(**kwargs):
 
     full_name = base_name + "_" + json_group.get("groupName", "section")
     collection_name = json_group.get("groupDescription", None)
+    flags = wmo_read_group_flags(json_group.get("flags", 0))
 
     mesh = bpy.data.meshes.new(base_name)
     mesh.use_auto_smooth = True
     mesh.auto_smooth_angle = radians(60)
 
     blender_object = bpy.data.objects.new(full_name, mesh)
+
+    if "INTERIOR" in flags:
+        blender_object.pass_index = 1
 
     bm = bmesh.new()
     # vcols = bm.loops.layers.color.new("vcols")

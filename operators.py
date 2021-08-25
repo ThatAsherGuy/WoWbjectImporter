@@ -126,6 +126,12 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         default=False
     )
 
+    use_vertex_lighting: bpy.props.BoolProperty (
+        name="Experimental Vertex Lighting",
+        description="Use the experimental vertex lighting node in WMO shaders",
+        default=False
+    )
+
     base_shader_items = [
                         ("EMIT", "Emission Shader", "Standard unlit look"),
                         ("DIFF", "Diffuse Shader", "Lit look without additional specularity"),
@@ -227,6 +233,11 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         col.prop(self, 'base_shader', expand=False)
 
         selector_params = context.space_data.params
+
+        col = root.column(align=True)
+        col.use_property_split = True
+        col.label(text="WMO Settings:")
+        col.prop(self, 'use_vertex_lighting', expand=False)
 
         col.label(text="Misc:")
         op = col.operator('wowbj.set_default_dir', text="Use as Default Directory")
