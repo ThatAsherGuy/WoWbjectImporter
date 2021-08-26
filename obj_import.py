@@ -78,13 +78,18 @@ def setup_blender_object(**kwargs):
     v_dict = {}
     uv_dict = {}
 
+    
+
     for i, batch in enumerate(batches):
         exampleFaceSet = False
-
+        cull_list = []
         for face in batch.faces:
             for v in face:
-                vert = bm.verts.new(mesh_data.verts[v - 1])
-                v_dict[v] = vert
+                if type(v_dict.get(v)) == bmesh.types.BMVert:
+                    vert = v_dict[v]
+                else:
+                    vert = bm.verts.new(mesh_data.verts[v-1])
+                    v_dict[v] = vert
 
                 # The data layer for vertex color is actually in the face loop.
                 # We can't set the color until after all of the faces are made,
@@ -94,10 +99,12 @@ def setup_blender_object(**kwargs):
                     if type(color_list[0]) == list:
                         v_color = []
                         for sublist in color_list:
-                            v_color.append(wmo_read_color(sublist[v-1], 'CImVector'))
+                            v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
                     else:
-                        v_color = wmo_read_color(color_list[v-1], 'CImVector')
+                        v_color = wmo_read_color(color_list[v - 1], 'CImVector')
+
                     colors[vert] = v_color
+    
             try:
                 if exampleFaceSet == False:
                     face = bm.faces.new((
@@ -128,7 +135,36 @@ def setup_blender_object(**kwargs):
                         v_dict[face[2]]
                     ), exampleFace)
 
-            except ValueError:
+            except ValueError as err:
+
+                v1 = bm.verts.new(mesh_data.verts[face[0]])
+                v2 = bm.verts.new(mesh_data.verts[face[1]])
+                v3 = bm.verts.new(mesh_data.verts[face[2]])
+
+                colors[v1] = colors[v_dict[face[0]]]
+                colors[v2] = colors[v_dict[face[1]]]
+                colors[v3] = colors[v_dict[face[2]]]
+
+                if exampleFaceSet == False:
+                    face = bm.faces.new((v1, v2, v3))
+                    exampleFace = face
+                    exampleFaceSet = True
+
+                    if json_batches[i].get("flags") == 2:
+                        mat_ID = json_batches[i].get("possibleBox2")[2]
+                    else:
+                        mat_ID = json_batches[i].get("materialID")
+
+                    local_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+
+                    if local_index == -1:
+                        blender_object.data.materials.append(mat_dict[mat_ID])
+                        face.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+                    else:
+                        face.material_index = local_index
+                else:
+                    face = bm.faces.new((v1, v2, v3), exampleFace)
+                print(err)
                 pass
 
     if len(mesh_data.uv2) > 0:
@@ -152,7 +188,7 @@ def setup_blender_object(**kwargs):
             if len(mesh_data.uv3) > 0:
                 loop[uv3_layer].uv = mesh_data.uv3[face[j]-1]
 
-    bm.verts.ensure_lookup_table()
+    # bm.verts.ensure_lookup_table()
 
     if len(color_list) > 0:
         vcols = []
@@ -235,24 +271,8 @@ def repack_wmo(**kwargs):
     mesh_data = kwargs.get("mesh_data")
     groups = []
     offset = 0
-    len(json_groups)
+
     flat_colors = [[],[],[]]
-
-    # for group in json_groups:
-    #     colors = group.get("vertexColours", [])
-    #     if len(colors) == 2:
-    #         flat_colors[0] += colors[0]
-    #         flat_colors[1] += colors[1]
-
-    #     elif len(colors) == 1:
-    #         flat_colors[0] += colors[0]
-    #         vertex_count = len(group.get("materialInfo", [])) * 3
-    #         flat_colors[1] += [0 for j in range(vertex_count)]
-
-    #     elif len(colors) == 0:
-    #         vertex_count = len(group.get("materialInfo", [])) * 3
-    #         flat_colors[0] += [0 for j in range(vertex_count)]
-    #         flat_colors[1] += [0 for j in range(vertex_count)]
 
     for group in json_groups:
         g_batches = group.get("renderBatches", [])
@@ -271,23 +291,29 @@ def repack_wmo(**kwargs):
             groups.append(wmo_group)
 
             colors = group.get("vertexColours", [])
+            last_color = g_batches[-1].get("lastVertex", -1) + 1
+
+            vertex_count = 0
+            for comp in wmo_group.mesh_batches:
+                vertex_count += len(comp.verts)
+
             if len(colors) == 2:
-                flat_colors[0] += colors[0]
-                flat_colors[1] += colors[1]
+                flat_colors[0] += colors[0][0:last_color]
+                flat_colors[1] += colors[1][0:last_color]
             elif len(colors) == 1:
                 flat_colors[0] += colors[0]
                 flat_colors[1] += [0 for j in colors[0]]
             elif len(colors) == 0:
-                vertex_count = 0
-                for comp in wmo_group.mesh_batches:
-                    vertex_count += len(comp.verts)
-                flat_colors[0] += [0 for j in range(vertex_count)]
-                flat_colors[1] += [0 for j in range(vertex_count)]
+                if vertex_count > 0:
+                    flat_colors[0] += [0 for j in range(vertex_count)]
+                    flat_colors[1] += [0 for j in range(vertex_count)]
 
             wmo_group.colors = flat_colors
 
             offset += g_length
             wmo_group.group_offset = offset
+        else:
+            print("Batchless")
 
     return groups
 
@@ -419,8 +445,10 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
         progress.step()
         progress.enter_substeps(steps, "Generating Meshes")
 
+        
         for i, group in enumerate(wmo_groups):
-            progress.step(f"Constructing object {i + 1}/{steps}")
+            sub = group.json_group.get("groupName", "")
+            progress.step(f"Constructing object {i + 1}/{steps} | {sub}")
             bl_obj = setup_blender_object(
                 name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts, make_quads=make_quads, use_collections=use_collections)
             objects.append(bl_obj)

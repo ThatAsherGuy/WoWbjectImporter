@@ -284,16 +284,16 @@ WMO_Blend_Modes = (
     "BLEND_ADD"
 )
 
-def wmo_read_color(color, type):
+def wmo_read_color(color, color_type):
     c_bytes = color.to_bytes(4, 'little')
 
-    if type == 'CImVector':
+    if color_type == 'CImVector':
         red = c_bytes[2]
         green = c_bytes[1]
         blue = c_bytes[0]
         alpha = c_bytes[3]
 
-    elif type == 'CArgb':
+    elif color_type == 'CArgb':
         red = c_bytes[0]
         green = c_bytes[1]
         blue = c_bytes[2]
