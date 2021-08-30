@@ -325,7 +325,7 @@ def caption_png_extra(img, caption):
 
     return extras.html(img_html)
 
-def test_render_check(t_render, extra):
+def test_render_check(t_render, extra, subtests):
     "Verify the result of a test render looks like it's expected to look"
     threshold = 0.00001
     r = t_render.param
@@ -348,19 +348,20 @@ def test_render_check(t_render, extra):
         # outimg = os.path.join("render_results", f"{fn}_img%02d.png")
 
         for i in range(1, len(r["cameraloc"]) + 1):
-            refimg = os.path.join("render_references", fn % (i))
-            checkimg = os.path.join("render_results", fn % (i))
-            diffimg = os.path.join("render_diffs", fn % (i))
+            with subtests.test(msg=i, image=i):
+                refimg = os.path.join("render_references", fn % (i))
+                checkimg = os.path.join("render_results", fn % (i))
+                diffimg = os.path.join("render_diffs", fn % (i))
 
-            compared = checkimage(refimg, checkimg, diffimg)
+                compared = checkimage(refimg, checkimg, diffimg)
 
-            # FIXME: verify the filename/test name/subname is visible in the assert
-            difference = compared["Total"]
-            assert difference <= threshold, f"image difference {difference} greater than threshold {threshold}"
+                # FIXME: verify the filename/test name/subname is visible in the assert
+                difference = compared["Total"]
+                assert difference <= threshold, f"image difference {difference} greater than threshold {threshold} for image {i}"
 
-            # if we didn't assert, get rid of the difference image
-            if os.path.exists(diffimg):
-                os.remove(diffimg)
+                # if we didn't assert, get rid of the difference image
+                if os.path.exists(diffimg):
+                    os.remove(diffimg)
 
     else:
         refimg = os.path.join("render_references", f"{id}.png")
