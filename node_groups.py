@@ -608,6 +608,20 @@ def do_wmo_mats(**kwargs):
             if not shader:
                 print("DO LATER")
 
+            nodes.remove(shader)
+
+            prefs = preferences.get_prefs()
+            base = prefs.get_base_shader(container.base_shader)
+            if base == 'Experimental':
+                shader = nodes.new('ShaderNodeGroup')
+                shader.node_tree = get_utility_group(name="TheStumpFargothHidTheRingIn")
+            elif (base != ''):
+                shader = nodes.new(base)
+            else:
+                shader = nodes.new("ShaderNodeEmission")
+
+            tree.links.new(shader.outputs[0], out_node.inputs[0])
+
             baseColor = nodes.new('ShaderNodeRGB')
             baseColor.location += Vector((-1200.0, 400.0))
             baseColor.outputs[0].default_value = wmo_read_color(mat.get("color2"), 'CArgb')
@@ -672,7 +686,7 @@ def do_wmo_combiner(**kwargs):
     nodes = tree.nodes
 
     shader_out.label = shader_info[0]
-    shader_out.inputs[5].default_value = 0.0 # Breaking all measures of physical accuracy here.
+    # shader_out.inputs[5].default_value = 0.0 # Breaking all measures of physical accuracy here.
 
     bl_mat.use_backface_culling = True
 
