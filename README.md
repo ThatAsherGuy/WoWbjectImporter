@@ -15,7 +15,7 @@ TL;DR: This Blender add-on + WoW.Export = Streamlined import and material assign
   - Allows your choice of emissive shaders (most true to WoW), diffuse shaders, specular shaders, or the principled shader
   - Optional duplicate vertex deduplication (_WARNING_: Will prevent the binding of the object to a separately imported armature)
 
-- WMO Imports (WoW Map Objects -- Buildings and Architecture)
+- WMO Imports (WoW Map Objects -- Buildings and Architecture)  **[in 1.1.0 - unreleased]**
   - Automatically applies game textures and materials (which, because WoW is WoW, is done completely differently from M2 models)
   - Emissive map components (e.g. lit windows) are properly created as emissive textures (though they will only illuminate their surroundings when rendering with Cycles, not Eevee)
   - Imported WMOs are split into individual 'building block' objects by group (generally individual buildings or small groups of buildings in larger WMOs like cities)
@@ -138,7 +138,7 @@ And finally, many kudos to the [Blender Foundation](https://www.blender.org/foun
 
 ## Changelog
 
-**v1.1.0:**
+**v1.1.0:** [unreleased, but soon]
 
 - Fixed: Specular highlights ("armorreflect" textures) are more correct now
 - Added: WMO support (see 'features' above)
