@@ -698,10 +698,8 @@ def do_wmo_combiner(**kwargs):
 
     if blend_info == 2:
         bl_mat.blend_method = 'BLEND'
-        tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
     elif blend_info == 1:
         bl_mat.blend_method = 'CLIP'
-        tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[19])
 
     mixer = nodes.new('ShaderNodeGroup')
     mixer.node_tree = get_utility_group(name=shader_info[2])
@@ -714,7 +712,6 @@ def do_wmo_combiner(**kwargs):
 
         for node_input in mixer.inputs:
             if node_input.name == "Vertex RGB":
-
 
                 if do_vertex_lighting:
                     v_colors = nodes.new("ShaderNodeVertexColor")
@@ -778,7 +775,6 @@ def do_wmo_combiner(**kwargs):
 
         else:
             tree.links.new(mixer.outputs[0], shader_out.inputs[0])
-        # tree.links.new(mixer.outputs[1], shader_out.inputs[19])
         return
 
     if shader_info[0] == "Diffuse":

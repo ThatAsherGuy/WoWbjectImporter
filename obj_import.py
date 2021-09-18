@@ -30,6 +30,7 @@ import bmesh
 import bpy
 from itertools import chain
 from math import radians
+from typing import Type
 import os
 import time
 
@@ -38,15 +39,84 @@ from bpy_extras.image_utils import load_image
 from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 
 
-def setup_blender_object(**kwargs):
-    base_name = kwargs.get("name", "wmo_object")
-    mesh_data = kwargs.get("mesh_data")
-    mat_dict = kwargs.get("mat_dict", {})
-    merge_verts = kwargs.get("merge_verts")
-    make_quads = kwargs.get("make_quads")
-    use_collections = kwargs.get("use_collections")
+class meshComponent:
+    usemtl: str
+    name: str
+    verts: set[float]
+    faces: list[int]
+    uv: list[float]
 
-    group = kwargs.get("group")
+    def __init__(self):
+        self.usemtl = ''
+        self.name = ''
+        self.verts = set()
+        self.faces = []
+        self.uv = []
+
+
+class meshObject:
+    usemtl: str
+    mtlfile: str
+    name: str
+    verts: list[float]
+    faces: list[int]
+    normals: list[float]
+    uv: list[float]
+    uv2: list[float]
+    uv3: list[float]
+    components: list[meshComponent]
+
+    def __init__(self):
+        self.usemtl = ''
+        self.mtlfile = ''
+        self.name = ''
+        self.verts = []
+        self.faces = []
+        self.normals = []
+        self.uv = []
+        self.uv2 = []
+        self.uv3 = []
+        self.components = []
+
+
+# TL;DR:
+# Step one: Repack OBJ into meshObject
+# Step two: Repack meshObject into wmoGroups
+# Step three: Generate blenderObjects from wmoGroups
+class wmoGroup:
+    mesh_data: meshObject
+    mesh_batches: list[meshComponent]
+
+    json_group: dict
+    group_offset: int
+
+    json_batches: list[dict]
+    batch_count: int
+
+    colors: list[list[int]]
+
+    def __init__(self):
+        self.mesh_data = None
+        self.mesh_batches = []
+
+        self.json_group = None
+        self.group_offset = -1
+        # The renderBatches that map to the meshComponent objects
+        self.json_batches = []
+        self.batch_count = -1
+
+        self.colors = []
+
+
+def wmo_setup_blender_object(
+    base_name: str,
+    group: Type[wmoGroup],
+    mesh_data: Type[meshObject],
+    mat_dict: dict,
+    merge_verts: bool,
+    make_quads: bool,
+    use_collections: bool) -> bpy.types.Object:
+
     json_group = group.json_group
 
     full_name = base_name + "_" + json_group.get("groupName", "section")
@@ -72,13 +142,8 @@ def setup_blender_object(**kwargs):
     do_colors = True if len(color_list) > 0 else False
 
     colors = {}
-
-    # print("JSON Batches: %i" % len(json_batches))
-    # print("Direct Batches: %i" % len(batches))
     v_dict = {}
     uv_dict = {}
-
-    
 
     for i, batch in enumerate(batches):
         exampleFaceSet = False
@@ -94,7 +159,7 @@ def setup_blender_object(**kwargs):
                 # The data layer for vertex color is actually in the face loop.
                 # We can't set the color until after all of the faces are made,
                 # So we throw it all into a dictionary and brute-force it later.
-                # Note: There can theoretically be two sets of vertex colors.
+                # Note: There can theoretically be three sets of vertex colors.
                 if do_colors:
                     if type(color_list[0]) == list:
                         v_color = []
@@ -235,40 +300,9 @@ def setup_blender_object(**kwargs):
 
     return blender_object
 
-# TL;DR:
-# Step one: Repack OBJ into meshObject
-# Step two: Repack meshObject into wmoGroups
-# Step three: Generate blenderObjects from wmoGroups
-class wmoGroup:
-    def __init__(self):
-        self.mesh_data = None
 
-        # Pulled from mesh_batches
-        self.face_offset = -1
-        self.faces = []
-        self.b_faces = []
-
-        # Pulled from mesh_batches
-        self.vert_offset = -1
-        self.verts = []
-        self.b_verts = []
-
-        self.batch_count = -1
-        self.group_offset = -1
-
-        # A list of meshComponent objects
-        self.mesh_batches = []
-        # The renderBatches that map to the meshComponent objects
-        self.json_batches = []
-        self.json_group = None
-
-        self.colors = []
-
-
-def repack_wmo(**kwargs):
-    container = kwargs.get("import_container")
-    json_groups = container.json_config.get("groups")
-    mesh_data = kwargs.get("mesh_data")
+def repack_wmo(import_container, groups: dict, mesh_data: Type[meshObject], config: dict):
+    json_groups = import_container.json_config.get("groups")
     groups = []
     offset = 0
 
@@ -301,7 +335,7 @@ def repack_wmo(**kwargs):
                 flat_colors[0] += colors[0][0:last_color]
                 flat_colors[1] += colors[1][0:last_color]
             elif len(colors) == 1:
-                flat_colors[0] += colors[0]
+                flat_colors[0] += colors[0][0:last_color]
                 flat_colors[1] += [0 for j in colors[0]]
             elif len(colors) == 0:
                 if vertex_count > 0:
@@ -317,28 +351,8 @@ def repack_wmo(**kwargs):
 
     return groups
 
-class meshComponent:
-    def __init__(self):
-        self.usemtl = ''
-        self.name = ''
-        self.verts = set()
-        self.faces = []
-        self.uv = []
 
-class meshObject:
-    def __init__(self):
-        self.usemtl = ''
-        self.mtlfile = ''
-        self.name = ''
-        self.verts = []
-        self.faces = []
-        self.normals = []
-        self.uv = []
-        self.uv2 = []
-        self.uv3 = []
-        self.components = []
-
-def initialize_mesh(mesh_path):
+def initialize_mesh(mesh_path: str):
     '''Essentially a straight rip from the add-on'''
     obj = meshObject()
     meshIndex = -1
@@ -399,6 +413,7 @@ def initialize_mesh(mesh_path):
                 obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
     return obj
 
+
 def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_quads, use_collections, import_container, progress, **kwargs):
     if bpy.ops.object.select_all.poll():
         bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
@@ -444,13 +459,18 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
         steps = len(wmo_groups)
         progress.step()
         progress.enter_substeps(steps, "Generating Meshes")
-
         
         for i, group in enumerate(wmo_groups):
             sub = group.json_group.get("groupName", "")
             progress.step(f"Constructing object {i + 1}/{steps} | {sub}")
-            bl_obj = setup_blender_object(
-                name=mesh_name, group=group, mesh_data=mesh_data, mat_dict=mat_dict, merge_verts=merge_verts, make_quads=make_quads, use_collections=use_collections)
+            bl_obj = wmo_setup_blender_object(
+                base_name=mesh_name,
+                group=group,
+                mesh_data=mesh_data,
+                mat_dict=mat_dict,
+                merge_verts=merge_verts,
+                make_quads=make_quads,
+                use_collections=use_collections)
             objects.append(bl_obj)
 
         progress.leave_substeps("Mesh Generation Complete")
