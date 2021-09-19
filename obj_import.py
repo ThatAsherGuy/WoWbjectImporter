@@ -117,6 +117,9 @@ def wmo_setup_blender_object(
     make_quads: bool,
     use_collections: bool) -> bpy.types.Object:
 
+    if group.batch_count < 1:
+        return
+
     json_group = group.json_group
 
     full_name = base_name + "_" + json_group.get("groupName", "section")
@@ -172,12 +175,12 @@ def wmo_setup_blender_object(
     
             try:
                 if exampleFaceSet == False:
-                    face = bm.faces.new((
+                    bface = bm.faces.new((
                         v_dict[face[0]],
                         v_dict[face[1]],
                         v_dict[face[2]]
                     ))
-                    exampleFace = face
+                    exampleFace = bface
                     exampleFaceSet = True
 
                     if json_batches[i].get("flags") == 2:
@@ -189,12 +192,12 @@ def wmo_setup_blender_object(
 
                     if local_index == -1:
                         blender_object.data.materials.append(mat_dict[mat_ID])
-                        face.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+                        bface.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)  
                     else:
-                        face.material_index = local_index
+                        bface.material_index = local_index
 
                 else:
-                    face = bm.faces.new((
+                    bface = bm.faces.new((
                         v_dict[face[0]],
                         v_dict[face[1]],
                         v_dict[face[2]]
@@ -202,17 +205,17 @@ def wmo_setup_blender_object(
 
             except ValueError as err:
 
-                v1 = bm.verts.new(mesh_data.verts[face[0]])
-                v2 = bm.verts.new(mesh_data.verts[face[1]])
-                v3 = bm.verts.new(mesh_data.verts[face[2]])
+                v1 = bm.verts.new(mesh_data.verts[face[0]-1])
+                v2 = bm.verts.new(mesh_data.verts[face[1]-1])
+                v3 = bm.verts.new(mesh_data.verts[face[2]-1])
 
                 colors[v1] = colors[v_dict[face[0]]]
                 colors[v2] = colors[v_dict[face[1]]]
                 colors[v3] = colors[v_dict[face[2]]]
 
                 if exampleFaceSet == False:
-                    face = bm.faces.new((v1, v2, v3))
-                    exampleFace = face
+                    bface = bm.faces.new((v1, v2, v3))
+                    exampleFace = bface
                     exampleFaceSet = True
 
                     if json_batches[i].get("flags") == 2:
@@ -224,12 +227,14 @@ def wmo_setup_blender_object(
 
                     if local_index == -1:
                         blender_object.data.materials.append(mat_dict[mat_ID])
-                        face.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+                        bface.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
                     else:
-                        face.material_index = local_index
+                        bface.material_index = local_index
                 else:
-                    face = bm.faces.new((v1, v2, v3), exampleFace)
-                print(err)
+                    bface = bm.faces.new((v1, v2, v3), exampleFace)
+
+                err_detail = (f"Duplicate Face: {face[0]}/{face[0]}/{face[0]} {face[1]}/{face[1]}/{face[1]} {face[2]}/{face[2]}/{face[2]}")
+                print(err_detail)
                 pass
 
     if len(mesh_data.uv2) > 0:
@@ -347,7 +352,28 @@ def repack_wmo(import_container, groups: dict, mesh_data: Type[meshObject], conf
             offset += g_length
             wmo_group.group_offset = offset
         else:
-            print("Batchless")
+
+            wmo_group = wmoGroup()
+            wmo_group.json_group = group
+            wmo_group.batch_count = 0
+            groups.append(wmo_group)
+
+            err_gname = group.get("groupName", "")
+            err_gdesc = group.get("groupDescription", "")
+            print(f"{err_gname} {err_gdesc} Batchless")
+
+            err_numbatch = group.get("numPortals", "")
+            print(f"numPortals: {err_numbatch}")
+
+            err_numbatch = group.get("numBatchesA", "")
+            print(f"numBatchesA: {err_numbatch}")
+
+            err_numbatch = group.get("numBatchesB", "")
+            print(f"numBatchesB: {err_numbatch}")
+
+            err_numbatch = group.get("numBatchesC", "")
+            print(f"numBatchesC: {err_numbatch}")
+
 
     return groups
 
@@ -471,7 +497,9 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
                 merge_verts=merge_verts,
                 make_quads=make_quads,
                 use_collections=use_collections)
-            objects.append(bl_obj)
+
+            if not bl_obj == None:
+                objects.append(bl_obj)
 
         progress.leave_substeps("Mesh Generation Complete")
         return objects
