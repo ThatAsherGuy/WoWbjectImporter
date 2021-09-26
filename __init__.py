@@ -21,14 +21,14 @@
 # A bunch of this code is based on Krunthne's WoW Export add-on.
 
 bl_info = {
-    "name" : "WoWbject Importer",
-    "author" : "Asher and Alinsa",
-    "description" : "Import World of Warcraft objects as correctly as possible",
-    "blender" : (2, 90, 0),
-    "version" : (0, 0, 0),   # autoreplace
-    "location" : "File > Import",
+    "name": "WoWbject Importer",
+    "author": "Asher and Alinsa",
+    "description": "Import World of Warcraft objects as correctly as possible",
+    "blender": (2, 90, 0),
+    "version": (0, 0, 0),   # autoreplace
+    "location": "File > Import",
     "wiki_url": "https://github.com/ThatAsherGuy/WoWbjectImporter",
-    "category" : "Import-Export"
+    "category": "Import-Export"
 }
 
 import bpy
@@ -60,12 +60,14 @@ classes = (
     WOWBJ_OT_GenerateNodeGroups,
     WOWBJ_OT_LoadCombiner,
     WOWBJ_OT_SetDefaultDir,
+
     # Property Groups
     wowbjectAddonPrefs,
     WoWbject_texture,
     WoWbject_ObjectProperties,
     WoWbject_MaterialProperties,
     WoWbject_NodeGroupProperties,
+
     # UI stuff
     VIEW3D_PT_wowbject_object_panel,
     VIEW3D_PT_wowbject_combiner_panel

@@ -8,18 +8,19 @@ def to_hex(c):
 
     return hex(max(min(int(srgb * 255 + 0.5), 255), 0))
 
-def toHex(r,g,b):
-    rgb = [r,g,b]
+def toHex(r, g, b):
+    rgb = [r, g, b]
     result = ""
-    i=0
+    i = 0
     while i < 3:
         val = str(to_hex(rgb[i]))
         val = val[2:]
         if len(val) == 1:
             val += val
-        result+=val
-        i+=1
+        result += val
+        i += 1
     return result
+
 
 num = 4280885528
 c_bytes = num.to_bytes(4, 'little')
@@ -40,7 +41,7 @@ elif color_type == 'CArgb':
 
 print(num)
 print(red, green, blue, alpha)
-cvec = (float(red)/255, float(green)/255, float(blue)/255, float(alpha)/255)
+cvec = (float(red) / 255, float(green) / 255, float(blue) / 255, float(alpha) / 255)
 hexcolor = toHex(cvec[0], cvec[1], cvec[2])
 
 print(cvec)

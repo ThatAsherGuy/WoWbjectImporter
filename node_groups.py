@@ -33,19 +33,19 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     texCount = unit.get("textureCount")
     texOffset = unit.get("textureComboIndex")
 
-    texIndicies = asset_tex_combos[texOffset:texOffset+texCount]
+    texIndicies = asset_tex_combos[texOffset:texOffset + texCount]
     textures = [asset_textures[i] for i in texIndicies]
 
     uvAnimOffset = unit.get("textureTransformComboIndex")
     accurate_offsets = kwargs.get("anim_combos", [])
     if not accurate_offsets == []:
-        texAnimIndicies = accurate_offsets[uvAnimOffset:uvAnimOffset+texCount]
+        texAnimIndicies = accurate_offsets[uvAnimOffset:uvAnimOffset + texCount]
     else:
         texAnimIndicies = []
 
     mat_flags = asset_mats[unit.get("materialIndex")]
-    blend_type = get_shadereffects(unit.get("shaderID"),  unit.get("textureCount"))
-    uv_type = get_vertex_shader(unit.get("shaderID"),  unit.get("textureCount"))
+    blend_type = get_shadereffects(unit.get("shaderID"), unit.get("textureCount"))
+    uv_type = get_vertex_shader(unit.get("shaderID"), unit.get("textureCount"))
 
     tree = mat.node_tree
     nodes = tree.nodes
@@ -157,12 +157,13 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
         uv_map.location += Vector((-1600.0, (300 - i * 325.0)))
 
         if not texAnimIndicies == []:
-            if not texAnimIndicies[i] in {-1, 65535 }:
+            if not texAnimIndicies[i] in {-1, 65535}:
                 sb = 1
                 map_node = nodes.new('ShaderNodeGroup')
                 map_node.node_tree = get_utility_group(name="TexturePanner")
                 if import_container:
-                    setup_panner(map_node, texAnimIndicies[i], settings_container=import_container)
+                    setup_panner(map_node, texAnimIndicies[i],
+                                 settings_container=import_container)
             else:
                 sb = 0
                 map_node = nodes.new('ShaderNodeMapping')
@@ -174,13 +175,14 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
         map_node.location += Vector((-1400.0, (300 - i * 325.0)))
 
-        tree.links.new(uv_map.outputs[0], map_node.inputs[0+sb])
+        tree.links.new(uv_map.outputs[0], map_node.inputs[0 + sb])
         tree.links.new(map_node.outputs[0], t_node.inputs[0])
 
         if textures[i].get("name", "ERR") in bpy.data.images:
             image = bpy.data.images[textures[i].get("name")]
             if not os.path.isfile(image.filepath):
-                import_container.reports.warnings.append(textures[i].get("name") + " has an invalid path.")
+                import_container.reports.warnings.append(
+                    textures[i].get("name") + " has an invalid path.")
                 image = load_texture(textures[i], import_container, uv_map.label)
         else:
             image = load_texture(textures[i], import_container, uv_map.label)
@@ -194,7 +196,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
         socket_index = i * 2 + 2
         tree.links.new(t_node.outputs[0], mixer.inputs[socket_index])
-        tree.links.new(t_node.outputs[1], mixer.inputs[socket_index+1])
+        tree.links.new(t_node.outputs[1], mixer.inputs[socket_index + 1])
 
         tex_nodes.append(t_node)
 
@@ -238,7 +240,7 @@ def get_utility_group(name):
         autoselect=False,
         set_fake=True,
         use_recursive=True
-        )
+    )
 
     # So it turns out, if you import a node with a driver on it,
     # it imports all of its dependencies. Like the entire scene,
@@ -248,7 +250,7 @@ def get_utility_group(name):
 
         value_node = None
         for node in panner.nodes:
-            if node.bl_idname  == 'ShaderNodeValue':
+            if node.bl_idname == 'ShaderNodeValue':
                 value_node = node
                 break
 
@@ -559,7 +561,8 @@ def generate_nodegroups(path):
                         from_socket = output
                         break
 
-                ng.links.new(from_node.outputs[link_def.get('from_socket')], to_node.inputs[link_def.get('to_socket')])
+                ng.links.new(from_node.outputs[link_def.get(
+                    'from_socket')], to_node.inputs[link_def.get('to_socket')])
 
 
 def do_wmo_mats(**kwargs):

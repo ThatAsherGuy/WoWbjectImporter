@@ -1,0 +1,7 @@
+[tool.autopep8]
+max_line_length = 96
+ignore = [
+    "E302",  # not enough blank lines (sometimes useful)
+    "E303",  # too many blank lines (sometimes useful!)
+    "E402",  # "module level import not at top of file"
+]

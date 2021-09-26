@@ -108,15 +108,11 @@ class wmoGroup:
         self.colors = []
 
 
-def wmo_setup_blender_object(
-    base_name: str,
-    group: Type[wmoGroup],
-    mesh_data: Type[meshObject],
-    mat_dict: dict,
-    merge_verts: bool,
-    make_quads: bool,
-    use_collections: bool) -> bpy.types.Object:
-
+# FIXME: Legit needs fewer arguments
+def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
+                             mesh_data: Type[meshObject], mat_dict: dict,
+                             merge_verts: bool, make_quads: bool,
+                             use_collections: bool) -> bpy.types.Object:
     if group.batch_count < 1:
         return
 
@@ -156,7 +152,7 @@ def wmo_setup_blender_object(
                 if type(v_dict.get(v)) == bmesh.types.BMVert:
                     vert = v_dict[v]
                 else:
-                    vert = bm.verts.new(mesh_data.verts[v-1])
+                    vert = bm.verts.new(mesh_data.verts[v - 1])
                     v_dict[v] = vert
 
                 # The data layer for vertex color is actually in the face loop.
@@ -172,7 +168,7 @@ def wmo_setup_blender_object(
                         v_color = wmo_read_color(color_list[v - 1], 'CImVector')
 
                     colors[vert] = v_color
-    
+
             try:
                 if exampleFaceSet == False:
                     bface = bm.faces.new((
@@ -192,7 +188,8 @@ def wmo_setup_blender_object(
 
                     if local_index == -1:
                         blender_object.data.materials.append(mat_dict[mat_ID])
-                        bface.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)  
+                        bface.material_index = blender_object.data.materials.find(
+                            mat_dict[mat_ID].name)
                     else:
                         bface.material_index = local_index
 
@@ -205,9 +202,9 @@ def wmo_setup_blender_object(
 
             except ValueError as err:
 
-                v1 = bm.verts.new(mesh_data.verts[face[0]-1])
-                v2 = bm.verts.new(mesh_data.verts[face[1]-1])
-                v3 = bm.verts.new(mesh_data.verts[face[2]-1])
+                v1 = bm.verts.new(mesh_data.verts[face[0] - 1])
+                v2 = bm.verts.new(mesh_data.verts[face[1] - 1])
+                v3 = bm.verts.new(mesh_data.verts[face[2] - 1])
 
                 colors[v1] = colors[v_dict[face[0]]]
                 colors[v2] = colors[v_dict[face[1]]]
@@ -227,13 +224,15 @@ def wmo_setup_blender_object(
 
                     if local_index == -1:
                         blender_object.data.materials.append(mat_dict[mat_ID])
-                        bface.material_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+                        bface.material_index = blender_object.data.materials.find(
+                            mat_dict[mat_ID].name)
                     else:
                         bface.material_index = local_index
                 else:
                     bface = bm.faces.new((v1, v2, v3), exampleFace)
 
-                err_detail = (f"Duplicate Face: {face[0]}/{face[0]}/{face[0]} {face[1]}/{face[1]}/{face[1]} {face[2]}/{face[2]}/{face[2]}")
+                err_detail = (
+                    f"Duplicate Face: {face[0]}/{face[0]}/{face[0]} {face[1]}/{face[1]}/{face[1]} {face[2]}/{face[2]}/{face[2]}")
                 print(err_detail)
                 pass
 
@@ -250,13 +249,13 @@ def wmo_setup_blender_object(
 
     for i, face in enumerate(face_list):
         for j, loop in enumerate(bm.faces[i].loops):
-            loop[uv_layer].uv = mesh_data.uv[face[j] -1]
+            loop[uv_layer].uv = mesh_data.uv[face[j] - 1]
 
             if len(mesh_data.uv2) > 0:
-                loop[uv2_layer].uv = mesh_data.uv2[face[j]-1]
+                loop[uv2_layer].uv = mesh_data.uv2[face[j] - 1]
 
             if len(mesh_data.uv3) > 0:
-                loop[uv3_layer].uv = mesh_data.uv3[face[j]-1]
+                loop[uv3_layer].uv = mesh_data.uv3[face[j] - 1]
 
     # bm.verts.ensure_lookup_table()
 
@@ -272,7 +271,13 @@ def wmo_setup_blender_object(
 
     if merge_verts:
         st = recursive_remove_doubles(bm, verts=bm.verts, dist=0.00001)
-        print(f"{blender_object.name}: {st['removed_verts']} of {st['start_verts']} verts removed in {st['merge_passes']} passes in {st['total_time']:1.6f}s ({st['end_verts']} verts remain)")
+        print(
+            f"{blender_object.name}:"
+            f" {st['removed_verts']} of {st['start_verts']} verts removed"
+            f" in {st['merge_passes']} passes"
+            f" in {st['total_time']:1.6f}s"
+            f" ({st['end_verts']} verts remain)"
+        )
 
     bm.to_mesh(mesh)
     bm.free()
@@ -295,7 +300,12 @@ def wmo_setup_blender_object(
 
     if make_quads:
         st = tris_to_quads(blender_object, 5.0)
-        print(f"{blender_object.name}: {st['removed_faces']} of {st['start_faces']} faces removed in {st['total_time']:1.6f}s ({st['end_faces']} faces remain)")
+        print(
+            f"{blender_object.name}:"
+            f" {st['removed_faces']} of {st['start_faces']} faces removed"
+            f" in {st['total_time']:1.6f}s"
+            f" ({st['end_faces']} faces remain)"
+        )
 
     # Give us a reasonable origin on everything
     bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
@@ -311,7 +321,7 @@ def repack_wmo(import_container, groups: dict, mesh_data: Type[meshObject], conf
     groups = []
     offset = 0
 
-    flat_colors = [[],[],[]]
+    flat_colors = [[], [], []]
 
     for group in json_groups:
         g_batches = group.get("renderBatches", [])
@@ -399,7 +409,8 @@ def initialize_mesh(mesh_path: str):
             line_start = line_split[0]
 
             if len(line_split) == 1 and not context_multi_line and line_start != b'end':
-                print("WARNING, skipping malformatted line: %s" % line.decode('UTF-8', 'replace').rstrip())
+                print("WARNING, skipping malformatted line: %s" %
+                      line.decode('UTF-8', 'replace').rstrip())
                 continue
 
     # TODO: Replace with a more robust port of the ImportObj add-on's process
@@ -422,7 +433,7 @@ def initialize_mesh(mesh_path: str):
                 if not line_split[1] == b'undefined':
                     obj.uv2.append([float(v) for v in line_split[1:]])
                 else:
-                    obj.uv2.append([0.0,0.0])
+                    obj.uv2.append([0.0, 0.0])
             elif line_start == b'vt':
                 obj.uv.append([float(v) for v in line_split[1:]])
             elif line_start == b'f':
@@ -471,7 +482,8 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
         groups = config.get("groups")
         used_mats = set()
 
-        wmo_groups = repack_wmo(import_container=import_container, groups=groups, mesh_data=mesh_data, config=config)
+        wmo_groups = repack_wmo(import_container=import_container,
+                                groups=groups, mesh_data=mesh_data, config=config)
 
         mat_dict = {}
         for i, mat in enumerate(json_mats):
@@ -485,7 +497,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
         steps = len(wmo_groups)
         progress.step()
         progress.enter_substeps(steps, "Generating Meshes")
-        
+
         for i, group in enumerate(wmo_groups):
             sub = group.json_group.get("groupName", "")
             progress.step(f"Constructing object {i + 1}/{steps} | {sub}")
@@ -554,7 +566,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
                     exampleFace = bm.faces[-1]
                     exampleFaceSet = True
                 else:
-                    ## Use example face if set to speed up material copy!
+                    # Use example face if set to speed up material copy!
                     face = bm.faces.new((
                         bm.verts[face[0] - 1],
                         bm.verts[face[1] - 1],
@@ -590,7 +602,13 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
 
     if merge_verts:
         st = recursive_remove_doubles(bm, verts=bm.verts, dist=0.00001)
-        print(f"{newObj.name}: {st['removed_verts']} of {st['start_verts']} verts removed in {st['merge_passes']} passes in {st['total_time']:1.6f}s ({st['end_verts']} verts remain)")
+        print(
+            f"{newObj.name}:"
+            f" {st['removed_verts']} of {st['start_verts']} verts removed"
+            f" in {st['merge_passes']} passes"
+            f" in {st['total_time']:1.6f}s"
+            f" ({st['end_verts']} verts remain)"
+        )
 
     bm.to_mesh(newMesh)
     bm.free()
@@ -614,7 +632,11 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
     if make_quads:
         st = tris_to_quads(newObj, 5.0)
         print(
-            f"{newObj.name}: {st['removed_faces']} of {st['start_faces']} faces removed in {st['total_time']:1.6f}s ({st['end_faces']} faces remain)")
+            f"{newObj.name}:"
+            f" {st['removed_faces']} of {st['start_faces']} faces removed"
+            f" in {st['total_time']:1.6f}s"
+            f" ({st['end_faces']} faces remain)"
+        )
 
     return newObj
 
