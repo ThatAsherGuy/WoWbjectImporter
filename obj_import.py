@@ -28,14 +28,16 @@
 
 import bmesh
 import bpy
-from itertools import chain
-from math import radians
-from typing import Type
+
 import os
 import time
+from itertools import chain
+from math import radians
+from typing import Any, Dict, List, Optional, Tuple, Type
 
-from bpy_extras.io_utils import unpack_list
 from bpy_extras.image_utils import load_image
+from bpy_extras.io_utils import unpack_list
+
 from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 
 
@@ -84,16 +86,16 @@ class meshObject:
 # Step two: Repack meshObject into wmoGroups
 # Step three: Generate blenderObjects from wmoGroups
 class wmoGroup:
-    mesh_data: meshObject
-    mesh_batches: list[meshComponent]
+    mesh_data: Optional[meshObject]
+    mesh_batches: List[meshComponent]
 
-    json_group: dict
+    json_group: Optional[Dict[str, Any]]
     group_offset: int
 
-    json_batches: list[dict]
+    json_batches: List[Dict]
     batch_count: int
 
-    colors: list[list[int]]
+    colors: List[List[int]]
 
     def __init__(self):
         self.mesh_data = None
@@ -101,6 +103,7 @@ class wmoGroup:
 
         self.json_group = None
         self.group_offset = -1
+
         # The renderBatches that map to the meshComponent objects
         self.json_batches = []
         self.batch_count = -1
@@ -109,12 +112,12 @@ class wmoGroup:
 
 
 # FIXME: Legit needs fewer arguments
-def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
-                             mesh_data: Type[meshObject], mat_dict: dict,
+def wmo_setup_blender_object(base_name: str, group: wmoGroup,
+                             mesh_data: meshObject, mat_dict: dict,
                              merge_verts: bool, make_quads: bool,
-                             use_collections: bool) -> bpy.types.Object:
+                             use_collections: bool) -> Optional[bpy.types.Object]:
     if group.batch_count < 1:
-        return
+        return None
 
     json_group = group.json_group
 
@@ -126,10 +129,22 @@ def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
     mesh.use_auto_smooth = True
     mesh.auto_smooth_angle = radians(60)
 
-    blender_object = bpy.data.objects.new(full_name, mesh)
+    newObj = bpy.data.objects.new(full_name, mesh)
 
-    if "INTERIOR" in flags:
-        blender_object.pass_index = 1
+    newObj.WBJ.wow_model_type = 'WMO'
+    newObj.WBJ.initialized = True
+
+    # if "INTERIOR" in flags:
+    #     newObj.pass_index = 1
+    if 'INTERIOR' in flags and 'EXTERIOR' in flags:
+        newObj.WBJ.wmo_lighting_type = 'TRANSITION'
+    elif 'INTERIOR' in flags:
+        newObj.WBJ.wmo_lighting_type = 'INTERIOR'
+    elif 'EXTERIOR' in flags:
+        newObj.WBJ.wmo_lighting_type = 'EXTERIOR'
+    else:
+        newObj.WBJ.wmo_lighting_type = 'UNLIT'
+
 
     bm = bmesh.new()
     # vcols = bm.loops.layers.color.new("vcols")
@@ -184,11 +199,11 @@ def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
                     else:
                         mat_ID = json_batches[i].get("materialID")
 
-                    local_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+                    local_index = newObj.data.materials.find(mat_dict[mat_ID].name)
 
                     if local_index == -1:
-                        blender_object.data.materials.append(mat_dict[mat_ID])
-                        bface.material_index = blender_object.data.materials.find(
+                        newObj.data.materials.append(mat_dict[mat_ID])
+                        bface.material_index = newObj.data.materials.find(
                             mat_dict[mat_ID].name)
                     else:
                         bface.material_index = local_index
@@ -220,11 +235,11 @@ def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
                     else:
                         mat_ID = json_batches[i].get("materialID")
 
-                    local_index = blender_object.data.materials.find(mat_dict[mat_ID].name)
+                    local_index = newObj.data.materials.find(mat_dict[mat_ID].name)
 
                     if local_index == -1:
-                        blender_object.data.materials.append(mat_dict[mat_ID])
-                        bface.material_index = blender_object.data.materials.find(
+                        newObj.data.materials.append(mat_dict[mat_ID])
+                        bface.material_index = newObj.data.materials.find(
                             mat_dict[mat_ID].name)
                     else:
                         bface.material_index = local_index
@@ -272,7 +287,7 @@ def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
     if merge_verts:
         st = recursive_remove_doubles(bm, verts=bm.verts, dist=0.00001)
         print(
-            f"{blender_object.name}:"
+            f"{newObj.name}:"
             f" {st['removed_verts']} of {st['start_verts']} verts removed"
             f" in {st['merge_passes']} passes"
             f" in {st['total_time']:1.6f}s"
@@ -282,8 +297,8 @@ def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
     bm.to_mesh(mesh)
     bm.free()
 
-    blender_object.rotation_euler = [0, 0, 0]
-    blender_object.rotation_euler.x = radians(90)
+    newObj.rotation_euler = [0, 0, 0]
+    newObj.rotation_euler.x = radians(90)
 
     if use_collections and collection_name:
         if collection_name in bpy.data.collections:
@@ -292,16 +307,16 @@ def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
             collection = bpy.data.collections.new(collection_name)
             bpy.context.scene.collection.children.link(collection)
 
-        collection.objects.link(blender_object)
+        collection.objects.link(newObj)
     else:
         bpy.context.view_layer.active_layer_collection.collection.objects.link(
-            blender_object)
+            newObj)
 
 
     if make_quads:
-        st = tris_to_quads(blender_object, 5.0)
+        st = tris_to_quads(newObj, 5.0)
         print(
-            f"{blender_object.name}:"
+            f"{newObj.name}:"
             f" {st['removed_faces']} of {st['start_faces']} faces removed"
             f" in {st['total_time']:1.6f}s"
             f" ({st['end_faces']} faces remain)"
@@ -309,14 +324,14 @@ def wmo_setup_blender_object(base_name: str, group: Type[wmoGroup],
 
     # Give us a reasonable origin on everything
     bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
-    blender_object.select_set(True)
+    newObj.select_set(True)
     bpy.ops.object.origin_set('INVOKE_DEFAULT', False, type='ORIGIN_GEOMETRY', center='MEDIAN')
     bpy.ops.object.shade_smooth('INVOKE_DEFAULT', False)
 
-    return blender_object
+    return newObj
 
 
-def repack_wmo(import_container, groups: dict, mesh_data: Type[meshObject], config: dict):
+def repack_wmo(import_container, groups: dict, mesh_data: meshObject, config: dict):
     json_groups = import_container.json_config.get("groups")
     groups = []
     offset = 0
@@ -361,8 +376,8 @@ def repack_wmo(import_container, groups: dict, mesh_data: Type[meshObject], conf
 
             offset += g_length
             wmo_group.group_offset = offset
-        else:
 
+        else:
             wmo_group = wmoGroup()
             wmo_group.json_group = group
             wmo_group.batch_count = 0
@@ -480,7 +495,6 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
         config = import_container.json_config
         json_mats = config.get("materials")
         groups = config.get("groups")
-        used_mats = set()
 
         wmo_groups = repack_wmo(import_container=import_container,
                                 groups=groups, mesh_data=mesh_data, config=config)
@@ -502,7 +516,7 @@ def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_qua
             sub = group.json_group.get("groupName", "")
             progress.step(f"Constructing object {i + 1}/{steps} | {sub}")
             bl_obj = wmo_setup_blender_object(
-                base_name=mesh_name,
+                base_name=f"{i:03d}_{mesh_name}",  # FIXME: make group num into metadata
                 group=group,
                 mesh_data=mesh_data,
                 mat_dict=mat_dict,

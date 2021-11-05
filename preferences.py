@@ -148,6 +148,64 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
             return "ShaderNodeEmission"
 
 
+class WoWbject_SceneProperties(bpy.types.PropertyGroup):
+    """
+    Mostly WMO lighting info (possibly temporary here)
+    """
+    initialized: bpy.props.BoolProperty(  # type: ignore
+        default=False,
+        options={'HIDDEN'}
+    )
+
+    wmo_exterior_ambient_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Ambient Color",
+        description="External ambient lighting color used for WMO objects",
+        default=(1.0, 0.1, 0.1),  # FIXME: figure out if this should have alpha
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+    )
+
+    wmo_exterior_horizon_ambient_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Horizon Ambient Color",
+        description="External horizon ambient lighting color used for WMO objects",
+        default=(1.0, 1.0, 1.0),  # FIXME: figure out if this should have alpha
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+    )
+
+    wmo_exterior_ground_ambient_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Ground Ambient Color",
+        description="External ground ambient lighting color used for WMO objects",
+        default=(1.0, 1.0, 1.0),  # FIXME: figure out if this should have alpha
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+    )
+
+    wmo_exterior_direct_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Direct Lighting Color",
+        description="External direct lighting color used for WMO objects",
+        # FIXME: my notes say the default for this should be something like
+        # (0.3, 0.3, 0.3, 1.3), which implies an alpha channel that's used
+        # for... intensity, maybe? Revisit this and find out for sure.
+        default=(0.3, 0.3, 0.3),
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+    )
+
+    wmo_exterior_direct_color_direction: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Direct Lighting Direction",
+        description="External direct lighting direction used for WMO objects",
+        default=(0.0, 0.0, 0.0),
+        soft_min=0.0, soft_max=1.0,
+        subtype='DIRECTION',
+        size=3,
+    )
+
+
 class WoWbject_texture(bpy.types.PropertyGroup):
     datablock: bpy.props.PointerProperty(  # type: ignore
         type=bpy.types.Image,
@@ -160,6 +218,55 @@ class WoWbject_texture(bpy.types.PropertyGroup):
     )
 
 
+# FIXME: Consider generating these somehow? Or is there a way to have a
+# single generic one that knows what field it's being called for?
+def get_wmo_exterior_ambient(self):
+    if self.use_scene_wmo_lighting or "wmo_exterior_ambient_color" not in self:
+        return bpy.context.scene.WBJ.wmo_exterior_ambient_color
+    else:
+        return self["wmo_exterior_ambient_color"]
+
+def get_wmo_exterior_horizon_ambient(self):
+    if self.use_scene_wmo_lighting or "wmo_exterior_horizon_ambient_color" not in self:
+        return bpy.context.scene.WBJ.wmo_exterior_horizon_ambient_color
+    else:
+        return self["wmo_exterior_horizon_ambient_color"]
+
+def get_wmo_exterior_ground_ambient(self):
+    if self.use_scene_wmo_lighting or "wmo_exterior_ground_ambient_color" not in self:
+        return bpy.context.scene.WBJ.wmo_exterior_ground_ambient_color
+    else:
+        return self["wmo_exterior_ground_ambient_color"]
+
+def get_wmo_exterior_direct(self):
+    if self.use_scene_wmo_lighting or "wmo_exterior_direct_color" not in self:
+        return bpy.context.scene.WBJ.wmo_exterior_direct_color
+    else:
+        return self["wmo_exterior_direct_color"]
+
+def get_wmo_exterior_direct_direction(self):
+    if self.use_scene_wmo_lighting or "wmo_exterior_direct_color_direction" not in self:
+        return bpy.context.scene.WBJ.wmo_exterior_direct_color_direction
+    else:
+        return self["wmo_exterior_direct_color_direction"]
+
+# and some setters
+def set_wmo_exterior_ambient(self, val):
+    self["wmo_exterior_ambient_color"] = val
+
+def set_wmo_exterior_horizon_ambient(self, val):
+    self["wmo_exterior_horizon_ambient_color"] = val
+
+def set_wmo_exterior_ground_ambient(self, val):
+    self["wmo_exterior_ground_ambient_color"] = val
+
+def set_wmo_exterior_direct(self, val):
+    self["wmo_exterior_direct_color"] = val
+
+def set_wmo_exterior_direct_direction(self, val):
+    self["wmo_exterior_direct_color_direction"] = val
+
+
 class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
     """
     Mostly Summary Information
@@ -167,6 +274,38 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
     initialized: bpy.props.BoolProperty(  # type: ignore
         default=False,
         options={'HIDDEN'},
+    )
+
+    wow_model_types = [
+        ('M2', "M2", "M2 Model (character/object/mob)"),
+        ('WMO', "WMO", "WMO Model (buildings/caves)"),
+        ('ADT', "ADT", "ADT 'model' (terrain)"),
+    ]
+
+    wow_model_type: bpy.props.EnumProperty(  # type: ignore
+        name="Model Type",
+        items=wow_model_types,
+        default='M2',
+    )
+
+    wmo_lighting_types = [
+        ('UNLIT', "Unlit", "Model is Unlit", 0),
+        ('EXTERIOR', "Exterior", "Model is Exterior Surfaces", 1),
+        ('TRANSITION', "Transition", "Model is Transition Surfaces", 2),
+        ('INTERIOR', "Interior", "Model is Interior Surfaces", 3),
+    ]
+
+    # FIXME: Is this better as an enum, or something broken down?
+    wmo_lighting_type: bpy.props.EnumProperty(  # type: ignore
+        name="Lighting",
+        description='Lighting calculation to be used for WMO object',
+        items=wmo_lighting_types,
+        default='UNLIT',
+    )
+
+    use_scene_wmo_lighting: bpy.props.BoolProperty(  # type: ignore
+        name="Use Scene WMO Lighting",
+        default=True,
     )
 
     speed_factor: bpy.props.FloatProperty(  # type: ignore
@@ -194,6 +333,66 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
     textures: bpy.props.CollectionProperty(  # type: ignore
         type=WoWbject_texture,
         name="Textures",
+    )
+
+    # WMO bits, mostly an exact duplicate of what's in the scene
+    # FIXME: Can we deduplicate anything at all?
+    wmo_exterior_ambient_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Ambient Color",
+        description="External ambient lighting color used for WMO objects",
+        default=(0.8, 0.8, 0.8),  # FIXME: figure out if this should have alpha
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+        get=get_wmo_exterior_ambient,
+        set=set_wmo_exterior_ambient
+    )
+
+    wmo_exterior_horizon_ambient_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Horizon Ambient Color",
+        description="External horizon ambient lighting color used for WMO objects",
+        default=(1.0, 1.0, 1.0),  # FIXME: figure out if this should have alpha
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+        get=get_wmo_exterior_horizon_ambient,
+        set=set_wmo_exterior_horizon_ambient,
+    )
+
+    wmo_exterior_ground_ambient_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Ground Ambient Color",
+        description="External ground ambient lighting color used for WMO objects",
+        default=(1.0, 1.0, 1.0),  # FIXME: figure out if this should have alpha
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+        get=get_wmo_exterior_ground_ambient,
+        set=set_wmo_exterior_ground_ambient,
+    )
+
+    wmo_exterior_direct_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Direct Lighting Color",
+        description="External direct lighting color used for WMO objects",
+        # FIXME: my notes say the default for this should be something like
+        # (0.3, 0.3, 0.3, 1.3), which implies an alpha channel that's used
+        # for... intensity, maybe? Revisit this and find out for sure.
+        default=(0.3, 0.3, 0.3),
+        soft_min=0.0, soft_max=1.0,
+        subtype='COLOR',
+        size=3,
+        get=get_wmo_exterior_direct,
+        set=set_wmo_exterior_direct,
+    )
+
+    wmo_exterior_direct_color_direction: bpy.props.FloatVectorProperty(  # type: ignore
+        name="WMO Exterior Direct Lighting Direction",
+        description="External direct lighting direction used for WMO objects",
+        default=(0.0, 0.0, 0.0),
+        soft_min=0.0, soft_max=1.0,
+        subtype='DIRECTION',
+        size=3,
+        get=get_wmo_exterior_direct_direction,
+        set=set_wmo_exterior_direct_direction,
     )
 
 

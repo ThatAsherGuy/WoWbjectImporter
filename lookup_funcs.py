@@ -421,13 +421,14 @@ def wmo_read_group_flags(flag):
         pass  # unused flag
 
     if flag & 0x40:
-        flag_list.add('EXT_LIT')
+        flag_list.add('EXTERIOR_LIT')
 
     if flag & 0x80:
         flag_list.add('UNREACHABLE')
 
+
     if flag & 0x100:
-        flag_list.add('EXT_SKY')
+        flag_list.add('EXTERIOR_SKY')
 
     if flag & 0x200:
         flag_list.add('HAS_LIGHTS')
@@ -450,11 +451,12 @@ def wmo_read_group_flags(flag):
     if flag & 0x8000:
         flag_list.add('QUERY_MOUNT')
 
+
     if flag & 0x10000:
         flag_list.add('ALWAYS_DRAW')
 
     if flag & 0x20000:
-        pass  # unused
+        flag.list.add('HAS_MORI')
 
     if flag & 0x40000:
         flag_list.add('SHOW_SKY')
@@ -474,6 +476,7 @@ def wmo_read_group_flags(flag):
     if flag & 0x800000:
         pass  # unused
 
+
     if flag & 0x1000000:
         flag_list.add('HAS_VC2')
 
@@ -490,7 +493,7 @@ def wmo_read_group_flags(flag):
         pass  # unused
 
     if flag & 0x20000000:
-        flag_list.add('EXT_CULL')
+        flag_list.add('EXTERIOR_CULL')
 
     if flag & 0x40000000:
         flag_list.add('HAS_UV3')

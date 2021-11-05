@@ -20,11 +20,47 @@
 
 import bpy
 
+class VIEW3D_PT_wowbject_scene_panel(bpy.types.Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "WBJ"
+    bl_label = "WMO Exterior Lighting"
+
+    @classmethod
+    def poll(cls, context):
+        return True
+        if context.scene.WBJ.initialized:
+            return True
+
+    def draw(self, context):
+        layout = self.layout
+
+        scene = context.scene
+        scene_props = scene.WBJ
+
+        # row = layout.row()
+        layout.label(text="WMO Exterior Lighting")
+
+        row = layout.row()
+        # row.enabled = False
+        row.prop(scene_props, "wmo_exterior_ambient_color")
+
+        row = layout.row()
+        # row.label(text="meow")
+        row.prop(scene_props, "wmo_exterior_horizon_ambient_color")
+
+        row = layout.row()
+        row.prop(scene_props, "wmo_exterior_ground_ambient_color")
+
+        row = layout.row()
+        row.prop(scene_props, "wmo_exterior_direct_color")
+
+
 class VIEW3D_PT_wowbject_object_panel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Item"
-    bl_label = "WoWbject Properties"
+    bl_category = "WBJ"
+    bl_label = "WoWbject Object Properties"
 
     @classmethod
     def poll(cls, context):
@@ -34,13 +70,39 @@ class VIEW3D_PT_wowbject_object_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        root = layout.column(align=True)
 
         obj = context.view_layer.objects.active
         obj_props = obj.WBJ
 
-        op = root.operator('wm.path_open', icon='IMAGE_BACKGROUND', text="Open Source Folder")
-        op.filepath = obj_props.source_directory
+        # FIXME: Do we want to support changing this?
+        row = layout.row()
+        row.enabled = False
+        row.prop(obj_props, "wow_model_type")
+
+        row = layout.row()
+        row.prop(obj_props, "wmo_lighting_type")
+
+        row = layout.row()
+        row.prop(obj_props, "use_scene_wmo_lighting")
+
+        if not obj_props.use_scene_wmo_lighting:
+            row = layout.row()
+            # row.enabled = False
+            row.prop(obj_props, "wmo_exterior_ambient_color")
+
+            row = layout.row()
+            # row.label(text="meow")
+            row.prop(obj_props, "wmo_exterior_horizon_ambient_color")
+
+            row = layout.row()
+            row.prop(obj_props, "wmo_exterior_ground_ambient_color")
+
+            row = layout.row()
+            row.prop(obj_props, "wmo_exterior_direct_color")
+
+        # row = layout.row()
+        # op = row.operator('wm.path_open', icon='IMAGE_BACKGROUND', text="Open Source Folder")
+        # op.filepath = obj_props.source_directory
 
 
 class VIEW3D_PT_wowbject_combiner_panel(bpy.types.Panel):

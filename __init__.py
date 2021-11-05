@@ -42,11 +42,13 @@ from .operators import WOWBJ_OT_LoadCombiner
 from .operators import WOWBJ_OT_SetDefaultDir
 
 from .preferences import wowbjectAddonPrefs
+from .preferences import WoWbject_SceneProperties
 from .preferences import WoWbject_ObjectProperties
 from .preferences import WoWbject_MaterialProperties
 from .preferences import WoWbject_NodeGroupProperties
 from .preferences import WoWbject_texture
 
+from .ui import VIEW3D_PT_wowbject_scene_panel
 from .ui import VIEW3D_PT_wowbject_object_panel
 from .ui import VIEW3D_PT_wowbject_combiner_panel
 
@@ -63,14 +65,16 @@ classes = (
 
     # Property Groups
     wowbjectAddonPrefs,
+    WoWbject_SceneProperties,
     WoWbject_texture,
     WoWbject_ObjectProperties,
     WoWbject_MaterialProperties,
     WoWbject_NodeGroupProperties,
 
     # UI stuff
+    VIEW3D_PT_wowbject_scene_panel,
     VIEW3D_PT_wowbject_object_panel,
-    VIEW3D_PT_wowbject_combiner_panel
+    VIEW3D_PT_wowbject_combiner_panel,
 )
 
 
@@ -85,6 +89,7 @@ def register():
 
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
+    bpy.types.Scene.WBJ = bpy.props.PointerProperty(type=WoWbject_SceneProperties)
     bpy.types.Object.WBJ = bpy.props.PointerProperty(type=WoWbject_ObjectProperties)
     bpy.types.Material.WBJ = bpy.props.PointerProperty(type=WoWbject_MaterialProperties)
     bpy.types.NodeTree.WBJ = bpy.props.PointerProperty(type=WoWbject_NodeGroupProperties)
@@ -100,6 +105,7 @@ def unregister():
 
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
+    del bpy.types.Scene.WBJ
     del bpy.types.Object.WBJ
     del bpy.types.Material.WBJ
     del bpy.types.NodeTree.WBJ

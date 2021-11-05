@@ -128,3 +128,4 @@ test,,render_compare_fail,world/wmo/darkmoonfaire/8df_darkmoon_rollercoaster.obj
 ,,,,,,,,,,,,
 m2,,serpentmount,creature/pandarenserpent/pandarenserpentmount_lightning.obj,651718,default,default,fancy,,,,,
 m2,,dragonpirate,creature/dragonpirate/dragonpirate.obj,3774245,default,default,fancy,,,,,
+m2,,doomhammer,item/objectcomponents/weapon/offhand_1h_artifactdoomhammer_d_02.obj,1395338,default,default,fancy,,,,,
