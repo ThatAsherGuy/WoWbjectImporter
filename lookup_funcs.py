@@ -310,6 +310,9 @@ def wmo_read_color(color, color_type):
         blue = c_bytes[2]
         alpha = c_bytes[3]
 
+    else:
+        raise ValueError(f"Unknown color type: {color_type}")
+
     do_gamma = False
 
     if do_gamma:

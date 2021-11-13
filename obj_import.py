@@ -114,8 +114,8 @@ class wmoGroup:
 # FIXME: Legit needs fewer arguments
 def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                              mesh_data: meshObject, mat_dict: dict,
-                             merge_verts: bool, make_quads: bool,
-                             use_collections: bool) -> Optional[bpy.types.Object]:
+                             merge_verts: bool = False, make_quads: bool = False,
+                             use_collections: bool = True) -> Optional[bpy.types.Object]:
     if group.batch_count < 1:
         return None
 
@@ -354,20 +354,20 @@ def repack_wmo(import_container, groups: dict, mesh_data: meshObject, config: di
             wmo_group.mesh_data = mesh_data
             groups.append(wmo_group)
 
-            colors = group.get("vertexColours", [])
+            vcolors = group.get("vertexColours", [])
             last_color = g_batches[-1].get("lastVertex", -1) + 1
 
             vertex_count = 0
             for comp in wmo_group.mesh_batches:
                 vertex_count += len(comp.verts)
 
-            if len(colors) == 2:
-                flat_colors[0] += colors[0][0:last_color]
-                flat_colors[1] += colors[1][0:last_color]
-            elif len(colors) == 1:
-                flat_colors[0] += colors[0][0:last_color]
-                flat_colors[1] += [0 for j in colors[0]]
-            elif len(colors) == 0:
+            if len(vcolors) == 2:
+                flat_colors[0] += vcolors[0][0:last_color]
+                flat_colors[1] += vcolors[1][0:last_color]
+            elif len(vcolors) == 1:
+                flat_colors[0] += vcolors[0][0:last_color]
+                flat_colors[1] += [0 for j in vcolors[0]]
+            elif len(vcolors) == 0:
                 if vertex_count > 0:
                     flat_colors[0] += [0 for j in range(vertex_count)]
                     flat_colors[1] += [0 for j in range(vertex_count)]

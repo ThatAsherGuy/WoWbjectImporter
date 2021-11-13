@@ -18,7 +18,7 @@
 
 # Hell is other people's code
 
-# A bunch of this code is based on Krunthne's WoW Export add-on.
+# A bunch of this code is based on Kruithne's WoW Export add-on.
 
 bl_info = {
     "name": "WoWbject Importer",
@@ -35,7 +35,7 @@ import bpy
 import os
 
 from .operators import WOWBJ_OT_ToolTip
-from .operators import WOWBJ_OT_Import
+from .operators_new import WOWBJ_OT_Import
 from .operators import WOWBJ_OT_SerializeNodeGroups
 from .operators import WOWBJ_OT_GenerateNodeGroups
 from .operators import WOWBJ_OT_LoadCombiner
@@ -53,6 +53,9 @@ from .ui import VIEW3D_PT_wowbject_object_panel
 from .ui import VIEW3D_PT_wowbject_combiner_panel
 
 from . import addon_updater_ops
+
+# from line_profiler import LineProfiler
+# profile = LineProfiler()
 
 classes = (
     # Operators
@@ -109,3 +112,5 @@ def unregister():
     del bpy.types.Object.WBJ
     del bpy.types.Material.WBJ
     del bpy.types.NodeTree.WBJ
+
+    # profile.dump_stats(r"d:\TEMP\blend.prof")

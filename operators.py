@@ -24,6 +24,7 @@ import bpy
 import bpy.props
 from bpy_extras.io_utils import ImportHelper
 
+from typing import TYPE_CHECKING
 from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
@@ -38,7 +39,10 @@ class WOWBJ_OT_ToolTip(bpy.types.Operator):
     bl_description = "If you can read this, something is broken."
     bl_options = {'INTERNAL'}
 
-    tooltip: bpy.props.StringProperty(default="")
+    if TYPE_CHECKING:
+        tooltip: str
+    else:
+        tooltip: bpy.props.StringProperty(default="")
 
     @classmethod
     def description(cls, context, properties):
@@ -54,11 +58,13 @@ class WOWBJ_OT_SetDefaultDir(bpy.types.Operator):
     bl_label = 'WoWbject Set Default Directory'
     bl_options = {'INTERNAL', 'UNDO'}
 
-    new_dir: bpy.props.StringProperty(  # type: ignore
-        name="Directory",
-        default="",
-        subtype='DIR_PATH'
-    )
+    if TYPE_CHECKING:
+        new_dir: bpy.types.StringProperty
+    else:
+        new_dir: bpy.props.StringProperty(
+            default="",
+            subtype='DIR_PATH'
+        )
 
     def execute(self, context):
         prefs = preferences.get_prefs()
@@ -66,21 +72,33 @@ class WOWBJ_OT_SetDefaultDir(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
+class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
     """Load a WoW .OBJ, with associated JSON and .m2 data"""
-    bl_idname = 'import_scene.wowbject'
+    bl_idname = 'import_scene.wowbject_old'
     bl_label = 'WoWbject Import'
     bl_options = {'PRESET', 'UNDO'}
 
-    directory: bpy.props.StringProperty(subtype='DIR_PATH')  # type: ignore
+    if TYPE_CHECKING:
+        directory: os.PathLike
+    else:
+        directory: bpy.props.StringProperty(subtype='DIR_PATH')
+
 
     filename_ext = '.obj'
-    filter_glob: bpy.props.StringProperty(default='*.obj')  # type: ignore
+    if TYPE_CHECKING:
+        filter_glob: bpy.types.StringProperty
+    else:
+        filter_glob: bpy.props.StringProperty(default='*.obj')
 
-    files: bpy.props.CollectionProperty(  # type: ignore
-        name='File Path',
-        type=bpy.types.OperatorFileListElement,
-    )
+
+    if TYPE_CHECKING:
+        files: bpy.types.Collection
+    else:
+        files: bpy.props.CollectionProperty(  # type: ignore
+            name='File Path',
+            type=bpy.types.OperatorFileListElement,
+        )
+
 
     # filepath: bpy.props.StringProperty(  # type: ignore
     #     name="File Path",
@@ -88,49 +106,68 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
     #     maxlen=1024,
     #     subtype='FILE_PATH',
     # )
+    if TYPE_CHECKING:
+        name_override: str
+    else:
+        name_override: bpy.props.StringProperty(  # type: ignore
+            name="Name",
+            description="Defaults to asset name when left blank",
+            default=''
+        )
 
-    name_override: bpy.props.StringProperty(  # type: ignore
-        name="Name",
-        description="Defaults to asset name when left blank",
-        default=''
-    )
+    if TYPE_CHECKING:
+        merge_verts: bool
+    else:
+        merge_verts: bpy.props.BoolProperty(
+            name='Dedupe Vertices',
+            description='Deduplicate and merge vertices',
+            default=True
+        )
 
-    merge_verts: bpy.props.BoolProperty(  # type: ignore
-        name='Dedupe Vertices',
-        description='Deduplicate and merge vertices',
-        default=True
-    )
+    if TYPE_CHECKING:
+        make_quads: bool
+    else:
+        make_quads: bpy.props.BoolProperty(
+            name='Tris to Quads',
+            description='Automatically convert to quad-based geometry where possible',
+            default=False
+        )
 
-    make_quads: bpy.props.BoolProperty(  # type: ignore
-        name='Tris to Quads',
-        description='Automatically convert to quad-based geometry where possible',
-        default=False
-    )
+    if TYPE_CHECKING:
+        use_collections: bool
+    else:
+        use_collections: bpy.props.BoolProperty(
+            name='Use Collections',
+            description='Create objects inside collections when possible (WMO only)',
+            default=True
+        )
 
+    if TYPE_CHECKING:
+        reuse_materials: bool
+    else:
+        reuse_materials: bpy.props.BoolProperty(
+            name='Reuse Materials',
+            description='Re-use the existing materials in the scene if they match',
+            default=False
+        )
 
-    use_collections: bpy.props.BoolProperty(  # type: ignore
-        name='Use Collections',
-        description='Create objects inside collections when possible (WMO only)',
-        default=True
-    )
+    if TYPE_CHECKING:
+        create_aovs: bool
+    else:
+        create_aovs: bpy.props.BoolProperty(
+            name='Create AOVs',
+            description='[NOT IMPLEMENTED] Create AOVs for materials that use special blending modes',
+            default=False
+        )
 
-    reuse_materials: bpy.props.BoolProperty(  # type: ignore
-        name='Reuse Materials',
-        description='Re-use the existing materials in the scene if they match',
-        default=False
-    )
-
-    create_aovs: bpy.props.BoolProperty(  # type: ignore
-        name='Create AOVs',
-        description='[NOT IMPLEMENTED] Create AOVs for materials that use special blending modes',
-        default=False
-    )
-
-    use_vertex_lighting: bpy.props.BoolProperty(  # type: ignore
-        name="Experimental Vertex Lighting",
-        description="Use the experimental vertex lighting node in WMO shaders",
-        default=False
-    )
+    if TYPE_CHECKING:
+        use_vertex_lighting: bool
+    else:
+        use_vertex_lighting: bpy.props.BoolProperty(
+            name="Experimental Vertex Lighting",
+            description="Use the experimental vertex lighting node in WMO shaders",
+            default=False
+        )
 
     base_shader_items = [
         ("EMIT", "Emission Shader", "Standard unlit look"),
@@ -140,11 +177,14 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         ("EXPE", "Experimental", "You probably won't want to use this one"),
     ]
 
-    base_shader: bpy.props.EnumProperty(  # type: ignore
-        name="Shader Base",
-        items=base_shader_items,
-        default='EMIT',
-    )
+    if TYPE_CHECKING:
+        base_shader: bool
+    else:
+        base_shader: bpy.props.EnumProperty(
+            name="Shader Base",
+            items=base_shader_items,
+            default='EMIT',
+        )
 
 
     def invoke(self, context, _event):
@@ -157,6 +197,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
 
 
     def execute(self, context):
+        print(f"type for files: {type(self.files)}")
         prefs = preferences.get_prefs()
         verbosity = prefs.reporting
         default_dir = prefs.default_dir
@@ -363,11 +404,14 @@ class WOWBJ_OT_LoadCombiner(bpy.types.Operator):
     bl_label = 'WoWbject Get Combiner'
     bl_options = {'REGISTER', 'UNDO'}
 
-    combiner: bpy.props.EnumProperty(  # type: ignore
-        name="Shader Base",
-        items=combiner_items,
-        default="COMBINERS_OPAQUE_MOD2XNA_ALPHA",
-    )
+    if TYPE_CHECKING:
+        combiner: str
+    else:
+        combiner: bpy.props.EnumProperty(
+            name="Shader Base",
+            items=combiner_items,
+            default="COMBINERS_OPAQUE_MOD2XNA_ALPHA",
+        )
 
     def execute(self, context):
         obj = context.active_object
