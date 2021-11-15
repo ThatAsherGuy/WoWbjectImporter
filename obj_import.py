@@ -113,7 +113,7 @@ class wmoGroup:
 
 # FIXME: Legit needs fewer arguments
 def wmo_setup_blender_object(base_name: str, group: wmoGroup,
-                             mesh_data: meshObject, mat_dict: dict,
+                             mesh_data: meshObject, mat_dict: Dict[int, bpy.types.Material],
                              merge_verts: bool = False, make_quads: bool = False,
                              use_collections: bool = True) -> Optional[bpy.types.Object]:
     if group.batch_count < 1:

@@ -348,7 +348,7 @@ def test_render_check(t_render, extra):
         # outimg = os.path.join("render_results", f"{fn}_img%02d.png")
 
         for i in range(1, len(r["cameraloc"]) + 1):
-            refimg = os.path.join("render_references", fn % (i))
+            refimg = os.path.join("render_references_temp_test", fn % (i))
             checkimg = os.path.join("render_results", fn % (i))
             diffimg = os.path.join("render_diffs", fn % (i))
 
@@ -363,7 +363,7 @@ def test_render_check(t_render, extra):
                 os.remove(diffimg)
 
     else:
-        refimg = os.path.join("render_references", f"{id}.png")
+        refimg = os.path.join("render_references_temp_test", f"{id}.png")
         checkimg = os.path.join("render_results", f"{id}.png")
         diffimg = os.path.join("render_diffs", f"{id}.png")
 

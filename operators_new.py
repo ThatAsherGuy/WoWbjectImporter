@@ -19,33 +19,34 @@
 
 # Hell is other people's code
 
-# from line_profiler import LineProfiler
-# profile = LineProfiler()
-
-import os
+# import os
 from pathlib import Path
 
 import bpy
-import bmesh
 import bpy.props
 from bpy_extras.io_utils import ImportHelper
 from mathutils import Vector
 from math import radians
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Union, Any
-from .node_groups import serialize_nodegroups
-from .node_groups import generate_nodegroups
+from typing import TYPE_CHECKING, cast, Optional, Dict, List, Set, Tuple, Union, Any
+# from .node_groups import serialize_nodegroups
+# from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
+from .node_groups import do_wmo_combiner
+
 # from .utilties import do_import
 from . import preferences
 from .obj_import import wmo_setup_blender_object
-from .lookup_funcs import wmo_read_color, WMO_Shaders_New, wmo_read_mat_flags
+from .lookup_funcs import wmo_read_color
+# from .lookup_funcs import WMO_Shaders_New
+# from .lookup_funcs import wmo_read_mat_flags
+from .preferences import WoWbject_ObjectProperties
 
 import json
 
+
 # FIXME: do we need to make this local/tweak this/etc?
 # from .node_groups import do_wmo_mats
-
 
 # ripped from obj_import.py, which was ripped from Kruinthe's addoon.
 # There may or may not be a better way to manage all this.
@@ -54,9 +55,9 @@ import json
 class meshComponent:
     usemtl: str
     name: str
-    verts: set[float]
-    faces: list[int]
-    uv: list[float]
+    verts: Set[float]
+    faces: List[Tuple[int, ...]]
+    uv: List[float]
 
     def __init__(self):
         self.usemtl = ''
@@ -70,13 +71,16 @@ class meshObject:
     usemtl: str
     mtlfile: str
     name: str
-    verts: list[float]
-    faces: list[int]
-    normals: list[float]
-    uv: list[float]
-    uv2: list[float]
-    uv3: list[float]
-    components: list[meshComponent]
+
+    # These tuples actually are of a determinant size, but the type checker
+    # doesn't know that, so we're cheating a little.
+    verts: List[Tuple[float, ...]]
+    faces: List[Tuple[int, ...]]
+    normals: List[Tuple[float, ...]]
+    uv: List[Tuple[float, ...]]
+    uv2: List[Tuple[float, ...]]
+    uv3: List[Tuple[float, ...]]
+    components: List[meshComponent]
 
     def __init__(self):
         self.usemtl = ''
@@ -95,10 +99,10 @@ class wmoGroup:
     mesh_data: Optional[meshObject]
     mesh_batches: List[meshComponent]
 
-    json_group: Optional[Dict[str, Any]]
+    json_group: Dict[str, Any]
     group_offset: int
 
-    json_batches: List[Dict]
+    json_batches: List[Any]  # FIXME: type
     batch_count: int
 
     colors: List[List[int]]
@@ -107,7 +111,7 @@ class wmoGroup:
         self.mesh_data = None
         self.mesh_batches = []
 
-        self.json_group = None
+        self.json_group = {}
         self.group_offset = -1
 
         # The renderBatches that map to the meshComponent objects
@@ -128,7 +132,6 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
     else:
         directory: bpy.props.StringProperty(subtype='DIR_PATH')
 
-
     filename_ext = '.obj'
     if TYPE_CHECKING:
         filter_glob: bpy.types.StringProperty
@@ -139,7 +142,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
     if TYPE_CHECKING:
         files: bpy.types.Collection
     else:
-        files: bpy.props.CollectionProperty(  # type: ignore
+        files: bpy.props.CollectionProperty(
             name='File Path',
             type=bpy.types.OperatorFileListElement,
         )
@@ -154,7 +157,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
     if TYPE_CHECKING:
         name_override: str
     else:
-        name_override: bpy.props.StringProperty(  # type: ignore
+        name_override: bpy.props.StringProperty(
             name="Name",
             description="Defaults to asset name when left blank",
             default=''
@@ -231,8 +234,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
             default='EMIT',
         )
 
-
-    def invoke(self, context, _event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> Union[Set[str], Set[int]]:
         prefs = preferences.get_prefs()
         default_dir = prefs.default_dir
         if not default_dir == "":
@@ -241,15 +243,18 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         return {'RUNNING_MODAL'}
 
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context):
         print("new import execute")
-        prefs = preferences.get_prefs()
-        verbosity = prefs.reporting
-        default_dir = prefs.default_dir
-        args = self.as_keywords(ignore=("filter_glob", "directory", "filepath", "files"))
+        # prefs = preferences.get_prefs()
+        # verbosity = prefs.reporting
+        # default_dir = prefs.default_dir
 
-        reports = do_import(self, context, self.filepath,
-                            self.reuse_materials, self.base_shader, args)
+        # not sure what the best type for args actually is
+        args: Dict[str, bpy.types.Property] = self.as_keywords(  # type: ignore
+            ignore=("filter_glob", "directory", "filepath", "files"))
+
+        # FIXME: figure out how to do enum types returning str -correctly-
+        do_import(context, self.filepath, self.reuse_materials, str(self.base_shader), args)
 
         # if (len(reports.warnings) > 0):
         #     if 'WARNING' in verbosity:
@@ -282,7 +287,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
 
         return {'FINISHED'}
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context):
         layout = self.layout
         root = layout.column(align=True)
         root.use_property_split = True
@@ -307,21 +312,21 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         col.label(text="Shading:")
         col.prop(self, 'base_shader', expand=False)
 
-        selector_params = context.space_data.params
+        # space_data = cast(bpy.types.SpaceFileBrowser, context.space_data)
+        # selector_params = space_data.params
 
         col = root.column(align=True)
         col.use_property_split = True
         col.label(text="WMO Settings:")
         col.prop(self, 'use_vertex_lighting', expand=False)
 
-        col.label(text="Misc:")
-        op = col.operator('wowbj.set_default_dir', text="Use as Default Directory")
-        op.new_dir = selector_params.directory
+        # col.label(text="Misc:")
+        # op = col.operator('wowbj.set_default_dir', text="Use as Default Directory")
+        # op.new_dir = selector_params.directory
 
 
-
-# @profile
-def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **kwargs):
+# FIXME: return type
+def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_shader: str, op_args: Dict[str, Any]) -> None:
     '''
     The pre-sorting and initializing function called by the import operator.
     Most of the actual data-handling is handled by an import_container object.
@@ -334,8 +339,8 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
     file = Path(filepath)
 
     # FIXME: these first two aren't needed?
-    reuse_mats = op_args.get("reuse_materials")
-    base_shader = op_args.get("base_shader")
+    # reuse_mats = op_args.get("reuse_materials")
+    # base_shader = op_args.get("base_shader")r
     name_override = op_args.get("name_override")
 
     # textures = []
@@ -427,7 +432,12 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
 
         if file.with_suffix(".json").exists():
             with file.with_suffix(".json").open() as p:
+                # FIXME: error handling here
                 json_config = json.load(p)
+        else:
+            # FIXME: user-facing error handling
+            print(f"failed to load metadata from '{file}', can't continue")
+            return
 
         if not(json_config):
             print(f"failed to load json file {file}")
@@ -529,14 +539,11 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
             if ".wmo" not in json_config.get("fileName", ""):
                 print("ERROR: trying to import a non-WMO file")
 
-            # FIXME: Make sure this is sane/we need this
-            json_textures = json_config.get(
-                "textures", json_config.get("fileDataIDs", []))
-            json_tex_combos = json_config.get("textureCombos", [])
-            json_tex_units = json_config.get(
-                "skin", {}).get("textureUnits", [])
-            json_submeshes = json_config.get(
-                "skin", {}).get("subMeshes", [])
+            # FIXME: Make sure this is sane/we need this/we don't need this
+            # json_textures = json_config.get("textures", json_config.get("fileDataIDs", []))
+            # json_tex_combos = json_config.get("textureCombos", [])
+            # json_tex_units = json_config.get("skin", {}).get("textureUnits", [])
+            # json_submeshes = json_config.get("skin", {}).get("subMeshes", [])
         # END INLINE: setup_json_data
 
 
@@ -584,6 +591,7 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
         # INLINE: import_obj
         # def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_quads, use_collections, import_container, progress, **kwargs):
         if True:  # import_obj()
+            # FIXME: Is the poll needed? Is it even valid? select_all is a function?
             if bpy.ops.object.select_all.poll():
                 bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
 
@@ -602,29 +610,35 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                 obj = meshObject()
                 meshIndex = -1
 
+
+                # FIXME: The below seems to be the start of support for obj files that
+                # have multi-line entries; do we need to support that?
+                #
                 # when there are faces that end with \
                 # it means they are multiline-
                 # since we use xreadline we cant skip to the next line
                 # so we need to know whether
-                context_multi_line = b''
+                # context_multi_line = b''
 
-                # with open(mesh_path, 'rb') as f:
-                with file.open('rb') as f:
-                    for line in f:
-                        line_split = line.split()
+                # # with open(mesh_path, 'rb') as f:
+                # with file.open('rb') as f:
+                #     for line in f:
+                #         line_split = line.split()
 
-                        if not line_split:
-                            continue
+                #         if not line_split:
+                #             continue
 
-                        line_start = line_split[0]
+                #         line_start = line_split[0]
 
-                        if len(line_split) == 1 and not context_multi_line and line_start != b'end':
-                            print("WARNING, skipping malformatted line: %s" %
-                                  line.decode('UTF-8', 'replace').rstrip())
-                            continue
+                #         if len(line_split) == 1 and not context_multi_line and line_start != b'end':
+                #             print("WARNING, skipping malformatted line: %s" %
+                #                   line.decode('UTF-8', 'replace').rstrip())
+                #             continue
 
                 # TODO: Replace with a more robust port of the ImportObj add-on's process
                 # with open(mesh_path, 'rb') as f:
+                # FIXME: what -is- the right encoding for obj files? Can we make this
+                # read as utf-8 or ascii instead?
                 with file.open('rb') as f:
                     f_count = 0
                     for line in f:
@@ -633,20 +647,22 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                             continue
                         line_start = line_split[0]
                         if line_start == b'mtllib':
-                            obj.mtlfile = line_split[1]
+                            obj.mtlfile = str(line_split[1])
                         elif line_start == b'v':
-                            obj.verts.append([float(v) for v in line_split[1:]])
+                            # FIXME: replace all the things like this with proper
+                            # vec2/vec3/vec4 tuples
+                            obj.verts.append(tuple([float(v) for v in line_split[1:]]))
                         elif line_start == b'vn':
-                            obj.normals.append([float(v) for v in line_split[1:]])
+                            obj.normals.append(tuple([float(v) for v in line_split[1:]]))
                         elif line_start == b'vt3':
-                            obj.uv3.append([float(v) for v in line_split[1:]])
+                            obj.uv3.append(tuple([float(v) for v in line_split[1:]]))
                         elif line_start == b'vt2':
                             if not line_split[1] == b'undefined':
-                                obj.uv2.append([float(v) for v in line_split[1:]])
+                                obj.uv2.append(tuple([float(v) for v in line_split[1:]]))
                             else:
-                                obj.uv2.append([0.0, 0.0])
+                                obj.uv2.append((0.0, 0.0))
                         elif line_start == b'vt':
-                            obj.uv.append([float(v) for v in line_split[1:]])
+                            obj.uv.append(tuple([float(v) for v in line_split[1:]]))
                         elif line_start == b'f':
                             line_split = line_split[1:]
                             fv = [int(v.split(b'/')[0]) for v in line_split]
@@ -659,23 +675,34 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                             obj.components[meshIndex].name = line_split[1].decode('utf-8')
                         elif line_start == b'usemtl':
                             obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
+
                 # return obj
                 mesh_data = obj
             # END INLINE: initialize_mesh
 
             # (back to import_obj, I think?)
-            newMesh = bpy.data.meshes.new(basename)
+            # FIXME: Can I do this in a way without a cast?
+            newMesh = cast(bpy.types.BlendDataMeshes, bpy.data.meshes).new(basename)
             newMesh.use_auto_smooth = True
             newMesh.auto_smooth_angle = radians(60)
 
-            newObj = bpy.data.objects.new(basename, newMesh)
 
-            newObj.WBJ.source_asset = str(file.name)
-            newObj.WBJ.source_directory = str(file.parent)
-            newObj.WBJ.initialized = True
+            # FIXME: Not sure how to annotate the dynamic attribute here
+            newObj = cast(bpy.types.BlendDataObjects, bpy.data.objects).new(basename, newMesh)
+            WBJ: WoWbject_ObjectProperties = newObj.WBJ
 
-            bm = bmesh.new()
-            output_meshes = []
+            # FIXME: Not sure how to type annotate the props to make these not
+            # complain? But should be possible?
+            WBJ.source_asset = str(file.name)
+            WBJ.source_directory = str(file.parent)
+            WBJ.initialized = True
+            # from ppretty import ppretty
+            # print(ppretty(WBJ, seq_length=100, depth=1))
+            # print(type(WBJ.source_asset))
+
+
+            # bm = bmesh.new()
+            # output_meshes = []
 
             # if import_container.wmo:
             if True:
@@ -693,10 +720,10 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                 # def repack_wmo(import_container, groups: dict, mesh_data: meshObject, config: dict):
                 if True:  # repack_wmo()
                     # json_groups = import_container.json_config.get("groups")
-                    groups = []
+                    groups: List[wmoGroup] = []
                     offset = 0
 
-                    flat_colors = [[], [], []]
+                    flat_colors: List[List[int]] = [[], [], []]
 
                     for group in json_groups:
                         g_batches = group.get("renderBatches", [])
@@ -726,11 +753,11 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                                 flat_colors[1] += vcolors[1][0:last_color]
                             elif len(vcolors) == 1:
                                 flat_colors[0] += vcolors[0][0:last_color]
-                                flat_colors[1] += [0 for j in vcolors[0]]
+                                flat_colors[1] += [0 for _ in vcolors[0]]
                             elif len(vcolors) == 0:
                                 if vertex_count > 0:
-                                    flat_colors[0] += [0 for j in range(vertex_count)]
-                                    flat_colors[1] += [0 for j in range(vertex_count)]
+                                    flat_colors[0] += [0 for _ in range(vertex_count)]
+                                    flat_colors[1] += [0 for _ in range(vertex_count)]
 
                             wmo_group.colors = flat_colors
 
@@ -765,21 +792,25 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
 
                 # (back to import_obj, I think? (maybe?))
                 # FIXME: Is mat_dict a dict or a list?
-                mat_dict = {}
+                mat_dict: Dict[int, bpy.types.Material] = {}
+
                 for i, mat in enumerate(json_mats):
-                    mat = bpy.data.materials.new(name=basename + "_mat_" + str(i))
+                    mat = cast(bpy.types.BlendDataMaterials, bpy.data.materials).new(
+                        name=basename + "_mat_" + str(i))
                     mat.use_nodes = True
-                    mat_name = mat.name
+                    # mat_name = mat.name
                     mat_dict[i] = mat
 
-                objects = []
+                print(f"mat type thing: {type(i)} - {type(mat_dict)}")
+
+                objects: List[bpy.types.Object] = []
 
                 # steps = len(wmo_groups)
                 print(f"working on {len(wmo_groups)} groups")
 
                 # progress.step()
                 # progress.enter_substeps(steps, "Generating Meshes")
-                print(f"Generating meshes")
+                print("Generating meshes")
 
                 for i, group in enumerate(wmo_groups):
                     sub = group.json_group.get("groupName", "")
@@ -965,11 +996,12 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                 config = json_config
                 mats = config.get("materials")
 
-                configured_mats = set()
+                configured_mats: Set[bpy.types.Material] = set()
 
                 # for obj in container.bl_obj:
                 for obj in objects:
-                    for slot in obj.material_slots:
+                    # FIXME: give MaterialSlot an __iter__  method instead of the typecast?
+                    for slot in cast(List[bpy.types.MaterialSlot], obj.material_slots):
                         mat_number = slot.material.name.split('_')[-1]
                         if '.' in mat_number:
                             mat_number = mat_number.split('.')[0]
@@ -982,10 +1014,11 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                         texfile = file.parent / texfilename
                         if texnum > 0 and texfile.exists():
                             if texfilename in bpy.data.images:
-                                tex1 = bpy.data.images[texfilename]
+                                tex1 = cast(bpy.types.BlendDataImages,
+                                            bpy.data.images)[texfilename]
                             else:
-                                print(f"loading texture, cwd is: {os.getcwd()}")
-                                tex1 = bpy.data.images.load(str(texfile.resolve()))
+                                tex1 = cast(bpy.types.BlendDataImages, bpy.data.images).load(
+                                    str(texfile.resolve()))
                                 tex1.alpha_mode = 'CHANNEL_PACKED'
 
                         else:
@@ -998,9 +1031,11 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                         texfile = file.parent / texfilename
                         if texnum > 0 and texfile.exists():
                             if texfilename in bpy.data.images:
-                                tex2 = bpy.data.images[texfilename]
+                                tex2 = cast(bpy.types.BlendDataImages,
+                                            bpy.data.images)[texfilename]
                             else:
-                                tex2 = bpy.data.images.load(str(texfile.resolve()))
+                                tex2 = cast(bpy.types.BlendDataImages, bpy.data.images).load(
+                                    str(texfile.resolve()))
                                 tex2.alpha_mode = 'CHANNEL_PACKED'
 
                         else:
@@ -1013,9 +1048,11 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                         texfile = file.parent / texfilename
                         if texnum > 0 and texfile.exists():
                             if texfilename in bpy.data.images:
-                                tex3 = bpy.data.images[texfilename]
+                                tex3 = cast(bpy.types.BlendDataImages,
+                                            bpy.data.images)[texfilename]
                             else:
-                                tex3 = bpy.data.images.load(str(texfile.resolve()))
+                                tex3 = cast(bpy.types.BlendDataImages, bpy.data.images).load(
+                                    str(texfile.resolve()))
                                 tex3.alpha_mode = 'CHANNEL_PACKED'
 
                         else:
@@ -1026,18 +1063,18 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
 
                         bl_mat = slot.material
                         tree = bl_mat.node_tree
-                        nodes = tree.nodes
+                        nodes = cast(bpy.types.Nodes, tree.nodes)
 
                         if bl_mat in configured_mats:
                             continue
 
                         shader = None
                         out_node = None
-                        for node in nodes:
+                        # FIXME: give Nodes an __iter__ instead of using this typecast?
+                        for node in cast(List[bpy.types.Node], nodes):
                             if node.type == 'BSDF_PRINCIPLED':
-                                shader = node
-                                # FIXME: use input name?
-                                shader.inputs[7].default_value = 1.0
+                                shader = cast(bpy.types.ShaderNodeBsdfPrincipled, node)
+                                shader.inputs["Roughness"].default_value = 1.0
 
                             if node.type == 'OUTPUT_MATERIAL':
                                 out_node = node
@@ -1049,9 +1086,12 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                             out_node = nodes.new('ShaderNodeOutputMaterial')
 
                         if not shader:
+                            # FIXME
                             print("DO LATER")
 
-                        nodes.remove(shader)
+                        # FIXME: What's this for?
+                        if shader:
+                            nodes.remove(shader)
 
                         # FIXME: wtf is this base shader thing actually doing?
                         prefs = preferences.get_prefs()
@@ -1066,15 +1106,16 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                         else:
                             shader = nodes.new("ShaderNodeEmission")
 
-                        tree.links.new(shader.outputs[0], out_node.inputs[0])
+                        # FIXME: Can we clean up the type casting on this?
+                        cast(bpy.types.NodeLinks, tree.links).new(cast(bpy.types.Node, shader).outputs[0], out_node.inputs[0])
 
                         baseColor = nodes.new('ShaderNodeRGB')
                         baseColor.location += Vector((-1200.0, 400.0))
-                        baseColor.outputs[0].default_value = wmo_read_color(
+                        baseColor.outputs["Color"].default_value = wmo_read_color(
                             mat.get("color2"), 'CArgb')
                         baseColor.label = 'BASE COLOR'
 
-                        tex_nodes = []
+                        tex_nodes: List[bpy.types.ShaderNodeTexImage] = []
 
                         for i, tex in enumerate(tex_list):
                             if tex:
@@ -1096,499 +1137,3 @@ def do_import(operator, context, filepath, reuse_mats, base_shader, op_args, **k
                             do_vertex_lighting=op_args.get("use_vertex_lighting", False))
 
                         configured_mats.add(bl_mat)
-
-
-
-def do_wmo_combiner(**kwargs):
-    use_combiner_nodes = True
-    do_vertex_lighting = kwargs.get("do_vertex_lighting", False)
-
-    tex_nodes = kwargs.get("tex_nodes")
-    bl_mat = kwargs.get("bl_mat")
-    shader_out = kwargs.get("shader_out")
-    mat_info = kwargs.get("mat_info")
-    ambColor = kwargs.get("ambient")
-
-    shader_info = WMO_Shaders_New[mat_info.get("shader", 0)]
-    blend_info = mat_info.get("blendMode")
-    group_type = mat_info.get("groupType", -1)
-
-    tree = bl_mat.node_tree
-    nodes = tree.nodes
-
-    shader_out.label = shader_info[0]
-    # shader_out.inputs[5].default_value = 0.0 # Breaking all measures of physical accuracy here.
-
-    bl_mat.use_backface_culling = True
-
-    flags = wmo_read_mat_flags(mat_info.get("flags", 0))
-
-    for flag in flags:
-        if flag == 'TWO_SIDED':
-            bl_mat.use_backface_culling = False
-
-    if blend_info == 2:
-        bl_mat.blend_method = 'BLEND'
-    elif blend_info == 1:
-        bl_mat.blend_method = 'CLIP'
-
-    mixer = nodes.new('ShaderNodeGroup')
-    mixer.node_tree = get_utility_group(name=shader_info[2])
-    mixer.location = Vector((-575.0, 30.0))
-
-    offset = 0
-    if use_combiner_nodes:
-        v_colors = None
-        v_colors2 = None
-
-        for node_input in mixer.inputs:
-            if node_input.name == "Vertex RGB":
-
-                if do_vertex_lighting:
-                    v_colors = nodes.new("ShaderNodeVertexColor")
-                    v_colors.layer_name = 'vcols_0'
-                    v_colors.location = Vector((-975.0, 200.0))
-
-                    lighting = nodes.new('ShaderNodeGroup')
-                    lighting.node_tree = get_utility_group(name="WMO_VertexLightingFancy")
-                    lighting.location = Vector((-775.0, 150.0))
-
-                    lighting.inputs[2].default_value = ambColor
-
-                    tree.links.new(lighting.outputs[0], mixer.inputs[0])
-
-                    tree.links.new(v_colors.outputs[0], lighting.inputs[4])
-                    tree.links.new(v_colors.outputs[1], mixer.inputs[1])
-
-            elif node_input.name == "Vertex2 RGB":
-                v_colors2 = nodes.new("ShaderNodeVertexColor")
-                v_colors2.layer_name = 'vcols_1'
-                v_colors2.location = Vector((-975.0, 30.0))
-                tree.links.new(v_colors2.outputs[0], mixer.inputs[2])
-                tree.links.new(v_colors2.outputs[1], mixer.inputs[3])
-                offset += 2
-
-            elif node_input.name == "Tex0 RGB":
-                tex_nodes[0].location = Vector((-975.0, -100.0))
-                tree.links.new(tex_nodes[0].outputs[0], mixer.inputs[2 + offset])
-                tree.links.new(tex_nodes[0].outputs[1], mixer.inputs[3 + offset])
-
-            elif node_input.name == "Tex1 RGB":
-                if len(tex_nodes) > 1:
-                    tex_nodes[1].location = Vector((-975.0, -200.0))
-                    tree.links.new(tex_nodes[1].outputs[0], mixer.inputs[4 + offset])
-                    tree.links.new(tex_nodes[1].outputs[1], mixer.inputs[5 + offset])
-
-                    if "Env" in shader_info[2]:
-                        env_map = nodes.new('ShaderNodeGroup')
-                        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
-                        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
-                        tree.links.new(env_map.outputs[0], tex_nodes[1].inputs[0])
-                else:
-                    mixer.inputs[5].default_value = 0.0
-
-            elif node_input.name == "Tex2 RGB":
-                if len(tex_nodes) > 2:
-                    tex_nodes[2].location = Vector((-975.0, -400.0))
-                    tree.links.new(tex_nodes[2].outputs[0], mixer.inputs[6 + offset])
-                    tree.links.new(tex_nodes[2].outputs[1], mixer.inputs[7 + offset])
-
-        if len(mixer.outputs) > 2:
-            mix_1 = nodes.new("ShaderNodeMixRGB")
-            mix_1.blend_type = 'ADD'
-            mix_1.label = "Mix 1"
-            mix_1.location = Vector((-275.0, 200.0))
-            mix_1.inputs[0].default_value = 1.0
-
-            tree.links.new(mixer.outputs[0], mix_1.inputs[1])
-            tree.links.new(mixer.outputs[2], mix_1.inputs[2])
-            tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
-
-        else:
-            tree.links.new(mixer.outputs[0], shader_out.inputs[0])
-        return
-
-    if shader_info[0] == "Diffuse":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "Specular":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-        shader_out.inputs[5].default_vaule = 0.5
-        shader_out.inputs[7].default_value = 0.5
-
-    elif shader_info[0] == "Metal":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-        shader_out.inputs[4].default_value = 1.0
-        shader_out.inputs[5].default_vaule = 0.5
-        shader_out.inputs[7].default_value = 0.5
-
-    elif shader_info[0] == "Env":
-
-        env_map = nodes.new('ShaderNodeGroup')
-        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
-        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
-
-        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
-
-        mix_node = nodes.new("ShaderNodeMixRGB")
-        mix_node.location += Vector((-600.0, 0.0))
-        mix_node.label = "Env"
-        mix_node.blend_type = 'ADD'
-
-        tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
-        tree.links.new(tex_nodes[-1].outputs[0], mix_node.inputs[2])
-
-        tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
-
-        tex_nodes[-1].projection = 'SPHERE'
-    elif shader_info[0] == "Opaque":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "EnvMetal":
-        tex_nodes[0].location = Vector((-1250.0, 200.0))
-        tex_nodes[1].location = Vector((-1000.0, -120.0))
-
-        v_colors = nodes.new("ShaderNodeVertexColor")
-        v_colors.layer_name = 'vcols_1'
-        v_colors.location = Vector((-975.0, 30.0))
-
-        mix_0 = nodes.new("ShaderNodeMath")
-        mix_0.operation = 'MULTIPLY'
-        mix_0.label = "Mix 0"
-        mix_0.location = Vector((-800.0, 150.0))
-        mix_0.inputs[0].default_value = 1.0
-
-        tree.links.new(v_colors.outputs[1], mix_0.inputs[1])
-        tree.links.new(tex_nodes[0].outputs[1], mix_0.inputs[0])
-
-        mix_1 = nodes.new("ShaderNodeMixRGB")
-        mix_1.blend_type = 'MULTIPLY'
-        mix_1.label = "Mix 1"
-        mix_1.location = Vector((-575.0, 480.0))
-        mix_1.inputs[0].default_value = 1.0
-
-        tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[1])
-        tree.links.new(mix_0.outputs[0], mix_1.inputs[2])
-
-        mix_2 = nodes.new("ShaderNodeMixRGB")
-        mix_2.blend_type = 'MULTIPLY'
-        mix_2.label = "Mix 2"
-        mix_2.location = Vector((-400.0, 450.0))
-        mix_2.inputs[0].default_value = 1.0
-
-        tree.links.new(tex_nodes[1].outputs[0], mix_2.inputs[1])
-        tree.links.new(mix_1.outputs[0], mix_2.inputs[2])
-
-        mix_3 = nodes.new("ShaderNodeMixRGB")
-        mix_3.blend_type = 'ADD'
-        mix_3.label = "Mix 2"
-        mix_3.location = Vector((-190.0, 300.0))
-        mix_3.inputs[0].default_value = 1.0
-
-        tree.links.new(tex_nodes[0].outputs[0], mix_3.inputs[1])
-        tree.links.new(mix_2.outputs[0], mix_3.inputs[2])
-        tree.links.new(mix_3.outputs[0], shader_out.inputs[0])
-
-        env_map = nodes.new('ShaderNodeGroup')
-        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
-        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
-
-        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
-        tree.links.new(mix_0.outputs[0], shader_out.inputs[4])
-
-        shader_out.inputs[4].default_value = 1.0
-        # shader_out.inputs[7].default_value = 0.5
-
-        tex_nodes[-1].projection = 'SPHERE'
-
-    elif shader_info[0] == "TwoLayerDiffuse":
-        tex_nodes[0].location = Vector((-475.0, 150.0))
-        tex_nodes[1].location = Vector((-750.0, 200.0))
-        tex_nodes[1].extension = 'CLIP'
-
-        map_node = nodes.new("ShaderNodeUVMap")
-        map_node.location += Vector((-950.0, 60.0))
-        map_node.uv_map = "UV2Map"
-
-        tree.links.new(map_node.outputs[0], tex_nodes[1].inputs[0])
-
-        v_colors = nodes.new("ShaderNodeVertexColor")
-        v_colors.layer_name = 'vcols_1'
-        v_colors.location += Vector((-1000.0, 300))
-
-        mix_0 = nodes.new("ShaderNodeMath")
-        mix_0.operation = 'MULTIPLY'
-        mix_0.label = 'Mix 0'
-        mix_0.location += Vector((-450.0, 335.0))
-        mix_0.inputs[0].default_value = 1.0
-
-        tree.links.new(v_colors.outputs[1], mix_0.inputs[0])
-        tree.links.new(tex_nodes[1].outputs[1], mix_0.inputs[1])
-
-        mix_1 = nodes.new("ShaderNodeMixRGB")
-        mix_1.location += Vector((-190.0, 300.0))
-        mix_1.label = "Mix 1"
-        mix_1.blend_type = 'MIX'
-
-        if group_type == 2:
-            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[2])
-            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[1])
-        else:
-            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[1])
-            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[2])
-
-        tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "TwoLayerEnvMetal":
-
-        tex_nodes[0].location = Vector((-1000.0, 120.0))
-        tex_nodes[1].location = Vector((-620.0, 20.0))
-        tex_nodes[2].location = Vector((-1000.0, -160.0))
-        tex_nodes[-1].projection = 'SPHERE'
-
-        mix_0 = nodes.new("ShaderNodeMixRGB")
-        mix_0.location += Vector((-620.0, 200.0))
-        mix_0.label = "Mix 0"
-        mix_0.blend_type = 'MIX'
-        mix_0.inputs[0].default_value = 1.0
-
-        tree.links.new(tex_nodes[0].outputs[1], mix_0.inputs[0])
-        tree.links.new(tex_nodes[0].outputs[0], mix_0.inputs[1])
-        tree.links.new(tex_nodes[2].outputs[0], mix_0.inputs[2])
-
-        mix_1 = nodes.new("ShaderNodeMixRGB")
-        mix_1.location += Vector((-190.0, 300.0))
-        mix_1.label = "Mix 1"
-        mix_1.blend_type = 'MIX'
-
-        v_colors = nodes.new("ShaderNodeVertexColor")
-        v_colors.layer_name = 'vcols_1'
-        v_colors.location = Vector((-380.0, 350.0))
-
-        tree.links.new(v_colors.outputs[1], mix_1.inputs[0])
-        tree.links.new(mix_0.outputs[0], mix_1.inputs[1])
-        tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[2])
-        tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
-
-        env_map = nodes.new('ShaderNodeGroup')
-        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
-        env_map.location += Vector((-1200.0, -320.0))
-
-        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
-
-    elif shader_info[0] == "TwoLayerTerrain":
-
-        v_colors = nodes.new("ShaderNodeVertexColor")
-        v_colors.layer_name = 'vcols_1'
-        v_colors.location += Vector((-800.0, 0.0))
-
-        mix_node = nodes.new("ShaderNodeMixRGB")
-        mix_node.location += Vector((-600.0, 0.0))
-        mix_node.label = "TwoLayerTerrain"
-        mix_node.blend_type = 'ADD'
-        mix_node.inputs[0].default_value = 0.0
-
-        map_node = nodes.new("ShaderNodeUVMap")
-        map_node.location += Vector((-1800.0, 0.0))
-        map_node.uv_map = "UV2Map"
-        tree.links.new(map_node.outputs[0], tex_nodes[1].inputs[0])
-
-        tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[2])
-        tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[1])
-
-        tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "DiffuseEmissive":
-        tex_nodes[0].location = Vector((-290.0, 260.0))
-        tex_nodes[1].location = Vector((-780.0, -137.0))
-
-        v_colors = nodes.new("ShaderNodeVertexColor")
-        v_colors.layer_name = 'vcols_1'
-        v_colors.location = Vector((-520.0, -300.0))
-
-        mix_0 = nodes.new("ShaderNodeMath")
-        mix_0.operation = 'MULTIPLY'
-        mix_0.label = "Mix 0"
-        mix_0.location = Vector((-360.0, -180.0))
-        mix_0.inputs[0].default_value = 1.0
-
-        tree.links.new(tex_nodes[1].outputs[1], mix_0.inputs[0])
-        tree.links.new(v_colors.outputs[1], mix_0.inputs[1])
-
-        mix_1 = nodes.new("ShaderNodeMixRGB")
-        mix_1.blend_type = 'MULTIPLY'
-        mix_1.label = "Mix 1"
-        mix_1.location = Vector((-190.0, -40.0))
-        mix_1.inputs[0].default_value = 1.0
-
-        tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[1])
-        tree.links.new(mix_0.outputs[0], mix_1.inputs[2])
-
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-        tree.links.new(mix_1.outputs[0], shader_out.inputs[17])
-        shader_out.inputs[18].default_value = 2.0
-
-    elif shader_info[0] == "waterWindow":
-        tex_nodes[0].location = Vector((-475.0, 220.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[17])
-        tree.links.new(tex_nodes[0].outputs[1], shader_out.inputs[18])
-
-    elif shader_info[0] == "MaskedEnvMetal":
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "EnvMetalEmissive":
-
-        mix_node = nodes.new("ShaderNodeMixRGB")
-        mix_node.location += Vector((-600.0, 0.0))
-        mix_node.label = "EnvMetal"
-        mix_node.blend_type = 'ADD'
-
-        env_map = nodes.new('ShaderNodeGroup')
-        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
-        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
-
-        tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
-
-        # Tex 1 Alpha and Color
-        tree.links.new(tex_nodes[0].outputs[1], mix_node.inputs[0])
-        tree.links.new(tex_nodes[0].outputs[0], mix_node.inputs[1])
-
-        # Tex 2 Color
-        tree.links.new(tex_nodes[1].outputs[0], mix_node.inputs[2])
-
-        tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
-
-        tex_nodes[-1].projection = 'SPHERE'
-
-    elif shader_info[0] == "TwoLayerDiffuseOpaque":
-        tex_nodes[0].location = Vector((-860.0, 40.0))
-        tex_nodes[1].location = Vector((-660.0, 500.0))
-
-        v_colors = nodes.new("ShaderNodeVertexColor")
-        v_colors.layer_name = 'vcols_1'
-        v_colors.location += Vector((-760.0, 220.0))
-
-        mix_0 = nodes.new("ShaderNodeMath")
-        mix_0.operation = 'MULTIPLY'
-        mix_0.label = ("Mix 0")
-        mix_0.location += Vector((-560.0, 220.0))
-        mix_0.inputs[0].default_value = 1.0
-
-        tree.links.new(v_colors.outputs[1], mix_0.inputs[0])
-        tree.links.new(tex_nodes[0].outputs[1], mix_0.inputs[1])
-
-        mix_1 = nodes.new("ShaderNodeMixRGB")
-        mix_1.location += Vector((-190.0, 300.0))
-        mix_1.label = "Mix 1"
-        mix_1.blend_type = 'MIX'
-
-        tree.links.new(mix_0.outputs[0], mix_1.inputs[0])
-
-        if group_type == 2:
-            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[2])
-            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[1])
-        else:
-            tree.links.new(tex_nodes[0].outputs[0], mix_1.inputs[1])
-            tree.links.new(tex_nodes[1].outputs[0], mix_1.inputs[2])
-
-        tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "submarineWindow":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "TwoLayerDiffuseEmissive":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "DiffuseTerrain":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "AdditiveMaskedEnvMetal":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "TwoLayerDiffuseMod2x":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "TwoLayerDiffuseMod2xNA":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "TwoLayerDiffuseAlpha":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "Lod":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-    elif shader_info[0] == "Parallax":
-        tex_nodes[0].location = Vector((-270.0, 300.0))
-        tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # the rest is for m2, eliding
-        # else:
-        #     limit = len(self.bl_obj.material_slots) - 1
-        #     # if self.damage_control == True, self.json_tex_units wil be empty.
-        #     for unit in self.json_tex_units:
-        #         bl_mat = self.bl_obj.material_slots[
-        #             min(unit.get("skinSectionIndex"), limit)].material
-        #         tree = bl_mat.node_tree
-
-        #         # Lazy check to avoid re-building existing materials
-        #         if len(tree.nodes.items()) == 2:
-        #             if self.use_m2:
-        #                 build_shader(
-        #                     unit,
-        #                     bl_mat,
-        #                     self.json_mats,
-        #                     self.json_textures,
-        #                     self.json_tex_combos,
-        #                     self.base_shader,
-        #                     import_container=self,
-        #                     anim_combos=self.anim_combos,
-        #                 )
-        #             else:
-        #                 build_shader(
-        #                     unit,
-        #                     bl_mat,
-        #                     self.json_mats,
-        #                     self.json_textures,
-        #                     self.json_tex_combos,
-        #                     self.base_shader,
-        #                     import_container=self
-        #                 )
-
-        # return True
-
-
-
-
-
-        # if not load_step:
-        #     self.reports.errors.append('Failed to setup materials')
-
-        # progress.leave_substeps("WMO Loaded")
-
-        # return self.reports
