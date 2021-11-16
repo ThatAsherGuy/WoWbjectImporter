@@ -265,48 +265,48 @@ class WoWbject_texture(bpy.types.PropertyGroup):
 # single generic one that knows what field it's being called for?
 def get_wmo_exterior_ambient(self: "WoWbject_ObjectProperties") -> bpy.types.FloatVectorAttribute:
     if self.use_scene_wmo_lighting or "wmo_exterior_ambient_color" not in self:
-        return bpy.context.scene.WBJ.wmo_exterior_ambient_color
+        return cast(WoWbject_SceneProperties, bpy.context.scene.WBJ).wmo_exterior_ambient_color
     else:
         return self["wmo_exterior_ambient_color"]
 
 def get_wmo_exterior_horizon_ambient(self: "WoWbject_ObjectProperties") -> bpy.types.FloatVectorAttribute:
     if self.use_scene_wmo_lighting or "wmo_exterior_horizon_ambient_color" not in self:
-        return bpy.context.scene.WBJ.wmo_exterior_horizon_ambient_color
+        return cast(WoWbject_SceneProperties, bpy.context.scene.WBJ).wmo_exterior_horizon_ambient_color
     else:
         return self["wmo_exterior_horizon_ambient_color"]
 
 def get_wmo_exterior_ground_ambient(self: "WoWbject_ObjectProperties") -> bpy.types.FloatVectorAttribute:
     if self.use_scene_wmo_lighting or "wmo_exterior_ground_ambient_color" not in self:
-        return bpy.context.scene.WBJ.wmo_exterior_ground_ambient_color
+        return cast(WoWbject_SceneProperties, bpy.context.scene.WBJ).wmo_exterior_ground_ambient_color
     else:
         return self["wmo_exterior_ground_ambient_color"]
 
 def get_wmo_exterior_direct(self: "WoWbject_ObjectProperties") -> bpy.types.FloatVectorAttribute:
     if self.use_scene_wmo_lighting or "wmo_exterior_direct_color" not in self:
-        return bpy.context.scene.WBJ.wmo_exterior_direct_color
+        return cast(WoWbject_SceneProperties, bpy.context.scene.WBJ).wmo_exterior_direct_color
     else:
         return self["wmo_exterior_direct_color"]
 
 def get_wmo_exterior_direct_direction(self: "WoWbject_ObjectProperties") -> bpy.types.FloatVectorAttribute:
     if self.use_scene_wmo_lighting or "wmo_exterior_direct_color_direction" not in self:
-        return bpy.context.scene.WBJ.wmo_exterior_direct_color_direction
+        return cast(WoWbject_SceneProperties, bpy.context.scene.WBJ).wmo_exterior_direct_color_direction
     else:
         return self["wmo_exterior_direct_color_direction"]
 
 # and some setters
-def set_wmo_exterior_ambient(self: "WoWbject_ObjectProperties", val: bpy.types.FloatVectorAttribute) -> None:
+def set_wmo_exterior_ambient(self: 'WoWbject_ObjectProperties', val: bpy.types.FloatVectorAttribute) -> None:
     self["wmo_exterior_ambient_color"] = val
 
-def set_wmo_exterior_horizon_ambient(self: "WoWbject_ObjectProperties", val: bpy.types.FloatVectorAttribute) -> None:
+def set_wmo_exterior_horizon_ambient(self: 'WoWbject_ObjectProperties', val: bpy.types.FloatVectorAttribute) -> None:
     self["wmo_exterior_horizon_ambient_color"] = val
 
-def set_wmo_exterior_ground_ambient(self: "WoWbject_ObjectProperties", val: bpy.types.FloatVectorAttribute) -> None:
+def set_wmo_exterior_ground_ambient(self: 'WoWbject_ObjectProperties', val: bpy.types.FloatVectorAttribute) -> None:
     self["wmo_exterior_ground_ambient_color"] = val
 
-def set_wmo_exterior_direct(self: "WoWbject_ObjectProperties", val: bpy.types.FloatVectorAttribute) -> None:
+def set_wmo_exterior_direct(self: 'WoWbject_ObjectProperties', val: bpy.types.FloatVectorAttribute) -> None:
     self["wmo_exterior_direct_color"] = val
 
-def set_wmo_exterior_direct_direction(self: "WoWbject_ObjectProperties", val: bpy.types.FloatVectorAttribute) -> None:
+def set_wmo_exterior_direct_direction(self: 'WoWbject_ObjectProperties', val: bpy.types.FloatVectorAttribute) -> None:
     self["wmo_exterior_direct_color_direction"] = val
 
 
@@ -506,7 +506,7 @@ class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
         )
 
 
-def get_rate(self):
+def get_rate(self: 'WoWbject_NodeGroupProperties'):
     return bpy.context.scene.render.fps
 
 

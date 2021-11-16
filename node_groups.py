@@ -216,7 +216,7 @@ def load_texture(tex, import_container, mapping):
     return image
 
 
-def get_utility_group(name):
+def get_utility_group(name: str) -> bpy.types.NodeTree:
     '''
     Appends a node group from the bundled .blend file
     For whatever reason it appends the entire file, though.
@@ -231,6 +231,8 @@ def get_utility_group(name):
     filepath = os.path.join(blend_file, section, name)
     directory = os.path.join(blend_file, section)
 
+    x = bpy.ops
+    y = bpy.ops.wm
     bpy.ops.wm.append(
         'EXEC_DEFAULT',
         filepath=filepath,
@@ -244,7 +246,8 @@ def get_utility_group(name):
 
     # So it turns out, if you import a node with a driver on it,
     # it imports all of its dependencies. Like the entire scene,
-    # and all of its contents. Which is bad. So we do this:
+    # and all of its contents, if the driver depends on the scene itself
+    # (e.g. needs to look up the fps) Which is bad. So we do this:
     if name == 'TexturePanner':
         panner = bpy.data.node_groups[name]
 

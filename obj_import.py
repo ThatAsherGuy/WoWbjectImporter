@@ -110,6 +110,8 @@ class wmoGroup:
 
         self.colors = []
 
+def test():
+    fred = "bob"
 
 # FIXME: Legit needs fewer arguments
 def wmo_setup_blender_object(base_name: str, group: wmoGroup,

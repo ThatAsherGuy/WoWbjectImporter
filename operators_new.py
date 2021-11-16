@@ -24,6 +24,7 @@ from pathlib import Path
 
 import bpy
 import bpy.props
+import bmesh
 from bpy_extras.io_utils import ImportHelper
 from mathutils import Vector
 from math import radians
@@ -36,13 +37,17 @@ from .node_groups import do_wmo_combiner
 
 # from .utilties import do_import
 from . import preferences
-from .obj_import import wmo_setup_blender_object
-from .lookup_funcs import wmo_read_color
+# from .obj_import import wmo_setup_blender_object
+from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 # from .lookup_funcs import WMO_Shaders_New
 # from .lookup_funcs import wmo_read_mat_flags
 from .preferences import WoWbject_ObjectProperties
 
 import json
+
+
+def test():
+    fred = "bob"
 
 
 # FIXME: do we need to make this local/tweak this/etc?
@@ -59,7 +64,7 @@ class meshComponent:
     faces: List[Tuple[int, ...]]
     uv: List[float]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.usemtl = ''
         self.name = ''
         self.verts = set()
@@ -82,7 +87,7 @@ class meshObject:
     uv3: List[Tuple[float, ...]]
     components: List[meshComponent]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.usemtl = ''
         self.mtlfile = ''
         self.name = ''
@@ -107,7 +112,7 @@ class wmoGroup:
 
     colors: List[List[int]]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.mesh_data = None
         self.mesh_batches = []
 
@@ -243,14 +248,14 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         return {'RUNNING_MODAL'}
 
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
         print("new import execute")
         # prefs = preferences.get_prefs()
         # verbosity = prefs.reporting
         # default_dir = prefs.default_dir
 
         # not sure what the best type for args actually is
-        args: Dict[str, bpy.types.Property] = self.as_keywords(  # type: ignore
+        args: Dict[str, bpy.types.Property] = self.as_keywords(
             ignore=("filter_glob", "directory", "filepath", "files"))
 
         # FIXME: figure out how to do enum types returning str -correctly-
@@ -287,7 +292,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
 
         return {'FINISHED'}
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         root = layout.column(align=True)
         root.use_property_split = True
@@ -682,13 +687,13 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
 
             # (back to import_obj, I think?)
             # FIXME: Can I do this in a way without a cast?
-            newMesh = cast(bpy.types.BlendDataMeshes, bpy.data.meshes).new(basename)
+            newMesh = bpy.data.meshes.new(basename)
             newMesh.use_auto_smooth = True
             newMesh.auto_smooth_angle = radians(60)
 
 
             # FIXME: Not sure how to annotate the dynamic attribute here
-            newObj = cast(bpy.types.BlendDataObjects, bpy.data.objects).new(basename, newMesh)
+            newObj = bpy.data.objects.new(basename, newMesh)
             WBJ: WoWbject_ObjectProperties = newObj.WBJ
 
             # FIXME: Not sure how to type annotate the props to make these not
@@ -1001,7 +1006,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                 # for obj in container.bl_obj:
                 for obj in objects:
                     # FIXME: give MaterialSlot an __iter__  method instead of the typecast?
-                    for slot in cast(List[bpy.types.MaterialSlot], obj.material_slots):
+                    for slot in obj.material_slots:
                         mat_number = slot.material.name.split('_')[-1]
                         if '.' in mat_number:
                             mat_number = mat_number.split('.')[0]
@@ -1137,3 +1142,224 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                             do_vertex_lighting=op_args.get("use_vertex_lighting", False))
 
                         configured_mats.add(bl_mat)
+
+
+
+# FIXME: Legit needs fewer arguments
+def wmo_setup_blender_object(base_name: str, group: wmoGroup,
+                             mesh_data: meshObject, mat_dict: Dict[int, bpy.types.Material],
+                             merge_verts: bool = False, make_quads: bool = False,
+                             use_collections: bool = True) -> Optional[bpy.types.Object]:
+    if group.batch_count < 1:
+        return None
+
+    json_group = group.json_group
+
+    full_name = base_name + "_" + json_group.get("groupName", "section")
+    collection_name = json_group.get("groupDescription", None)
+    flags = wmo_read_group_flags(json_group.get("flags", 0))
+
+    mesh = bpy.data.meshes.new(base_name)
+    mesh.use_auto_smooth = True
+    mesh.auto_smooth_angle = radians(60)
+
+    newObj = bpy.data.objects.new(full_name, mesh)
+
+    newObj.WBJ.wow_model_type = 'WMO'
+    newObj.WBJ.initialized = True
+
+    # if "INTERIOR" in flags:
+    #     newObj.pass_index = 1
+    if 'INTERIOR' in flags and 'EXTERIOR' in flags:
+        newObj.WBJ.wmo_lighting_type = 'TRANSITION'
+    elif 'INTERIOR' in flags:
+        newObj.WBJ.wmo_lighting_type = 'INTERIOR'
+    elif 'EXTERIOR' in flags:
+        newObj.WBJ.wmo_lighting_type = 'EXTERIOR'
+    else:
+        newObj.WBJ.wmo_lighting_type = 'UNLIT'
+
+
+    bm = bmesh.new()
+    # vcols = bm.loops.layers.color.new("vcols")
+    uv_layer = bm.loops.layers.uv.new()
+
+    batches = group.mesh_batches
+    json_batches = group.json_batches
+    color_list = [clist for clist in group.colors if len(clist) > 0]
+    do_colors = True if len(color_list) > 0 else False
+
+    colors = {}
+    v_dict = {}
+    uv_dict = {}
+
+    for i, batch in enumerate(batches):
+        exampleFaceSet = False
+        cull_list = []
+        for face in batch.faces:
+            for v in face:
+                if type(v_dict.get(v)) == bmesh.types.BMVert:
+                    vert = v_dict[v]
+                else:
+                    vert = bm.verts.new(mesh_data.verts[v - 1])
+                    v_dict[v] = vert
+
+                # The data layer for vertex color is actually in the face loop.
+                # We can't set the color until after all of the faces are made,
+                # So we throw it all into a dictionary and brute-force it later.
+                # Note: There can theoretically be three sets of vertex colors.
+                if do_colors:
+                    if type(color_list[0]) == list:
+                        v_color = []
+                        for sublist in color_list:
+                            v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
+                    else:
+                        v_color = wmo_read_color(color_list[v - 1], 'CImVector')
+
+                    colors[vert] = v_color
+
+            try:
+                if exampleFaceSet == False:
+                    bface = bm.faces.new((
+                        v_dict[face[0]],
+                        v_dict[face[1]],
+                        v_dict[face[2]]
+                    ))
+                    exampleFace = bface
+                    exampleFaceSet = True
+
+                    if json_batches[i].get("flags") == 2:
+                        mat_ID = json_batches[i].get("possibleBox2")[2]
+                    else:
+                        mat_ID = json_batches[i].get("materialID")
+
+                    local_index = newObj.data.materials.find(mat_dict[mat_ID].name)
+
+                    if local_index == -1:
+                        newObj.data.materials.append(mat_dict[mat_ID])
+                        bface.material_index = newObj.data.materials.find(
+                            mat_dict[mat_ID].name)
+                    else:
+                        bface.material_index = local_index
+
+                else:
+                    bface = bm.faces.new((
+                        v_dict[face[0]],
+                        v_dict[face[1]],
+                        v_dict[face[2]]
+                    ), exampleFace)
+
+            except ValueError as err:
+
+                v1 = bm.verts.new(mesh_data.verts[face[0] - 1])
+                v2 = bm.verts.new(mesh_data.verts[face[1] - 1])
+                v3 = bm.verts.new(mesh_data.verts[face[2] - 1])
+
+                colors[v1] = colors[v_dict[face[0]]]
+                colors[v2] = colors[v_dict[face[1]]]
+                colors[v3] = colors[v_dict[face[2]]]
+
+                if exampleFaceSet == False:
+                    bface = bm.faces.new((v1, v2, v3))
+                    exampleFace = bface
+                    exampleFaceSet = True
+
+                    if json_batches[i].get("flags") == 2:
+                        mat_ID = json_batches[i].get("possibleBox2")[2]
+                    else:
+                        mat_ID = json_batches[i].get("materialID")
+
+                    local_index = newObj.data.materials.find(mat_dict[mat_ID].name)
+
+                    if local_index == -1:
+                        newObj.data.materials.append(mat_dict[mat_ID])
+                        bface.material_index = newObj.data.materials.find(
+                            mat_dict[mat_ID].name)
+                    else:
+                        bface.material_index = local_index
+                else:
+                    bface = bm.faces.new((v1, v2, v3), exampleFace)
+
+                err_detail = (
+                    f"Duplicate Face: {face[0]}/{face[0]}/{face[0]} {face[1]}/{face[1]}/{face[1]} {face[2]}/{face[2]}/{face[2]}")
+                print(err_detail)
+                pass
+
+    if len(mesh_data.uv2) > 0:
+        uv2_layer = bm.loops.layers.uv.new('UV2Map')
+
+    if len(mesh_data.uv3) > 0:
+        uv3_layer = bm.loops.layers.uv.new('UV3Map')
+
+    bm.faces.ensure_lookup_table()
+
+    face_list = [batch.faces for batch in batches]
+    face_list = [face for sublist in face_list for face in sublist]
+
+    for i, face in enumerate(face_list):
+        for j, loop in enumerate(bm.faces[i].loops):
+            loop[uv_layer].uv = mesh_data.uv[face[j] - 1]
+
+            if len(mesh_data.uv2) > 0:
+                loop[uv2_layer].uv = mesh_data.uv2[face[j] - 1]
+
+            if len(mesh_data.uv3) > 0:
+                loop[uv3_layer].uv = mesh_data.uv3[face[j] - 1]
+
+    # bm.verts.ensure_lookup_table()
+
+    if len(color_list) > 0:
+        vcols = []
+        for i, clist in enumerate(color_list):
+            vcols.append(bm.loops.layers.color.new(f"vcols_{i}"))
+
+        for i, vert in enumerate(bm.verts):
+            for loop in vert.link_loops:
+                for i, vcol_list in enumerate(vcols):
+                    loop[vcol_list] = colors[vert][i]
+
+    if merge_verts:
+        st = recursive_remove_doubles(bm, verts=bm.verts, dist=0.00001)
+        print(
+            f"{newObj.name}:"
+            f" {st['removed_verts']} of {st['start_verts']} verts removed"
+            f" in {st['merge_passes']} passes"
+            f" in {st['total_time']:1.6f}s"
+            f" ({st['end_verts']} verts remain)"
+        )
+
+    bm.to_mesh(mesh)
+    bm.free()
+
+    newObj.rotation_euler = [0, 0, 0]
+    newObj.rotation_euler.x = radians(90)
+
+    if use_collections and collection_name:
+        if collection_name in bpy.data.collections:
+            collection = bpy.data.collections[collection_name]
+        else:
+            collection = bpy.data.collections.new(collection_name)
+            bpy.context.scene.collection.children.link(collection)
+
+        collection.objects.link(newObj)
+    else:
+        bpy.context.view_layer.active_layer_collection.collection.objects.link(
+            newObj)
+
+
+    if make_quads:
+        st = tris_to_quads(newObj, 5.0)
+        print(
+            f"{newObj.name}:"
+            f" {st['removed_faces']} of {st['start_faces']} faces removed"
+            f" in {st['total_time']:1.6f}s"
+            f" ({st['end_faces']} faces remain)"
+        )
+
+    # Give us a reasonable origin on everything
+    bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
+    newObj.select_set(True)
+    bpy.ops.object.origin_set('INVOKE_DEFAULT', False, type='ORIGIN_GEOMETRY', center='MEDIAN')
+    bpy.ops.object.shade_smooth('INVOKE_DEFAULT', False)
+
+    return newObj
