@@ -12,9 +12,9 @@ ignore = [
 python_version = 3.9
 
 mypy_path = "typings"
-exclude = "typings.*"
+exclude = "^(typings/|kaitai/|tests/|wowbjectimport_updater/|addon_updater\\.py)"
 
-follow-imports = "silent"
+follow_imports = "silent"
 ignore_missing_imports = true
 namespace_packages = true
 
