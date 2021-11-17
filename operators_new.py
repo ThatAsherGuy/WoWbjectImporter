@@ -400,116 +400,114 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
             WBJ.initialized = True
 
             # if import_container.wmo:
-            if True:
-                json_mats = json_config.get("materials")
-                json_groups = json_config.get("groups")
+            json_mats = json_config.get("materials")
+            json_groups = json_config.get("groups")
 
-                # START def repack_wmo(import_container, groups: dict, mesh_data: meshObject, config: dict):
-                groups: List[wmoGroup] = []
-                offset = 0
+            # START def repack_wmo(import_container, groups: dict, mesh_data: meshObject, config: dict):
+            groups: List[wmoGroup] = []
+            offset = 0
 
-                flat_colors: List[List[int]] = [[], [], []]
+            flat_colors: List[List[int]] = [[], [], []]
 
-                for group in json_groups:
-                    g_batches = group.get("renderBatches", [])
-                    g_length = len(g_batches)
+            for group in json_groups:
+                g_batches = group.get("renderBatches", [])
+                g_length = len(g_batches)
 
-                    if g_length > 0:
-                        g_slice = slice(offset, offset + g_length)
-                        wmo_group = wmoGroup()
+                if g_length > 0:
+                    g_slice = slice(offset, offset + g_length)
+                    wmo_group = wmoGroup()
 
-                        wmo_group.json_group = group
-                        wmo_group.json_batches = g_batches
-                        wmo_group.mesh_batches = mesh_data.components[g_slice]
-                        wmo_group.batch_count = g_length
+                    wmo_group.json_group = group
+                    wmo_group.json_batches = g_batches
+                    wmo_group.mesh_batches = mesh_data.components[g_slice]
+                    wmo_group.batch_count = g_length
 
-                        wmo_group.mesh_data = mesh_data
-                        groups.append(wmo_group)
+                    wmo_group.mesh_data = mesh_data
+                    groups.append(wmo_group)
 
-                        vcolors = group.get("vertexColours", [])
-                        last_color = g_batches[-1].get("lastVertex", -1) + 1
+                    vcolors = group.get("vertexColours", [])
+                    last_color = g_batches[-1].get("lastVertex", -1) + 1
 
-                        vertex_count = 0
-                        for comp in wmo_group.mesh_batches:
-                            vertex_count += len(comp.verts)
+                    vertex_count = 0
+                    for comp in wmo_group.mesh_batches:
+                        vertex_count += len(comp.verts)
 
-                        if len(vcolors) == 2:
-                            flat_colors[0] += vcolors[0][0:last_color]
-                            flat_colors[1] += vcolors[1][0:last_color]
-                        elif len(vcolors) == 1:
-                            flat_colors[0] += vcolors[0][0:last_color]
-                            flat_colors[1] += [0 for _ in vcolors[0]]
-                        elif len(vcolors) == 0:
-                            if vertex_count > 0:
-                                flat_colors[0] += [0 for _ in range(vertex_count)]
-                                flat_colors[1] += [0 for _ in range(vertex_count)]
+                    if len(vcolors) == 2:
+                        flat_colors[0] += vcolors[0][0:last_color]
+                        flat_colors[1] += vcolors[1][0:last_color]
+                    elif len(vcolors) == 1:
+                        flat_colors[0] += vcolors[0][0:last_color]
+                        flat_colors[1] += [0 for _ in vcolors[0]]
+                    elif len(vcolors) == 0:
+                        if vertex_count > 0:
+                            flat_colors[0] += [0 for _ in range(vertex_count)]
+                            flat_colors[1] += [0 for _ in range(vertex_count)]
 
-                        wmo_group.colors = flat_colors
+                    wmo_group.colors = flat_colors
 
-                        offset += g_length
-                        wmo_group.group_offset = offset
+                    offset += g_length
+                    wmo_group.group_offset = offset
 
-                    else:
-                        wmo_group = wmoGroup()
-                        wmo_group.json_group = group
-                        wmo_group.batch_count = 0
-                        groups.append(wmo_group)
+                else:
+                    wmo_group = wmoGroup()
+                    wmo_group.json_group = group
+                    wmo_group.batch_count = 0
+                    groups.append(wmo_group)
 
-                        err_gname = group.get("groupName", "")
-                        err_gdesc = group.get("groupDescription", "")
-                        print(f"{err_gname} {err_gdesc} Batchless")
+                    err_gname = group.get("groupName", "")
+                    err_gdesc = group.get("groupDescription", "")
+                    print(f"{err_gname} {err_gdesc} Batchless")
 
-                        err_numbatch = group.get("numPortals", "")
-                        print(f"numPortals: {err_numbatch}")
+                    err_numbatch = group.get("numPortals", "")
+                    print(f"numPortals: {err_numbatch}")
 
-                        err_numbatch = group.get("numBatchesA", "")
-                        print(f"numBatchesA: {err_numbatch}")
+                    err_numbatch = group.get("numBatchesA", "")
+                    print(f"numBatchesA: {err_numbatch}")
 
-                        err_numbatch = group.get("numBatchesB", "")
-                        print(f"numBatchesB: {err_numbatch}")
+                    err_numbatch = group.get("numBatchesB", "")
+                    print(f"numBatchesB: {err_numbatch}")
 
-                        err_numbatch = group.get("numBatchesC", "")
-                        print(f"numBatchesC: {err_numbatch}")
+                    err_numbatch = group.get("numBatchesC", "")
+                    print(f"numBatchesC: {err_numbatch}")
 
-                wmo_groups = groups
-                # END repack_wmo
+            wmo_groups = groups
+            # END repack_wmo
 
-                # FIXME: Is mat_dict a dict or a list?
-                mat_dict: Dict[int, bpy.types.Material] = {}
+            # FIXME: Is mat_dict a dict or a list?
+            mat_dict: Dict[int, bpy.types.Material] = {}
 
-                for i, mat in enumerate(json_mats):
-                    mat = cast(bpy.types.BlendDataMaterials, bpy.data.materials).new(
-                        name=basename + "_mat_" + str(i))
-                    mat.use_nodes = True
-                    # mat_name = mat.name
-                    mat_dict[i] = mat
+            for i, mat in enumerate(json_mats):
+                mat = cast(bpy.types.BlendDataMaterials, bpy.data.materials).new(
+                    name=basename + "_mat_" + str(i))
+                mat.use_nodes = True
+                mat_dict[i] = mat
 
-                print(f"mat type thing: {type(i)} - {type(mat_dict)}")
+            print(f"mat type thing: {type(i)} - {type(mat_dict)}")
 
-                objects: List[bpy.types.Object] = []
+            objects: List[bpy.types.Object] = []
 
-                steps = len(wmo_groups)
-                print(f"working on {steps} groups")
+            steps = len(wmo_groups)
+            print(f"working on {steps} groups")
 
-                print("Generating meshes")
-                for i, group in enumerate(wmo_groups):
-                    sub = group.json_group.get("groupName", "")
-                    print(f"Constructing object {i + 1}/{steps} | {sub}")
+            print("Generating meshes")
+            for i, group in enumerate(wmo_groups):
+                sub = group.json_group.get("groupName", "")
+                print(f"Constructing object {i + 1}/{steps} | {sub}")
 
-                    # FIXME: revisit -- should inline this probably, too
-                    bl_obj = wmo_setup_blender_object(
-                        # FIXME: make group num into metadata
-                        base_name=f"{i:03d}_{basename}",
-                        group=group,
-                        mesh_data=mesh_data,
-                        mat_dict=mat_dict,
-                        # merge_verts=merge_verts,
-                        # make_quads=make_quads,
-                        # use_collections=use_collections
-                    )
+                # FIXME: revisit -- should inline this probably, too
+                bl_obj = wmo_setup_blender_object(
+                    # FIXME: make group num into metadata
+                    base_name=f"{i:03d}_{basename}",
+                    group=group,
+                    mesh_data=mesh_data,
+                    mat_dict=mat_dict,
+                    # merge_verts=merge_verts,
+                    # make_quads=make_quads,
+                    # use_collections=use_collections
+                )
 
-                    if bl_obj:
-                        objects.append(bl_obj)
+                if bl_obj:
+                    objects.append(bl_obj)
 
             # END initialize_mesh (maybe?)
         # END import_obj
@@ -628,7 +626,8 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                     shader = nodes.new("ShaderNodeEmission")
 
                 # FIXME: Can we clean up the type casting on this?
-                cast(bpy.types.NodeLinks, tree.links).new(cast(bpy.types.Node, shader).outputs[0], out_node.inputs[0])
+                cast(bpy.types.NodeLinks, tree.links).new(
+                    cast(bpy.types.Node, shader).outputs[0], out_node.inputs[0])
 
                 baseColor = nodes.new('ShaderNodeRGB')
                 baseColor.location += Vector((-1200.0, 400.0))
@@ -661,6 +660,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
             # END do_wmo_mats
             # END setup_materials
 
+
 # FIXME: Legit needs fewer arguments
 def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                              mesh_data: meshObject, mat_dict: Dict[int, bpy.types.Material],
@@ -680,20 +680,20 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     mesh.auto_smooth_angle = radians(60)
 
     newObj = bpy.data.objects.new(full_name, mesh)
-
-    newObj.WBJ.wow_model_type = 'WMO'
-    newObj.WBJ.initialized = True
+    WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)
+    WBJ.wow_model_type = 'WMO'
+    WBJ.initialized = True
 
     # if "INTERIOR" in flags:
     #     newObj.pass_index = 1
     if 'INTERIOR' in flags and 'EXTERIOR' in flags:
-        newObj.WBJ.wmo_lighting_type = 'TRANSITION'
+        WBJ.wmo_lighting_type = 'TRANSITION'
     elif 'INTERIOR' in flags:
-        newObj.WBJ.wmo_lighting_type = 'INTERIOR'
+        WBJ.wmo_lighting_type = 'INTERIOR'
     elif 'EXTERIOR' in flags:
-        newObj.WBJ.wmo_lighting_type = 'EXTERIOR'
+        WBJ.wmo_lighting_type = 'EXTERIOR'
     else:
-        newObj.WBJ.wmo_lighting_type = 'UNLIT'
+        WBJ.wmo_lighting_type = 'UNLIT'
 
 
     bm = bmesh.new()
@@ -707,14 +707,19 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
 
     colors = {}
     v_dict = {}
-    uv_dict = {}
+    # uv_dict = {}
 
     for i, batch in enumerate(batches):
         exampleFaceSet = False
-        cull_list = []
+        # cull_list = []
         for face in batch.faces:
             for v in face:
-                if type(v_dict.get(v)) == bmesh.types.BMVert:
+                # if type(v_dict.get(v)) == bmesh.types.BMVert:
+                #     vert = v_dict[v]
+                # else:
+                #     vert = bm.verts.new(mesh_data.verts[v - 1])
+                #     v_dict[v] = vert
+                if v in v_dict:
                     vert = v_dict[v]
                 else:
                     vert = bm.verts.new(mesh_data.verts[v - 1])
@@ -749,7 +754,11 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     else:
                         mat_ID = json_batches[i].get("materialID")
 
-                    local_index = newObj.data.materials.find(mat_dict[mat_ID].name)
+                    # vvvv FIXME vvvv
+                    local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
+                        mat_dict[mat_ID].name)
+                    print(type(newObj.data))
+                    print(type(newObj.data.materials))
 
                     if local_index == -1:
                         newObj.data.materials.append(mat_dict[mat_ID])

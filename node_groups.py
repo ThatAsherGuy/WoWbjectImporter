@@ -22,7 +22,8 @@ import bmesh
 import bpy
 from mathutils import Vector
 from . import preferences
-from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, WMO_Shaders_New, read_wmo_face_flags, wmo_read_mat_flags
+from .lookup_tables import WMO_Shaders
+from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, read_wmo_face_flags, wmo_read_mat_flags
 import os
 import json
 
@@ -684,7 +685,7 @@ def do_wmo_combiner(**kwargs):
     mat_info = kwargs.get("mat_info")
     ambColor = kwargs.get("ambient")
 
-    shader_info = WMO_Shaders_New[mat_info.get("shader", 0)]
+    shader_info = WMO_Shaders[mat_info.get("shader", 0)]  # should this be a func call?
     blend_info = mat_info.get("blendMode")
     group_type = mat_info.get("groupType", -1)
 
