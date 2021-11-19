@@ -18,18 +18,19 @@
 
 # Hell is other people's code
 
-import bmesh
 import bpy
 from mathutils import Vector
 from . import preferences
 from .lookup_tables import WMO_Shaders
-from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, read_wmo_face_flags, wmo_read_mat_flags
+from .lookup_funcs import get_vertex_shader, get_shadereffects, wmo_read_color, wmo_read_mat_flags
 import os
 import json
+from .wbjtypes import JsonWmoMaterial
+from typing import List, Tuple
 
 # This function does a lot; likely too much.
 # A lot of the code here is rote node-connecting, though.
-def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs):
+def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_shader, **kwargs) -> None:
     cwd = os.getcwd()
     texCount = unit.get("textureCount")
     texOffset = unit.get("textureComboIndex")
@@ -61,7 +62,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
     # Arbitrarily breaking things out into different material passes
     # so they can be composited later. Only matters for Cycles.
     mat.pass_index = 1
-    mat.use_backface_culling = True
+    mat.use_backface_culling = False  # FIXME: make this being true an option again
 
     blend_seq = blend_type.split('_')
     if blend_seq[2] == 'Opaque':
@@ -652,18 +653,18 @@ def do_wmo_mats(**kwargs):
                 shader_out=shader,
                 mat_info=mat,
                 ambient=ambColor,
-                do_vertex_lighting=container.op_args.get("use_vertex_lighting", False))
+            )
 
             configured_mats.add(bl_mat)
 
         # setup_wmo_batches(container, config)
 
 
-def get_tex(container, tex_num):
+def get_tex(container, tex_num: int):
     if tex_num == 0:
         return None
 
-    name = tex_num + ".png"
+    name = f"{tex_num}.png"
     path = os.path.join(container.source_directory, name)
     if os.path.isfile(path):
         if name in bpy.data.images:
@@ -675,19 +676,24 @@ def get_tex(container, tex_num):
     else:
         return None
 
-def do_wmo_combiner(**kwargs):
+
+# do_wmo_combiner(
+#     tex_nodes=tex_nodes,  # list[ShaderNodeTexImage]
+#     bl_mat=bl_mat,        # Material
+#     shader_out=shader,    # ShaderNodeGroup | Node | ShaderNodeEmission
+#     mat_info=mat,         # JsonMaterial
+#     ambient=ambColor,     # Tuple[float, float, float, float]
+# )
+# FIXME: Make 'ambient' a proper data type
+def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
+                    bl_mat: bpy.types.Material, shader_out: bpy.types.ShaderNodeGroup,
+                    mat_info: JsonWmoMaterial, ambient: Tuple[float, float, float, float]):
     use_combiner_nodes = True
-    do_vertex_lighting = kwargs.get("do_vertex_lighting", False)
+    do_vertex_lighting = True
 
-    tex_nodes = kwargs.get("tex_nodes")
-    bl_mat = kwargs.get("bl_mat")
-    shader_out = kwargs.get("shader_out")
-    mat_info = kwargs.get("mat_info")
-    ambColor = kwargs.get("ambient")
-
-    shader_info = WMO_Shaders[mat_info.get("shader", 0)]  # should this be a func call?
-    blend_info = mat_info.get("blendMode")
-    group_type = mat_info.get("groupType", -1)
+    shader_info = WMO_Shaders[mat_info["shader"]]  # should this be a func call?
+    blend_info = mat_info["blendMode"]
+    group_type = mat_info["groupType"]
 
     tree = bl_mat.node_tree
     nodes = tree.nodes
@@ -695,13 +701,13 @@ def do_wmo_combiner(**kwargs):
     shader_out.label = shader_info[0]
     # shader_out.inputs[5].default_value = 0.0 # Breaking all measures of physical accuracy here.
 
-    bl_mat.use_backface_culling = True
+    bl_mat.use_backface_culling = False
 
-    flags = wmo_read_mat_flags(mat_info.get("flags", 0))
+    flags = wmo_read_mat_flags(mat_info["flags"])
 
     for flag in flags:
         if flag == 'TWO_SIDED':
-            bl_mat.use_backface_culling = False
+            bl_mat.use_backface_culling = False  # FIXME: make this optional again
 
     if blend_info == 2:
         bl_mat.blend_method = 'BLEND'
@@ -719,22 +725,20 @@ def do_wmo_combiner(**kwargs):
 
         for node_input in mixer.inputs:
             if node_input.name == "Vertex RGB":
+                v_colors = nodes.new("ShaderNodeVertexColor")
+                v_colors.layer_name = 'vcols_0'
+                v_colors.location = Vector((-975.0, 200.0))
 
-                if do_vertex_lighting:
-                    v_colors = nodes.new("ShaderNodeVertexColor")
-                    v_colors.layer_name = 'vcols_0'
-                    v_colors.location = Vector((-975.0, 200.0))
+                lighting = nodes.new('ShaderNodeGroup')
+                lighting.node_tree = get_utility_group(name="WMO_VertexLightingFancy")
+                lighting.location = Vector((-775.0, 150.0))
 
-                    lighting = nodes.new('ShaderNodeGroup')
-                    lighting.node_tree = get_utility_group(name="WMO_VertexLightingFancy")
-                    lighting.location = Vector((-775.0, 150.0))
+                lighting.inputs[2].default_value = ambient
 
-                    lighting.inputs[2].default_value = ambColor
+                tree.links.new(lighting.outputs[0], mixer.inputs[0])
 
-                    tree.links.new(lighting.outputs[0], mixer.inputs[0])
-
-                    tree.links.new(v_colors.outputs[0], lighting.inputs[4])
-                    tree.links.new(v_colors.outputs[1], mixer.inputs[1])
+                tree.links.new(v_colors.outputs[0], lighting.inputs[4])
+                tree.links.new(v_colors.outputs[1], mixer.inputs[1])
 
             elif node_input.name == "Vertex2 RGB":
                 v_colors2 = nodes.new("ShaderNodeVertexColor")
@@ -802,7 +806,6 @@ def do_wmo_combiner(**kwargs):
         shader_out.inputs[7].default_value = 0.5
 
     elif shader_info[0] == "Env":
-
         env_map = nodes.new('ShaderNodeGroup')
         env_map.node_tree = get_utility_group(name="SphereMap_Alt")
         env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
@@ -820,6 +823,7 @@ def do_wmo_combiner(**kwargs):
         tree.links.new(mix_node.outputs[0], shader_out.inputs[0])
 
         tex_nodes[-1].projection = 'SPHERE'
+
     elif shader_info[0] == "Opaque":
         tex_nodes[0].location = Vector((-270.0, 300.0))
         tree.links.new(tex_nodes[0].outputs[0], shader_out.inputs[0])
@@ -920,7 +924,6 @@ def do_wmo_combiner(**kwargs):
         tree.links.new(mix_1.outputs[0], shader_out.inputs[0])
 
     elif shader_info[0] == "TwoLayerEnvMetal":
-
         tex_nodes[0].location = Vector((-1000.0, 120.0))
         tex_nodes[1].location = Vector((-620.0, 20.0))
         tex_nodes[2].location = Vector((-1000.0, -160.0))
@@ -957,7 +960,6 @@ def do_wmo_combiner(**kwargs):
         tree.links.new(env_map.outputs[0], tex_nodes[-1].inputs[0])
 
     elif shader_info[0] == "TwoLayerTerrain":
-
         v_colors = nodes.new("ShaderNodeVertexColor")
         v_colors.layer_name = 'vcols_1'
         v_colors.location += Vector((-800.0, 0.0))

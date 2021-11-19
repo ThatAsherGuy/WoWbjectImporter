@@ -22,7 +22,7 @@ import bpy
 import os
 from . import addon_updater_ops
 
-from typing import TYPE_CHECKING, cast, Dict
+from typing import TYPE_CHECKING, cast, Dict, Tuple
 
 class wowbjectAddonPrefs(bpy.types.AddonPreferences):
     bl_idname = __package__
@@ -315,7 +315,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
     Mostly Summary Information
     """
     if TYPE_CHECKING:
-        initialized: bpy.types.BoolProperty
+        # initialized: bpy.types.BoolProperty
+        initialized: bool
     else:
         initialized: bpy.props.BoolProperty(
             default=False,
@@ -329,7 +330,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
     ]
 
     if TYPE_CHECKING:
-        wow_model_type: bpy.types.EnumProperty
+        # wow_model_type: bpy.types.EnumProperty
+        wow_model_type: str
     else:
         wow_model_type: bpy.props.EnumProperty(
             name="Model Type",
@@ -346,7 +348,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
 
     # FIXME: Is this better as an enum, or something broken down?
     if TYPE_CHECKING:
-        wmo_lighting_type: bpy.types.EnumProperty
+        # wmo_lighting_type: bpy.types.EnumProperty
+        wmo_lighting_type: str
     else:
         wmo_lighting_type: bpy.props.EnumProperty(
             name="Lighting",
@@ -356,7 +359,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
         )
 
     if TYPE_CHECKING:
-        use_scene_wmo_lighting: bpy.types.BoolProperty
+        # use_scene_wmo_lighting: bpy.types.BoolProperty
+        use_scene_wmo_lighting: bool
     else:
         use_scene_wmo_lighting: bpy.props.BoolProperty(
             name="Use Scene WMO Lighting",
@@ -364,7 +368,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
         )
 
     if TYPE_CHECKING:
-        speed_factor: bpy.types.FloatProperty
+        # speed_factor: bpy.types.FloatProperty
+        speed_factor: float
     else:
         speed_factor: bpy.props.FloatProperty(
             name="UV Animation Speed",
@@ -372,7 +377,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
         )
 
     if TYPE_CHECKING:
-        source_asset: bpy.types.StringProperty
+        # source_asset: bpy.types.StringProperty
+        source_asset: str
     else:
         source_asset: bpy.props.StringProperty(
             name="Source File",
@@ -384,7 +390,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
         )
 
     if TYPE_CHECKING:
-        source_directory: bpy.types.StringProperty
+        # source_directory: bpy.types.StringProperty
+        source_directory: str
     else:
         source_directory: bpy.props.StringProperty(
             name="Source Directory",
@@ -405,7 +412,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
     # WMO bits, mostly an exact duplicate of what's in the scene
     # FIXME: Can we deduplicate anything at all?
     if TYPE_CHECKING:
-        wmo_exterior_ambient_color: bpy.types.FloatVectorAttribute
+        # wmo_exterior_ambient_color: bpy.types.FloatVectorAttribute
+        wmo_exterior_ambient_color: Tuple[float, float, float]   # or just List?
     else:
         wmo_exterior_ambient_color: bpy.props.FloatVectorProperty(
             name="WMO Exterior Ambient Color",
@@ -418,7 +426,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
             set=set_wmo_exterior_ambient
         )
     if TYPE_CHECKING:
-        wmo_exterior_horizon_ambient_color: bpy.types.FloatVectorAttribute
+        # wmo_exterior_horizon_ambient_color: bpy.types.FloatVectorAttribute
+        wmo_exterior_horizon_ambient_color: Tuple[float, float, float]
     else:
         wmo_exterior_horizon_ambient_color: bpy.props.FloatVectorProperty(
             name="WMO Exterior Horizon Ambient Color",
@@ -431,7 +440,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
             set=set_wmo_exterior_horizon_ambient,
         )
     if TYPE_CHECKING:
-        wmo_exterior_ground_ambient_color: bpy.types.FloatVectorAttribute
+        # wmo_exterior_ground_ambient_color: bpy.types.FloatVectorAttribute
+        wmo_exterior_ground_ambient_color: Tuple[float, float, float]
     else:
         wmo_exterior_ground_ambient_color: bpy.props.FloatVectorProperty(
             name="WMO Exterior Ground Ambient Color",
@@ -445,7 +455,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
         )
 
     if TYPE_CHECKING:
-        wmo_exterior_direct_color: bpy.types.FloatVectorAttribute
+        # wmo_exterior_direct_color: bpy.types.FloatVectorAttribute
+        wmo_exterior_direct_color: Tuple[float, float, float]
     else:
         wmo_exterior_direct_color: bpy.props.FloatVectorProperty(
             name="WMO Exterior Direct Lighting Color",
@@ -461,7 +472,8 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
             set=set_wmo_exterior_direct,
         )
     if TYPE_CHECKING:
-        wmo_exterior_direct_color_direction: bpy.types.FloatVectorAttribute
+        # wmo_exterior_direct_color_direction: bpy.types.FloatVectorAttribute
+        wmo_exterior_direct_color_direction: Tuple[float, float, float]
     else:
         wmo_exterior_direct_color_direction: bpy.props.FloatVectorProperty(
             name="WMO Exterior Direct Lighting Direction",

@@ -42,7 +42,7 @@ from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 # from .lookup_funcs import WMO_Shaders_New
 # from .lookup_funcs import wmo_read_mat_flags
 from .preferences import WoWbject_ObjectProperties
-
+from .wbjtypes import JsonWmoMetadata, JsonWmoGroup
 import json
 
 
@@ -104,7 +104,7 @@ class wmoGroup:
     mesh_data: Optional[meshObject]
     mesh_batches: List[meshComponent]
 
-    json_group: Dict[str, Any]
+    json_group: JsonWmoGroup
     group_offset: int
 
     json_batches: List[Any]  # FIXME: type
@@ -307,6 +307,11 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
             print(f"failed to load metadata from '{file}', can't continue")
             return
 
+        # to get the type right and not have it be a union with 'None' forever,
+        # we assign to itself with a cast.
+        # FIXME: Is there a better way?
+        json_config = cast(JsonWmoMetadata, json_config)
+
         if not json_config:
             print(f"failed to load metadata file {file.with_suffix('.json')}")
 
@@ -321,7 +326,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
     # START def do_setup(self, files, directory, op_args, **kwargs):
     if True:
         # START def setup_json_data(self, **kwargs):
-        if ".wmo" not in json_config.get("fileName", ""):
+        if ".wmo" not in json_config["fileName"]:
             print("ERROR: trying to import a non-WMO file")
         # END setup_json_data
 
@@ -337,7 +342,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
             print("Reading OBJ File")
 
             # START def initialize_mesh(mesh_path: str):
-            obj = meshObject()
+            mesh_data = meshObject()
             meshIndex = -1
 
             # TODO: Replace with a more robust port of the ImportObj add-on's process
@@ -351,36 +356,34 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                         continue
                     line_start = line_split[0]
                     if line_start == b'mtllib':
-                        obj.mtlfile = str(line_split[1])
+                        mesh_data.mtlfile = str(line_split[1])
                     elif line_start == b'v':
                         # FIXME: replace all the things like this with proper
                         # vec2/vec3/vec4 tuples
-                        obj.verts.append(tuple([float(v) for v in line_split[1:]]))
+                        mesh_data.verts.append(tuple([float(v) for v in line_split[1:]]))
                     elif line_start == b'vn':
-                        obj.normals.append(tuple([float(v) for v in line_split[1:]]))
+                        mesh_data.normals.append(tuple([float(v) for v in line_split[1:]]))
                     elif line_start == b'vt3':
-                        obj.uv3.append(tuple([float(v) for v in line_split[1:]]))
+                        mesh_data.uv3.append(tuple([float(v) for v in line_split[1:]]))
                     elif line_start == b'vt2':
                         if not line_split[1] == b'undefined':
-                            obj.uv2.append(tuple([float(v) for v in line_split[1:]]))
+                            mesh_data.uv2.append(tuple([float(v) for v in line_split[1:]]))
                         else:
-                            obj.uv2.append((0.0, 0.0))
+                            mesh_data.uv2.append((0.0, 0.0))
                     elif line_start == b'vt':
-                        obj.uv.append(tuple([float(v) for v in line_split[1:]]))
+                        mesh_data.uv.append(tuple([float(v) for v in line_split[1:]]))
                     elif line_start == b'f':
                         line_split = line_split[1:]
                         fv = [int(v.split(b'/')[0]) for v in line_split]
-                        obj.components[meshIndex].faces.append((fv[0], fv[1], fv[2]))
-                        obj.components[meshIndex].verts.update([i - 1 for i in fv])
+                        mesh_data.components[meshIndex].faces.append((fv[0], fv[1], fv[2]))
+                        mesh_data.components[meshIndex].verts.update([i - 1 for i in fv])
                         f_count += 1
                     elif line_start == b'g':
                         meshIndex += 1
-                        obj.components.append(meshComponent())
-                        obj.components[meshIndex].name = line_split[1].decode('utf-8')
+                        mesh_data.components.append(meshComponent())
+                        mesh_data.components[meshIndex].name = line_split[1].decode('utf-8')
                     elif line_start == b'usemtl':
-                        obj.components[meshIndex].usemtl = line_split[1].decode('utf-8')
-
-            mesh_data = obj
+                        mesh_data.components[meshIndex].usemtl = line_split[1].decode('utf-8')
             # END INLINE: initialize_mesh
 
             # FIXME: Can I do this in a way without a cast?
@@ -391,7 +394,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
 
             # FIXME: Not sure how to annotate the dynamic attribute here
             newObj = bpy.data.objects.new(basename, newMesh)
-            WBJ: WoWbject_ObjectProperties = newObj.WBJ
+            WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)
 
             # FIXME: Not sure how to type annotate the props to make these not
             # complain? But should be possible?
@@ -400,8 +403,8 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
             WBJ.initialized = True
 
             # if import_container.wmo:
-            json_mats = json_config.get("materials")
-            json_groups = json_config.get("groups")
+            json_mats = json_config["materials"]
+            json_groups = json_config["groups"]
 
             # START def repack_wmo(import_container, groups: dict, mesh_data: meshObject, config: dict):
             groups: List[wmoGroup] = []
@@ -477,8 +480,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
             mat_dict: Dict[int, bpy.types.Material] = {}
 
             for i, mat in enumerate(json_mats):
-                mat = cast(bpy.types.BlendDataMaterials, bpy.data.materials).new(
-                    name=basename + "_mat_" + str(i))
+                mat = bpy.data.materials.new(name=basename + "_mat_" + str(i))
                 mat.use_nodes = True
                 mat_dict[i] = mat
 
@@ -518,8 +520,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
 
         # START def setup_materials(self):
         # START def do_wmo_mats(**kwargs):
-        config = json_config
-        mats = config.get("materials")
+        mats = json_config["materials"]
 
         configured_mats: Set[bpy.types.Material] = set()
 
@@ -534,63 +535,56 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
 
                 # next bits simplified from node_groups.py:get_tex
                 # tex1 = get_tex(container, str(mat.get("texture1")))
-                texnum = mat.get('texture1')
+                tex1: Optional[bpy.types.Image] = None
+                texnum = mat['texture1']
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
+
                 if texnum > 0 and texfile.exists():
                     if texfilename in bpy.data.images:
-                        tex1 = cast(bpy.types.BlendDataImages,
-                                    bpy.data.images)[texfilename]
+                        tex1 = bpy.data.images[texfilename]
                     else:
-                        tex1 = cast(bpy.types.BlendDataImages, bpy.data.images).load(
-                            str(texfile.resolve()))
+                        tex1 = bpy.data.images.load(str(texfile.resolve()))
                         tex1.alpha_mode = 'CHANNEL_PACKED'
-                else:
-                    tex1 = None
 
                 # tex2 = get_tex(container, str(mat.get("texture2")))
+                tex2: Optional[bpy.types.Image] = None
                 texnum = mat.get('texture2')
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
+
                 if texnum > 0 and texfile.exists():
                     if texfilename in bpy.data.images:
-                        tex2 = cast(bpy.types.BlendDataImages,
-                                    bpy.data.images)[texfilename]
+                        tex2 = bpy.data.images[texfilename]
                     else:
-                        tex2 = cast(bpy.types.BlendDataImages, bpy.data.images).load(
-                            str(texfile.resolve()))
+                        tex2 = bpy.data.images.load(str(texfile.resolve()))
                         tex2.alpha_mode = 'CHANNEL_PACKED'
-                else:
-                    tex2 = None
 
                 # tex3 = get_tex(container, str(mat.get("texture3")))
+                tex3: Optional[bpy.types.Image] = None
                 texnum = mat.get('texture3')
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
                 if texnum > 0 and texfile.exists():
                     if texfilename in bpy.data.images:
-                        tex3 = cast(bpy.types.BlendDataImages,
-                                    bpy.data.images)[texfilename]
+                        tex3 = bpy.data.images[texfilename]
                     else:
-                        tex3 = cast(bpy.types.BlendDataImages, bpy.data.images).load(
-                            str(texfile.resolve()))
+                        tex3 = bpy.data.images.load(str(texfile.resolve()))
                         tex3.alpha_mode = 'CHANNEL_PACKED'
-                else:
-                    tex3 = None
 
-                tex_list = (tex1, tex2, tex3)
+                tex_list = [tex1, tex2, tex3]
 
                 bl_mat = slot.material
                 tree = bl_mat.node_tree
-                nodes = cast(bpy.types.Nodes, tree.nodes)
+                nodes = tree.nodes
 
                 if bl_mat in configured_mats:
                     continue
 
-                shader = None
+                shader: Optional[bpy.types.Node] = None
                 out_node = None
                 # FIXME: give Nodes an __iter__ instead of using this typecast?
-                for node in cast(List[bpy.types.Node], nodes):
+                for node in nodes:
                     if node.type == 'BSDF_PRINCIPLED':
                         shader = cast(bpy.types.ShaderNodeBsdfPrincipled, node)
                         shader.inputs["Roughness"].default_value = 1.0
@@ -618,21 +612,18 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
 
                 if base == 'Experimental':
                     shader = nodes.new('ShaderNodeGroup')
-                    shader.node_tree = get_utility_group(
-                        name="TheStumpFargothHidTheRingIn")
+                    shader.node_tree = get_utility_group(name="TheStumpFargothHidTheRingIn")
                 elif (base != ''):
                     shader = nodes.new(base)
                 else:
                     shader = nodes.new("ShaderNodeEmission")
 
-                # FIXME: Can we clean up the type casting on this?
-                cast(bpy.types.NodeLinks, tree.links).new(
-                    cast(bpy.types.Node, shader).outputs[0], out_node.inputs[0])
+                tree.links.new(shader.outputs[0], out_node.inputs[0])
 
                 baseColor = nodes.new('ShaderNodeRGB')
                 baseColor.location += Vector((-1200.0, 400.0))
                 baseColor.outputs["Color"].default_value = wmo_read_color(
-                    mat.get("color2"), 'CArgb')
+                    mat["color2"], 'CArgb')
                 baseColor.label = 'BASE COLOR'
 
                 tex_nodes: List[bpy.types.ShaderNodeTexImage] = []
@@ -645,7 +636,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                         tex_node.label = ("TEXTURE_%s" % str(i + 1))
                         tex_nodes.append(tex_node)
 
-                ambColor = wmo_read_color(config.get("ambientColor"), 'CImVector')
+                ambColor = wmo_read_color(json_config["ambientColor"], 'CImVector')
 
 
                 do_wmo_combiner(
@@ -654,7 +645,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                     shader_out=shader,
                     mat_info=mat,
                     ambient=ambColor,
-                    do_vertex_lighting=op_args.get("use_vertex_lighting", False))
+                )
 
                 configured_mats.add(bl_mat)
             # END do_wmo_mats
@@ -706,7 +697,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     do_colors = True if len(color_list) > 0 else False
 
     colors = {}
-    v_dict = {}
+    v_dict: Dict[int, bmesh.types.BMVert] = {}
     # uv_dict = {}
 
     for i, batch in enumerate(batches):
@@ -775,7 +766,6 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     ), exampleFace)
 
             except ValueError as err:
-
                 v1 = bm.verts.new(mesh_data.verts[face[0] - 1])
                 v2 = bm.verts.new(mesh_data.verts[face[1] - 1])
                 v3 = bm.verts.new(mesh_data.verts[face[2] - 1])
