@@ -22,6 +22,8 @@
 # autopep8: off
 # flake8: noqa    # wish this could be more explicit about what's being ignored
 
+from dataclasses import dataclass
+from typing import List
 
 # Pulled directly from the 8.0.1 table: https://wowdev.wiki/M2/.skin
 # Note that there are repeats; you can (theoretically)
@@ -64,32 +66,39 @@ shader_table =(
     ("PS_Combiners_Mod_Mod2x",                      "VS_Diffuse_EdgeFade_T1_T2", "HS_T1_T2",    "DS_T1_T2"   , 2),
 )
 
+@dataclass
+class WMOShader:
+    name: str
+    vertex: str
+    pixel: str
 
-WMO_Shaders = (
-    ("Diffuse",	                  "MapObjDiffuse_T1",	        "MapObjDiffuse"),
-    ("Specular",	              "MapObjSpecular_T1",	        "MapObjSpecular"),
-    ("Metal",	                  "MapObjSpecular_T1",	        "MapObjMetal"),
-    ("Env",	                      "MapObjDiffuse_T1_Refl",	    "MapObjEnv"),
-    ("Opaque",	                  "MapObjDiffuse_T1",	        "MapObjOpaque"),
-    ("EnvMetal",	              "MapObjDiffuse_T1_Refl",	    "MapObjEnvMetal"),
-    ("TwoLayerDiffuse",	          "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuse"),
-    ("TwoLayerEnvMetal",	      "MapObjDiffuse_T1",	        "MapObjTwoLayerEnvMetal"),
-    ("TwoLayerTerrain",	          "MapObjDiffuse_Comp_Terrain",	"MapObjTwoLayerTerrain"	),
-    ("DiffuseEmissive",	          "MapObjDiffuse_Comp",	        "MapObjDiffuseEmissive"),
-    ("waterWindow",	              "FFXWaterWindow",	            "FFXWaterWindow"),
-    ("MaskedEnvMetal",	          "MapObjDiffuse_T1_Env_T2",	"MapObjMaskedEnvMetal"),
-    ("EnvMetalEmissive",	      "MapObjDiffuse_T1_Env_T2",	"MapObjEnvMetalEmissive"),
-    ("TwoLayerDiffuseOpaque",     "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseOpaque"),
-    ("submarineWindow",	          "FFXSubmarineWindow",	        "FFXSubmarineWindow"),
-    ("TwoLayerDiffuseEmissive",   "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseEmissive"),
-    ("DiffuseTerrain",	          "MapObjDiffuse_T1",	        "MapObjDiffuse"),
-    ("AdditiveMaskedEnvMetal",    "MapObjDiffuse_T1_Env_T2",	"MapObjAdditiveMaskedEnvMetal"),
-    ("TwoLayerDiffuseMod2x",      "MapObjDiffuse_CompAlpha",	"MapObjTwoLayerDiffuseMod2x"),
-    ("TwoLayerDiffuseMod2xNA",    "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseMod2xNA"),
-    ("TwoLayerDiffuseAlpha",      "MapObjDiffuse_CompAlpha",	"MapObjTwoLayerDiffuseAlpha"),
-    ("Lod",	                      "MapObjDiffuse_T1",	        "MapObjLod"),
-    ("Parallax",	              "MapObjParallax",	            "MapObjParallax"),
-)
+
+WMO_Shaders: List[WMOShader] = [
+    # Name,                       Vertex Shader,                Pixel Shader
+    WMOShader("Diffuse",	                  "MapObjDiffuse_T1",	        "MapObjDiffuse"),
+    WMOShader("Specular",	              "MapObjSpecular_T1",	        "MapObjSpecular"),
+    WMOShader("Metal",	                  "MapObjSpecular_T1",	        "MapObjMetal"),
+    WMOShader("Env",	                      "MapObjDiffuse_T1_Refl",	    "MapObjEnv"),
+    WMOShader("Opaque",	                  "MapObjDiffuse_T1",	        "MapObjOpaque"),
+    WMOShader("EnvMetal",	              "MapObjDiffuse_T1_Refl",	    "MapObjEnvMetal"),
+    WMOShader("TwoLayerDiffuse",	          "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuse"),
+    WMOShader("TwoLayerEnvMetal",	      "MapObjDiffuse_T1",	        "MapObjTwoLayerEnvMetal"),
+    WMOShader("TwoLayerTerrain",	          "MapObjDiffuse_Comp_Terrain",	"MapObjTwoLayerTerrain"	),
+    WMOShader("DiffuseEmissive",	          "MapObjDiffuse_Comp",	        "MapObjDiffuseEmissive"),
+    WMOShader("waterWindow",	              "FFXWaterWindow",	            "FFXWaterWindow"),
+    WMOShader("MaskedEnvMetal",	          "MapObjDiffuse_T1_Env_T2",	"MapObjMaskedEnvMetal"),
+    WMOShader("EnvMetalEmissive",	      "MapObjDiffuse_T1_Env_T2",	"MapObjEnvMetalEmissive"),
+    WMOShader("TwoLayerDiffuseOpaque",     "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseOpaque"),
+    WMOShader("submarineWindow",	          "FFXSubmarineWindow",	        "FFXSubmarineWindow"),
+    WMOShader("TwoLayerDiffuseEmissive",   "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseEmissive"),
+    WMOShader("DiffuseTerrain",	          "MapObjDiffuse_T1",	        "MapObjDiffuse"),
+    WMOShader("AdditiveMaskedEnvMetal",    "MapObjDiffuse_T1_Env_T2",	"MapObjAdditiveMaskedEnvMetal"),
+    WMOShader("TwoLayerDiffuseMod2x",      "MapObjDiffuse_CompAlpha",	"MapObjTwoLayerDiffuseMod2x"),
+    WMOShader("TwoLayerDiffuseMod2xNA",    "MapObjDiffuse_Comp",	        "MapObjTwoLayerDiffuseMod2xNA"),
+    WMOShader("TwoLayerDiffuseAlpha",      "MapObjDiffuse_CompAlpha",	"MapObjTwoLayerDiffuseAlpha"),
+    WMOShader("Lod",	                      "MapObjDiffuse_T1",	        "MapObjLod"),
+    WMOShader("Parallax",	              "MapObjParallax",	            "MapObjParallax"),
+]
 
 
 WMO_Blend_Modes = (

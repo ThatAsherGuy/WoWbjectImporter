@@ -44,6 +44,7 @@ from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 from .preferences import WoWbject_ObjectProperties
 from .wbjtypes import JsonWmoMetadata, JsonWmoGroup
 import json
+import os
 
 
 def test():
@@ -116,7 +117,7 @@ class wmoGroup:
         self.mesh_data = None
         self.mesh_batches = []
 
-        self.json_group = {}
+        self.json_group = None  # type: ignore
         self.group_offset = -1
 
         # The renderBatches that map to the meshComponent objects
@@ -233,6 +234,15 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
             default='EMIT',
         )
 
+    if TYPE_CHECKING:
+        do_coverage: bool
+    else:
+        do_coverage: bpy.props.BoolProperty(
+            name="Code Coverage Analysis",
+            description="Use pycoverage to analyze code coverage",
+            default=False
+        )
+
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> Union[Set[str], Set[int]]:
         prefs = preferences.get_prefs()
         default_dir = prefs.default_dir
@@ -243,6 +253,12 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
 
 
     def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
+        if self.do_coverage:
+            print("Performing code coverage analysis...")
+            import coverage
+            cov = coverage.Coverage(source=["."], omit=["tests", "addon_updater*"])
+            cov.start()
+
         print("new import execute")
 
         # FIXME: not sure what the best type for args actually is
@@ -252,7 +268,15 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         # FIXME: figure out how to do enum types returning str -correctly-
         do_import(context, self.filepath, self.reuse_materials, str(self.base_shader), args)
 
+        if self.do_coverage:
+            cov.stop()
+            cov.save()
+            cov_savepath = os.path.join(os.path.dirname(__file__), "covhtml")
+            cov.html_report(directory=cov_savepath)
+            print(f"Saved coverage analysis to {cov_savepath}")
+
         return {'FINISHED'}
+
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
@@ -284,6 +308,13 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         col.use_property_split = True
         col.label(text="WMO Settings:")
         col.prop(self, 'use_vertex_lighting', expand=False)
+
+        col = root.column(align=True)
+        col.use_property_split = True
+        col.label(text="Developer:")
+        col.prop(self, 'do_coverage', expand=False)
+
+
 
 
 # FIXME: return type
@@ -484,8 +515,6 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                 mat.use_nodes = True
                 mat_dict[i] = mat
 
-            print(f"mat type thing: {type(i)} - {type(mat_dict)}")
-
             objects: List[bpy.types.Object] = []
 
             steps = len(wmo_groups)
@@ -614,7 +643,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                     shader = nodes.new('ShaderNodeGroup')
                     shader.node_tree = get_utility_group(name="TheStumpFargothHidTheRingIn")
                 elif (base != ''):
-                    shader = nodes.new(base)
+                    shader = cast(bpy.types.ShaderNode, nodes.new(base))
                 else:
                     shader = nodes.new("ShaderNodeEmission")
 
@@ -713,6 +742,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                 if v in v_dict:
                     vert = v_dict[v]
                 else:
+                    xx = mesh_data.verts[v - 1]
                     vert = bm.verts.new(mesh_data.verts[v - 1])
                     v_dict[v] = vert
 
@@ -748,8 +778,6 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     # vvvv FIXME vvvv
                     local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
                         mat_dict[mat_ID].name)
-                    print(type(newObj.data))
-                    print(type(newObj.data.materials))
 
                     if local_index == -1:
                         newObj.data.materials.append(mat_dict[mat_ID])

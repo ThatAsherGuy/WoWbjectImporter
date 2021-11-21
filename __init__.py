@@ -81,12 +81,14 @@ classes = (
 )
 
 
-def menu_func_import(self, context):
+def menu_func_import(self, _context: bpy.types.Context):
     self.layout.operator(WOWBJ_OT_Import.bl_idname, text='WoWbject (.obj)')
 
 
+cov = None
 def register():
     addon_updater_ops.register(bl_info)
+
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -99,6 +101,8 @@ def register():
 
 
 def unregister():
+    global cov
+
     from bpy.utils import unregister_class
 
     addon_updater_ops.unregister()

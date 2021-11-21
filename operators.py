@@ -197,7 +197,6 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
 
 
     def execute(self, context):
-        print(f"type for files: {type(self.files)}")
         prefs = preferences.get_prefs()
         verbosity = prefs.reporting
         default_dir = prefs.default_dir
