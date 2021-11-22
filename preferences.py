@@ -29,7 +29,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 
     # Stuff from the CGCookie Add-on Updater.
     if TYPE_CHECKING:
-        auto_check_update: bpy.types.BoolProperty
+        auto_check_update: bool
     else:
         auto_check_update: bpy.props.BoolProperty(
             name="Auto-check for Update",
@@ -38,7 +38,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
         )
 
     if TYPE_CHECKING:
-        updater_intrval_months: bpy.types.IntProperty
+        updater_intrval_months: int
     else:
         updater_intrval_months: bpy.props.IntProperty(
             name='Months',
@@ -47,7 +47,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
             min=0,
         )
     if TYPE_CHECKING:
-        updater_intrval_days: bpy.types.IntProperty
+        updater_intrval_days: int
     else:
         updater_intrval_days: bpy.props.IntProperty(
             name='Days',
@@ -58,7 +58,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
         )
 
     if TYPE_CHECKING:
-        updater_intrval_hours: bpy.types.IntProperty
+        updater_intrval_hours: int
     else:
         updater_intrval_hours: bpy.props.IntProperty(
             name='Hours',
@@ -69,7 +69,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
         )
 
     if TYPE_CHECKING:
-        updater_intrval_minutes: bpy.types.IntProperty
+        updater_intrval_minutes: int
     else:
         updater_intrval_minutes: bpy.props.IntProperty(
             name='Minutes',
@@ -81,7 +81,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 
     # TODO: Create some sort of per-project system for this.
     if TYPE_CHECKING:
-        default_dir: bpy.types.StringProperty
+        default_dir: str
     else:
         default_dir: bpy.props.StringProperty(
             name="Default Directory",

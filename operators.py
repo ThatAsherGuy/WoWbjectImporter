@@ -24,7 +24,7 @@ import bpy
 import bpy.props
 from bpy_extras.io_utils import ImportHelper
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Set
 from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
@@ -45,10 +45,10 @@ class WOWBJ_OT_ToolTip(bpy.types.Operator):
         tooltip: bpy.props.StringProperty(default="")
 
     @classmethod
-    def description(cls, context, properties):
-        return properties.tooltip
+    def description(cls, context: bpy.types.Context, properties: bpy.types.OperatorProperties) -> str:
+        return properties.tooltip  # type: ignore
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
         return {'CANCELLED'}
 
 
@@ -59,14 +59,14 @@ class WOWBJ_OT_SetDefaultDir(bpy.types.Operator):
     bl_options = {'INTERNAL', 'UNDO'}
 
     if TYPE_CHECKING:
-        new_dir: bpy.types.StringProperty
+        new_dir: str
     else:
         new_dir: bpy.props.StringProperty(
             default="",
             subtype='DIR_PATH'
         )
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
         prefs = get_prefs()
         prefs.default_dir = self.new_dir
         return {'FINISHED'}
@@ -79,7 +79,7 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
     bl_options = {'PRESET', 'UNDO'}
 
     if TYPE_CHECKING:
-        directory: os.PathLike
+        directory: str
     else:
         directory: bpy.props.StringProperty(subtype='DIR_PATH')
 
@@ -94,13 +94,13 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
     if TYPE_CHECKING:
         files: bpy.types.Collection
     else:
-        files: bpy.props.CollectionProperty(  # type: ignore
+        files: bpy.props.CollectionProperty(
             name='File Path',
             type=bpy.types.OperatorFileListElement,
         )
 
 
-    # filepath: bpy.props.StringProperty(  # type: ignore
+    # filepath: bpy.props.StringProperty(
     #     name="File Path",
     #     description="Filepath used for importing the file",
     #     maxlen=1024,
@@ -109,7 +109,7 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
     if TYPE_CHECKING:
         name_override: str
     else:
-        name_override: bpy.props.StringProperty(  # type: ignore
+        name_override: bpy.props.StringProperty(
             name="Name",
             description="Defaults to asset name when left blank",
             default=''
@@ -187,7 +187,7 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
         )
 
 
-    def invoke(self, context, _event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> Union[Set[str], Set[int]]:
         prefs = get_prefs()
         default_dir = prefs.default_dir
         if not default_dir == "":
@@ -196,10 +196,12 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
         return {'RUNNING_MODAL'}
 
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
         prefs = get_prefs()
         verbosity = prefs.reporting
         default_dir = prefs.default_dir
+
+        # FIXME: not sure how to type this
         args = self.as_keywords(ignore=("filter_glob", "directory", "filepath", "files"))
 
         # FIXME: Fix up our calls so this works right
