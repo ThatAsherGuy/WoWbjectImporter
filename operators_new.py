@@ -134,25 +134,23 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
     bl_options = {'PRESET', 'UNDO'}
 
     if TYPE_CHECKING:
-        directory: bpy.types.StringProperty
+        directory: str
     else:
         directory: bpy.props.StringProperty(subtype='DIR_PATH')
 
     filename_ext = '.obj'
     if TYPE_CHECKING:
-        filter_glob: bpy.types.StringProperty
+        filter_glob: str
     else:
         filter_glob: bpy.props.StringProperty(default='*.obj')
-
 
     if TYPE_CHECKING:
         files: bpy.types.Collection
     else:
         files: bpy.props.CollectionProperty(
-            name='File Path',
+            name='File Paths',
             type=bpy.types.OperatorFileListElement,
         )
-
 
     if TYPE_CHECKING:
         name_override: str
@@ -252,68 +250,6 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
             default=False
         )
 
-    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> Union[Set[str], Set[int]]:
-        prefs = get_prefs()
-        default_dir = prefs.default_dir
-        if not default_dir == "":
-            self.directory = default_dir
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
-
-
-    def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
-        # FIXME: not sure what the best type for args actually is
-        args: Dict[str, bpy.types.Property] = self.as_keywords(
-            ignore=("filter_glob", "directory", "filepath", "files"))
-
-        if self.do_coverage and self.do_profiling:
-            print("WARNING: code coverage and code profiling both enabled, results will be inaccurate")
-        self.do_coverage = False
-        if self.do_coverage:
-            print("Performing code coverage analysis...")
-            import coverage
-            cov = coverage.Coverage(source=["."], omit=["tests", "addon_updater*"])
-            cov.start()
-
-        if self.do_profiling:
-            print("Performing code profiling...")
-            import cProfile
-            import pstats
-            pr = cProfile.Profile()
-            pr.enable()
-
-        print("starting WoWbject import")
-        do_import(context, self.filepath, self.reuse_materials, str(self.base_shader), args)
-
-        if self.do_profiling:
-            pr.disable()
-            prof_savedir = os.path.join(os.path.dirname(__file__), "prof")
-            prof_modelname = os.path.basename(self.filepath)
-            prof_savepath = os.path.join(prof_savedir, f"{prof_modelname}.prof")
-            if not os.path.exists(prof_savedir):
-                os.mkdir(prof_savedir)
-
-            ps = pstats.Stats(pr, stream=sys.stdout).sort_stats('cumulative')
-            print("")
-            print("Partial profiling results:")
-            print("")
-            ps.print_stats(20)
-
-            pr.dump_stats(prof_savepath)
-            print("")
-            print(f"Saved code profiling data to {prof_savepath}")
-            print(f"View with: snakeviz \"{prof_savepath}\"")
-
-        if self.do_coverage:
-            cov.stop()
-            cov.save()
-            cov_savepath = os.path.join(os.path.dirname(__file__), "covhtml")
-            cov_htmlpath = os.path.join(cov_savepath, "index.html")
-            cov.html_report(directory=cov_savepath)
-            print(f"Saved coverage analysis to {cov_htmlpath}")
-
-        return {'FINISHED'}
-
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
@@ -345,8 +281,116 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         box.prop(self, 'do_profiling')
 
 
-# FIXME: return type
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> Union[Set[str], Set[int]]:
+        prefs = get_prefs()
+        default_dir = prefs.default_dir
+        if not default_dir == "":
+            self.directory = default_dir
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+    def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
+        if len(self.files) == 0 and self.filepath:
+            self.import_file(context, self.filepath)
+            return {'FINISHED'}
+
+        # else
+        for file in self.files:
+            filepath = os.path.join(self.directory, file.name)
+            self.import_file(context, filepath)
+
+        return {'FINISHED'}
+
+
+    # FIXME: should this be a method, or a standalone function?
+    def import_file(self, context: bpy.types.Context, filepath: str) -> Union[Set[str], Set[int]]:
+        print(f"IMPORTING {filepath}")
+        # FIXME: not sure what the best type for args actually is
+        args: Dict[str, bpy.types.Property] = self.as_keywords(
+            ignore=("filter_glob", "directory", "filepath", "files"))
+
+        if self.do_coverage and self.do_profiling:
+            print("WARNING: code coverage and code profiling both enabled, results will be inaccurate")
+        self.do_coverage = False
+        if self.do_coverage:
+            print("Performing code coverage analysis")
+            import coverage
+            cov = coverage.Coverage(source=["."], omit=["tests", "addon_updater*"])
+            cov.start()
+
+        if self.do_profiling:
+            print("Performing code profiling")
+            import cProfile
+            import pstats
+            pr = cProfile.Profile()
+            pr.enable()
+
+        do_import(context, filepath, self.reuse_materials, str(self.base_shader), args)
+
+        if self.do_profiling:
+            pr.disable()
+            prof_savedir = os.path.join(os.path.dirname(__file__), "prof")
+            prof_modelname = os.path.basename(filepath)
+            prof_savepath = os.path.join(prof_savedir, f"{prof_modelname}.prof")
+            if not os.path.exists(prof_savedir):
+                os.mkdir(prof_savedir)
+
+            ps = pstats.Stats(pr, stream=sys.stdout).sort_stats('cumulative')
+            print("")
+            print("Partial profiling results:")
+            print("")
+            ps.print_stats(20)
+
+            pr.dump_stats(prof_savepath)
+            print("")
+            print(f"Saved code profiling data to {prof_savepath}")
+            print(f"View with: snakeviz \"{prof_savepath}\"")
+
+        if self.do_coverage:
+            cov.stop()
+            cov.save()
+            cov_savepath = os.path.join(os.path.dirname(__file__), "covhtml")
+            cov_htmlpath = os.path.join(cov_savepath, "index.html")
+            cov.html_report(directory=cov_savepath)
+            print(f"Saved coverage analysis to {cov_htmlpath}")
+
+        return {'FINISHED'}
+
+
+# FIXME: roll reuse_mats and base_shader into op_args
 def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_shader: str, op_args: Dict[str, Any]) -> None:
+    '''
+    The pre-sorting and initializing function called by the import operator.
+    Most of the actual data-handling is handled by an import_container object.
+    '''
+
+    file = Path(filepath)
+
+    if file.with_suffix(".json").exists():
+        with file.with_suffix(".json").open() as p:
+            # FIXME: error handling here
+            json_config = json.load(p)
+    else:
+        # FIXME: user-facing error handling
+        print(f"failed to load metadata from '{file}', can't continue")
+        return
+
+    if not json_config:
+        # FIXME: user-facing error handling
+        print(f"failed to load metadata file {file.with_suffix('.json')}")
+        return
+
+
+    if ".wmo" in json_config["fileName"]:
+        import_wmo(context, filepath, reuse_mats, base_shader, op_args)
+    else:
+        print("ERROR: trying to import an unsupported file type")
+
+
+
+# FIXME: return type
+def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_shader: str, op_args: Dict[str, Any]) -> None:
     '''
     The pre-sorting and initializing function called by the import operator.
     Most of the actual data-handling is handled by an import_container object.
@@ -356,30 +400,29 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
     name_override = op_args.get("name_override")
 
     # if do_search:
-    if True:
-        if file.with_suffix(".json").exists():
-            with file.with_suffix(".json").open() as p:
-                # FIXME: error handling here
-                json_config = json.load(p)
-        else:
-            # FIXME: user-facing error handling
-            print(f"failed to load metadata from '{file}', can't continue")
-            return
+    if file.with_suffix(".json").exists():
+        with file.with_suffix(".json").open() as p:
+            # FIXME: error handling here
+            json_config = json.load(p)
+    else:
+        # FIXME: user-facing error handling
+        print(f"failed to load metadata from '{file}', can't continue")
+        return
 
-        # to get the type right and not have it be a union with 'None' forever,
-        # we assign to itself with a cast.
-        # FIXME: Is there a better way?
-        json_config = cast(JsonWmoMetadata, json_config)
+    # to get the type right and not have it be a union with 'None' forever,
+    # we assign to itself with a cast.
+    # FIXME: Is there a better way?
+    json_config = cast(JsonWmoMetadata, json_config)
 
-        if not json_config:
-            print(f"failed to load metadata file {file.with_suffix('.json')}")
+    if not json_config:
+        print(f"failed to load metadata file {file.with_suffix('.json')}")
 
-        if name_override:
-            basename = name_override
-        else:
-            basename = file.stem
+    if name_override:
+        basename = name_override
+    else:
+        basename = file.stem
 
-        print(f"importing using base name: {basename}")
+    print(f"importing using base name: {basename}")
 
 
     # START def do_setup(self, files, directory, op_args, **kwargs):
