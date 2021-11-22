@@ -29,8 +29,8 @@ from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
 from .utilties import do_import
-from . import preferences
-
+# from . import preferences
+from .preferences import get_prefs
 
 class WOWBJ_OT_ToolTip(bpy.types.Operator):
     """Use this operator to display inline tooltips."""
@@ -67,7 +67,7 @@ class WOWBJ_OT_SetDefaultDir(bpy.types.Operator):
         )
 
     def execute(self, context):
-        prefs = preferences.get_prefs()
+        prefs = get_prefs()
         prefs.default_dir = self.new_dir
         return {'FINISHED'}
 
@@ -188,7 +188,7 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
 
 
     def invoke(self, context, _event):
-        prefs = preferences.get_prefs()
+        prefs = get_prefs()
         default_dir = prefs.default_dir
         if not default_dir == "":
             self.directory = default_dir
@@ -197,7 +197,7 @@ class WOWBJ_OT_Import_Old(bpy.types.Operator, ImportHelper):
 
 
     def execute(self, context):
-        prefs = preferences.get_prefs()
+        prefs = get_prefs()
         verbosity = prefs.reporting
         default_dir = prefs.default_dir
         args = self.as_keywords(ignore=("filter_glob", "directory", "filepath", "files"))

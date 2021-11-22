@@ -32,7 +32,6 @@ bl_info = {
 }
 
 import bpy
-import os
 
 from .operators import WOWBJ_OT_ToolTip
 from .operators_new import WOWBJ_OT_Import
@@ -52,12 +51,10 @@ from .ui import VIEW3D_PT_wowbject_scene_panel
 from .ui import VIEW3D_PT_wowbject_object_panel
 from .ui import VIEW3D_PT_wowbject_combiner_panel
 
-from . import addon_updater_ops
+from .addon_updater_ops import register as addon_updater_register, unregister as addon_updater_unregister
+from typing import List
 
-# from line_profiler import LineProfiler
-# profile = LineProfiler()
-
-classes = (
+classes: List[type] = [
     # Operators
     WOWBJ_OT_ToolTip,
     WOWBJ_OT_Import,
@@ -78,21 +75,22 @@ classes = (
     VIEW3D_PT_wowbject_scene_panel,
     VIEW3D_PT_wowbject_object_panel,
     VIEW3D_PT_wowbject_combiner_panel,
-)
+]
 
 
-def menu_func_import(self, _context: bpy.types.Context):
+def menu_func_import(self: bpy.types.Menu, _context: bpy.types.Context) -> None:
     self.layout.operator(WOWBJ_OT_Import.bl_idname, text='WoWbject (.obj)')
 
 
 cov = None
 def register():
-    addon_updater_ops.register(bl_info)
+    addon_updater_register(bl_info)  # type: ignore
 
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    # FIXME: Not sure how to type this. What class owns the append() ?
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import)  # type: ignore
 
     bpy.types.Scene.WBJ = bpy.props.PointerProperty(type=WoWbject_SceneProperties)
     bpy.types.Object.WBJ = bpy.props.PointerProperty(type=WoWbject_ObjectProperties)
@@ -101,20 +99,16 @@ def register():
 
 
 def unregister():
-    global cov
-
     from bpy.utils import unregister_class
 
-    addon_updater_ops.unregister()
+    addon_updater_unregister()  # type: ignore
 
     for cls in classes:
         unregister_class(cls)
 
-    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)  # type: ignore
 
-    del bpy.types.Scene.WBJ
-    del bpy.types.Object.WBJ
-    del bpy.types.Material.WBJ
-    del bpy.types.NodeTree.WBJ
-
-    # profile.dump_stats(r"d:\TEMP\blend.prof")
+    del bpy.types.Scene.WBJ  # type: ignore
+    del bpy.types.Object.WBJ  # type: ignore
+    del bpy.types.Material.WBJ  # type: ignore
+    del bpy.types.NodeTree.WBJ  # type: ignore

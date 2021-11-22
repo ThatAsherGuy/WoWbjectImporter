@@ -19,32 +19,32 @@
 
 # Hell is other people's code
 
-# import os
-from pathlib import Path
-
+import bmesh
 import bpy
 import bpy.props
-import bmesh
-from bpy_extras.io_utils import ImportHelper
 from mathutils import Vector
-from math import radians
 
-from typing import TYPE_CHECKING, cast, Optional, Dict, List, Set, Tuple, Union, Any
-# from .node_groups import serialize_nodegroups
-# from .node_groups import generate_nodegroups
-from .node_groups import get_utility_group
-from .node_groups import do_wmo_combiner
-
-# from .utilties import do_import
-from . import preferences
-# from .obj_import import wmo_setup_blender_object
-from .lookup_funcs import wmo_read_color, wmo_read_group_flags
-# from .lookup_funcs import WMO_Shaders_New
-# from .lookup_funcs import wmo_read_mat_flags
-from .preferences import WoWbject_ObjectProperties
-from .wbjtypes import JsonWmoMetadata, JsonWmoGroup
 import json
 import os
+import sys
+from math import radians
+# import os
+from pathlib import Path
+from typing import (TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple,
+                    Union, cast)
+
+from bpy_extras.io_utils import ImportHelper
+
+# from .obj_import import wmo_setup_blender_object
+from .lookup_funcs import wmo_read_color, wmo_read_group_flags
+# from .node_groups import serialize_nodegroups
+# from .node_groups import generate_nodegroups
+from .node_groups import do_wmo_combiner,  get_utility_group
+# from .lookup_funcs import WMO_Shaders_New
+# from .lookup_funcs import wmo_read_mat_flags
+# from .utilties import do_import
+from .preferences import WoWbject_ObjectProperties, get_prefs
+from .wbjtypes import JsonWmoGroup, JsonWmoMetadata
 
 
 def test():
@@ -243,8 +243,17 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
             default=False
         )
 
+    if TYPE_CHECKING:
+        do_profiling: bool
+    else:
+        do_profiling: bpy.props.BoolProperty(
+            name="Code Profiling",
+            description="Profile import execution with cProfile",
+            default=False
+        )
+
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> Union[Set[str], Set[int]]:
-        prefs = preferences.get_prefs()
+        prefs = get_prefs()
         default_dir = prefs.default_dir
         if not default_dir == "":
             self.directory = default_dir
@@ -253,68 +262,87 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
 
 
     def execute(self, context: bpy.types.Context) -> Union[Set[str], Set[int]]:
+        # FIXME: not sure what the best type for args actually is
+        args: Dict[str, bpy.types.Property] = self.as_keywords(
+            ignore=("filter_glob", "directory", "filepath", "files"))
+
+        if self.do_coverage and self.do_profiling:
+            print("WARNING: code coverage and code profiling both enabled, results will be inaccurate")
+        self.do_coverage = False
         if self.do_coverage:
             print("Performing code coverage analysis...")
             import coverage
             cov = coverage.Coverage(source=["."], omit=["tests", "addon_updater*"])
             cov.start()
 
-        print("new import execute")
+        if self.do_profiling:
+            print("Performing code profiling...")
+            import cProfile
+            import pstats
+            pr = cProfile.Profile()
+            pr.enable()
 
-        # FIXME: not sure what the best type for args actually is
-        args: Dict[str, bpy.types.Property] = self.as_keywords(
-            ignore=("filter_glob", "directory", "filepath", "files"))
-
-        # FIXME: figure out how to do enum types returning str -correctly-
+        print("starting WoWbject import")
         do_import(context, self.filepath, self.reuse_materials, str(self.base_shader), args)
+
+        if self.do_profiling:
+            pr.disable()
+            prof_savedir = os.path.join(os.path.dirname(__file__), "prof")
+            prof_modelname = os.path.basename(self.filepath)
+            prof_savepath = os.path.join(prof_savedir, f"{prof_modelname}.prof")
+            if not os.path.exists(prof_savedir):
+                os.mkdir(prof_savedir)
+
+            ps = pstats.Stats(pr, stream=sys.stdout).sort_stats('cumulative')
+            print("")
+            print("Partial profiling results:")
+            print("")
+            ps.print_stats(20)
+
+            pr.dump_stats(prof_savepath)
+            print("")
+            print(f"Saved code profiling data to {prof_savepath}")
+            print(f"View with: snakeviz \"{prof_savepath}\"")
 
         if self.do_coverage:
             cov.stop()
             cov.save()
             cov_savepath = os.path.join(os.path.dirname(__file__), "covhtml")
+            cov_htmlpath = os.path.join(cov_savepath, "index.html")
             cov.html_report(directory=cov_savepath)
-            print(f"Saved coverage analysis to {cov_savepath}")
+            print(f"Saved coverage analysis to {cov_htmlpath}")
 
         return {'FINISHED'}
 
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        root = layout.column(align=True)
-        root.use_property_split = True
+        box = layout.box()
+        box.label(text="Basic Options:")
 
-        root.label(text="Basic Settings:")
-        root.prop(self, 'name_override', text="Rename to:")
+        # FIXME: Do we want rename anymore? Especially since we (theoretically?)
+        # subbox = box.box()
+        # support multi-import now?
+        # subbox.label(text="Rename to:")
+        # subbox.prop(self, 'name_override', text="")
 
-        row = root.row(align=True)
-        row.prop(self, 'reuse_materials')
+        box.prop(self, 'reuse_materials')
+        box.prop(self, 'merge_verts')
+        box.prop(self, 'make_quads')
+        box.prop(self, 'use_collections')
 
-        row = root.row(align=True)
-        row.prop(self, 'merge_verts')
-
-        row = root.row(align=True)
-        row.prop(self, 'make_quads')
-
-        row = root.row(align=True)
-        row.prop(self, 'use_collections')
-
-        col = root.column(align=True)
-        col.use_property_split = True
-        col.label(text="Shading:")
-        col.prop(self, 'base_shader', expand=False)
+        box = layout.box()
+        box.label(text="Shading:")
+        box.prop(self, 'base_shader', text="Shader", expand=False)
+        box.prop(self, 'use_vertex_lighting', expand=False)
 
 
-        col = root.column(align=True)
-        col.use_property_split = True
-        col.label(text="WMO Settings:")
-        col.prop(self, 'use_vertex_lighting', expand=False)
 
-        col = root.column(align=True)
-        col.use_property_split = True
-        col.label(text="Developer:")
-        col.prop(self, 'do_coverage', expand=False)
+        box = layout.box()
+        box.label(text="Developer:")
 
-
+        box.prop(self, 'do_coverage')
+        box.prop(self, 'do_profiling')
 
 
 # FIXME: return type
@@ -636,7 +664,7 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
                     nodes.remove(shader)
 
                 # FIXME: wtf is this base shader thing actually doing?
-                prefs = preferences.get_prefs()
+                prefs = get_prefs()
                 base = prefs.get_base_shader(base_shader)
 
                 if base == 'Experimental':

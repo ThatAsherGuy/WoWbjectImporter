@@ -25,7 +25,7 @@ import json
 import os
 from typing import List, Tuple, cast
 
-from . import preferences
+from .preferences import get_prefs
 from .lookup_funcs import (get_shadereffects, get_vertex_shader,
                            wmo_read_color, wmo_read_mat_flags)
 from .lookup_tables import WMO_Shaders
@@ -279,7 +279,7 @@ def get_utility_group(name: str) -> bpy.types.NodeTree:
 def get_output_nodes(mat, combiner, output, override, base, downmix, *args):
     '''Sets up the shader node & mix shader (if needed)'''
 
-    prefs = preferences.get_prefs()
+    prefs = get_prefs()
     base = prefs.get_base_shader(base)
 
     tree = mat.node_tree
@@ -622,7 +622,7 @@ def do_wmo_mats(**kwargs):
 
             nodes.remove(shader)
 
-            prefs = preferences.get_prefs()
+            prefs = get_prefs()
             base = prefs.get_base_shader(container.base_shader)
             if base == 'Experimental':
                 shader = nodes.new('ShaderNodeGroup')

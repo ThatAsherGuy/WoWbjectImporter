@@ -20,7 +20,7 @@
 
 import bpy
 import os
-from . import addon_updater_ops
+from .addon_updater_ops import update_settings_ui
 
 from typing import TYPE_CHECKING, cast, Dict, Tuple
 
@@ -144,7 +144,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 
         # updater draw function
         # could also pass in col as third arg
-        addon_updater_ops.update_settings_ui(self, context)
+        update_settings_ui(self, context)
 
 
     def get_base_shader(self, base: str) -> str:
