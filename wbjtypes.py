@@ -1,4 +1,31 @@
 from typing import List, Dict, TypedDict, Tuple
+import mathutils
+
+# class Vec2(mathutils.Vector):
+#     def __init__(self, seq: Tuple[float, float]):
+#         super().__init__(seq)
+
+
+# class Vec3(mathutils.Vector):
+#     def __init__(self, seq: Tuple[float, float, float]):
+#         super().__init__(seq)
+
+
+# class Vec4(mathutils.Vector):
+#     def __init__(self, seq: Tuple[float, float, float, float]):
+#         super().__init__(seq)
+
+
+Vec2 = Tuple[float, float]
+Vec3 = Tuple[float, float, float]
+Vec4 = Tuple[float, float, float, float]
+Tri = Tuple[int, int, int]
+
+iColor3 = Tuple[int, int, int]
+iColor4 = Tuple[int, int, int, int]
+
+fColor3 = Tuple[float, float, float]
+fColor4 = Tuple[float, float, float, float]
 
 # FIXME: Do we need the multiples versions ("JsonWmoMaterials"), or is it
 # enough to just use "List[JsonWmoMaterial]" or similar where needed? And

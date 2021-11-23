@@ -302,7 +302,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
 
         if self.do_coverage and self.do_profiling:
             print("WARNING: code coverage and code profiling both enabled, results will be inaccurate")
-        self.do_coverage = False
+
         if self.do_coverage:
             print("Performing code coverage analysis")
             import coverage

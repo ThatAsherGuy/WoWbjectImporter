@@ -22,20 +22,19 @@
 import bmesh
 import bpy
 import bpy.props
-from mathutils import Vector
 
+import dataclasses
 import json
-
 from math import radians
 from pathlib import Path
-from typing import (Any, Dict, List, Optional, Set, cast)
-import dataclasses
-
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 from .node_groups import do_wmo_combiner, get_utility_group
 from .preferences import WoWbject_ObjectProperties, get_prefs
-from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatches
+from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatches, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
+
+from mathutils import Vector
 
 
 # FIXME: Which of these should be general, and which wmo-specific?
@@ -43,22 +42,22 @@ from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatches
 class MeshComponent:
     usemtl: str = ""  # FIXME: better default values
     name: str = ""
-    verts: Set[float] = dataclasses.field(default_factory=set)
-    faces: List[int] = dataclasses.field(default_factory=list)
-    uv: List[float] = dataclasses.field(default_factory=list)
+    verts: Set[int] = dataclasses.field(default_factory=set)  # FIXME: check type
+    faces: List[Tri] = dataclasses.field(default_factory=list)
+    uv: List[Vec2] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
-class MeshObject:
+class MeshData:
     usemtl: str = ""
     mtlfile: str = ""
     name: str = ""
-    verts: List[float] = dataclasses.field(default_factory=list)
-    faces: List[int] = dataclasses.field(default_factory=list)
-    normals: List[float] = dataclasses.field(default_factory=list)
-    uv: List[float] = dataclasses.field(default_factory=list)
-    uv2: List[float] = dataclasses.field(default_factory=list)
-    uv3: List[float] = dataclasses.field(default_factory=list)
+    verts: List[Vec3] = dataclasses.field(default_factory=list)
+    faces: List[Tri] = dataclasses.field(default_factory=list)
+    normals: List[Vec3] = dataclasses.field(default_factory=list)
+    uv: List[Vec2] = dataclasses.field(default_factory=list)
+    uv2: List[Vec2] = dataclasses.field(default_factory=list)
+    uv3: List[Vec2] = dataclasses.field(default_factory=list)
     components: List[MeshComponent] = dataclasses.field(default_factory=list)
 
 
@@ -66,13 +65,13 @@ class MeshObject:
 # Step one: Repack OBJ into meshObject
 # Step two: Repack meshObject into wmoGroups
 # Step three: Generate blenderObjects from wmoGroups
-@dataclasses.dataclass
+@dataclasses.dataclass(init=False)
 class wmoGroup:
     # FIXME: Is the Optional[] bit needed on some of these?
-    mesh_data: Optional[MeshObject] = None
+    mesh_data: MeshData
     mesh_batches: List[MeshComponent] = dataclasses.field(default_factory=list)
 
-    json_group: Optional[JsonWmoGroup] = None
+    json_group: JsonWmoGroup
     group_offset: int = -1
 
     json_batches: JsonWmoRenderBatches = dataclasses.field(default_factory=list)
@@ -132,14 +131,14 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
         # START def import_obj(file, directory, reuse_mats, name_override, merge_verts, make_quads, use_collections, import_container, progress, **kwargs):
         if True:
             # FIXME: Is the poll needed? Is it even valid? select_all is a function?
-            if bpy.ops.object.select_all.poll():
+            if bpy.ops.object.select_all.poll():  # type: ignore
                 bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
 
             print("Reading OBJ File")
 
             # START def initialize_mesh(mesh_path: str):
-            mesh_data = MeshObject()
-            meshIndex = -1
+            mesh_data = MeshData()
+            meshIndex: int = -1
 
             # TODO: Replace with a more robust port of the ImportObj add-on's process
             # FIXME: what -is- the right encoding for obj files? Can we make this
@@ -154,20 +153,24 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     if line_start == b'mtllib':
                         mesh_data.mtlfile = str(line_split[1])
                     elif line_start == b'v':
-                        # FIXME: replace all the things like this with proper
-                        # vec2/vec3/vec4 tuples
-                        mesh_data.verts.append(tuple([float(v) for v in line_split[1:]]))
+                        # Is there a way to clean up these fugly expressions?
+                        mesh_data.verts.append(
+                            cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
                     elif line_start == b'vn':
-                        mesh_data.normals.append(tuple([float(v) for v in line_split[1:]]))
+                        mesh_data.normals.append(
+                            cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
                     elif line_start == b'vt3':
-                        mesh_data.uv3.append(tuple([float(v) for v in line_split[1:]]))
+                        mesh_data.uv3.append(
+                            cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
                     elif line_start == b'vt2':
                         if not line_split[1] == b'undefined':
-                            mesh_data.uv2.append(tuple([float(v) for v in line_split[1:]]))
+                            mesh_data.uv2.append(
+                                cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
                         else:
                             mesh_data.uv2.append((0.0, 0.0))
                     elif line_start == b'vt':
-                        mesh_data.uv.append(tuple([float(v) for v in line_split[1:]]))
+                        mesh_data.uv.append(
+                            cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
                     elif line_start == b'f':
                         line_split = line_split[1:]
                         fv = [int(v.split(b'/')[0]) for v in line_split]
@@ -182,7 +185,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                         mesh_data.components[meshIndex].usemtl = line_split[1].decode('utf-8')
             # END INLINE: initialize_mesh
 
-            # FIXME: Can I do this in a way without a cast?
             newMesh = bpy.data.meshes.new(basename)
             newMesh.use_auto_smooth = True
             newMesh.auto_smooth_angle = radians(60)
@@ -190,7 +192,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
             # FIXME: Not sure how to annotate the dynamic attribute here
             newObj = bpy.data.objects.new(basename, newMesh)
-            WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)
+            WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)  # type: ignore
 
             # FIXME: Not sure how to type annotate the props to make these not
             # complain? But should be possible?
@@ -448,7 +450,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
 # FIXME: Legit needs fewer arguments
 def wmo_setup_blender_object(base_name: str, group: wmoGroup,
-                             mesh_data: MeshObject, mat_dict: Dict[int, bpy.types.Material],
+                             mesh_data: MeshData, mat_dict: Dict[int, bpy.types.Material],
                              merge_verts: bool = False, make_quads: bool = False,
                              use_collections: bool = True) -> Optional[bpy.types.Object]:
     if group.batch_count < 1:
@@ -465,7 +467,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     mesh.auto_smooth_angle = radians(60)
 
     newObj = bpy.data.objects.new(full_name, mesh)
-    WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)
+    WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)  # type: ignore
     WBJ.wow_model_type = 'WMO'
     WBJ.initialized = True
 
@@ -504,10 +506,10 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                 # else:
                 #     vert = bm.verts.new(mesh_data.verts[v - 1])
                 #     v_dict[v] = vert
-                if v in v_dict:
+                # FIXME: what's up with the switcheroo types here?
+                if v in v_dict and isinstance(v_dict[v], bmesh.types.BMVert):
                     vert = v_dict[v]
                 else:
-                    xx = mesh_data.verts[v - 1]
                     vert = bm.verts.new(mesh_data.verts[v - 1])
                     v_dict[v] = vert
 
@@ -517,10 +519,11 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                 # Note: There can theoretically be three sets of vertex colors.
                 if do_colors:
                     if type(color_list[0]) == list:
-                        v_color = []
+                        v_color: List[fColor4] = []
                         for sublist in color_list:
                             v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
                     else:
+                        # FIXME: What even -is- this?
                         v_color = wmo_read_color(color_list[v - 1], 'CImVector')
 
                     colors[vert] = v_color
@@ -535,10 +538,11 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     exampleFace = bface
                     exampleFaceSet = True
 
-                    if json_batches[i].get("flags") == 2:
-                        mat_ID = json_batches[i].get("possibleBox2")[2]
+                    if json_batches[i]["flags"] == 2:
+                        # FIXME: what is this?
+                        mat_ID = json_batches[i]["possibleBox2"][2]
                     else:
-                        mat_ID = json_batches[i].get("materialID")
+                        mat_ID = json_batches[i]["materialID"]
 
                     # vvvv FIXME vvvv
                     local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
