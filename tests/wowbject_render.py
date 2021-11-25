@@ -11,7 +11,7 @@ from typing import *
 import bpy
 from mathutils import Euler
 
-sys.path.append(os.getcwd())
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from testutil import util
 
 

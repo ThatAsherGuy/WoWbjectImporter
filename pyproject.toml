@@ -88,3 +88,41 @@ known_blender_other = [
     "rna_xml",
     "sys_info",
 ]
+
+
+[tool.pytest.ini_options]
+log_cli = true
+
+addopts = [
+    "--tb=short",
+    "--strict-markers",
+    "--html=@rootdir@/tests/report.html",
+    "--css=@rootdir@/tests/report.css",
+    "--self-contained-html",
+    # "--cov=wowdump",
+    # "--cov-report=html:@rootdir@/tests/htmlcov",
+]
+
+console_output_style = "count"
+log_auto_indent = true
+norecursedirs = [ "*" ]
+python_files = [ "test_*.py", "check_*.py", "example_*.py" ]
+testpaths = [ "tests" ]
+
+required_plugins = [
+    "pytest-html >=3.1",
+    "pytest-cov >=2.12",
+    "pytest-order >=1.0",
+]
+
+markers = [
+    "m2: mark a test as testing M2 models",
+    "wmo: mark a test as testing WMO models",
+    "top10m2: mark a test as testing a 'top 10' M2 shader",
+    "top10wmo: mark a test as testing a 'top 10' WMO shader",
+    "top10: run all 'top 10' tests",
+    "fancy: mark a test as producing 'fancy looking' rendered output",
+    "bug: mark a test as a bug verification test",
+    "superfast: mark a test as part of the 'super fast' test set",
+    "test: mark a test as a test of a test",
+]

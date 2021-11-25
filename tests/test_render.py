@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# flake8: noqa
 import collections
 import csv
 import os
@@ -13,9 +13,11 @@ from typing import *
 import pytest
 from pytest_html import extras
 
-abspath = os.path.abspath(__file__)
-dname = os.path.dirname(abspath)
-os.chdir(dname)
+# abspath = os.path.abspath(__file__)
+# dname = os.path.dirname(abspath)
+# os.chdir(dname)
+
+TESTSDIR = os.path.dirname(os.path.realpath(__file__))
 
 
 # returns from an underlying check
@@ -43,7 +45,7 @@ def blender_exe(pytestconfig):
 def test_blender_exe(blender_exe):
     """Test to verify that blender works, before running tests depending on it"""
     success, failmsg = run_blender_python(
-        "wowbject_render.py",
+        os.path.join(TESTSDIR, "wowbject_render.py"),
         ["--ping"],
         blender_exe=blender_exe,
     )
@@ -216,7 +218,8 @@ valid_marks = {
 def tlist():
     """Generate a list of image-generation tests and associated parameters"""
     tests = []
-    with open("testlist.csv", newline="") as csvfile:
+    testlist = os.path.join(TESTSDIR, "testlist.csv")
+    with open(testlist, newline="") as csvfile:
         reader = csv.DictReader(csvfile, dialect='excel')
 
         for test in reader:
@@ -336,8 +339,8 @@ def test_render_check(t_render, extra):
     if not t_render.success:
         pytest.skip("image render failed, nothing to check")
 
-    knownbad = "badrender" in r["flags"]
-    assert not knownbad, "known bad render, not running comparison"
+    if "badrender" in r["flags"]:
+        pytest.skip("known bad render, not running comparison")
 
     id = r["id"]
 
@@ -391,8 +394,9 @@ def t_render(request):
     r = request.param
 
     # normalize our input file path, and make sure it exists
-    objdata = os.path.join(
-        "test_data", r["obj_file"].replace(posixpath.sep, os.sep))
+    print(f"root dir: {request.config.rootdir}")
+    objdata = os.path.join(request.config.rootdir, "tests", "test_data",
+                           r["obj_file"].replace(posixpath.sep, os.sep))
     assert os.path.exists(objdata), f"no source file '{objdata}'"
 
     id = mktestid(r['category'], r['subcategory'], r['test_name'])
@@ -425,7 +429,7 @@ def t_render(request):
 
     # Call the render script w/ blender + our arguments
     success, failmsg = run_blender_python(
-        "wowbject_render.py",
+        os.path.join(TESTSDIR, "wowbject_render.py"),
         [
             "--cameraloc", cameraloc, "--camerarot", camerarot,
             "-o", outimg, objdata,
