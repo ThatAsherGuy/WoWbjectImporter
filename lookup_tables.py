@@ -24,6 +24,7 @@
 
 from dataclasses import dataclass
 from typing import List
+import enum
 
 # Pulled directly from the 8.0.1 table: https://wowdev.wiki/M2/.skin
 # Note that there are repeats; you can (theoretically)
@@ -101,22 +102,39 @@ WMO_Shaders: List[WMOShader] = [
 ]
 
 
-WMO_Blend_Modes = (
-    "OPAQUE",
-    "ALPHA_KEY",
-    "ALPHA",
-    "ADD",
-    "MOD",
-    "MOD_2X",
-    "MOD_ADD",
-    "INV_SRC_ALPHA_ADD",
-    "INV_SRC_ALPHA_OPAQUE",
-    "SRC_ALPHA_OPAQUE",
-    "NO_ALPHA_ADD",
-    "CONST_ALPHA",
-    "SCREEN",
-    "BLEND_ADD"
-)
+class EGxBlend(enum.Enum):
+    OPAQUE = 0
+    ALPHA_KEY = 1
+    ALPHA = 2
+    ADD = 3
+    MOD = 4
+    MOD_2X = 5
+    MOD_ADD = 6
+    INV_SRC_ALPHA_ADD = 7
+    INV_SRC_ALPHA_OPAQUE = 8
+    SRC_ALPHA_OPAQUE = 9
+    NO_ALPHA_ADD = 10
+    CONST_ALPHA = 11
+    SCREEN = 12
+    BLEND_ADD = 13
+
+
+# WMO_Blend_Modes = [
+#     "OPAQUE",
+#     "ALPHA_KEY",
+#     "ALPHA",
+#     "ADD",
+#     "MOD",
+#     "MOD_2X",
+#     "MOD_ADD",
+#     "INV_SRC_ALPHA_ADD",
+#     "INV_SRC_ALPHA_OPAQUE",
+#     "SRC_ALPHA_OPAQUE",
+#     "NO_ALPHA_ADD",
+#     "CONST_ALPHA",
+#     "SCREEN",
+#     "BLEND_ADD"
+# ]
 
 
 # Bone Flags

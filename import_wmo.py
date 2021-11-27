@@ -39,26 +39,112 @@ from mathutils import Vector
 
 # FIXME: Which of these should be general, and which wmo-specific?
 @dataclasses.dataclass
-class MeshComponent:
-    usemtl: str = ""  # FIXME: better default values
-    name: str = ""
-    verts: Set[int] = dataclasses.field(default_factory=set)  # FIXME: check type
+class ObjGroup:
+    mtlname: Optional[str] = None
+    name: Optional[str] = None
+
+    # FIXME: should this be 1-based like other obj things?
+    verts: Set[int] = dataclasses.field(default_factory=set)
+    """set of vertex indexes (0-based!) used in group"""
     faces: List[Tri] = dataclasses.field(default_factory=list)
-    uv: List[Vec2] = dataclasses.field(default_factory=list)
+    """list of faces in group, using vertex indexes (1-based)"""
+    # uv: List[Vec2] = dataclasses.field(default_factory=list)  # not used?
 
 
 @dataclasses.dataclass
-class MeshData:
+class ObjData:
     usemtl: str = ""
     mtlfile: str = ""
-    name: str = ""
+    name: Optional[str] = None
     verts: List[Vec3] = dataclasses.field(default_factory=list)
+    """vertexes (x,y,z) - 1-indexed when referenced by 'faces' field"""
     faces: List[Tri] = dataclasses.field(default_factory=list)
+    """faces (v1, v2, v3) - right-handed; indexes into 'verts' (1-based)"""
     normals: List[Vec3] = dataclasses.field(default_factory=list)
+    """vertex normals (x, y, z) - might not be unit vectors"""
     uv: List[Vec2] = dataclasses.field(default_factory=list)
     uv2: List[Vec2] = dataclasses.field(default_factory=list)
     uv3: List[Vec2] = dataclasses.field(default_factory=list)
-    components: List[MeshComponent] = dataclasses.field(default_factory=list)
+    groups: List[ObjGroup] = dataclasses.field(default_factory=list)
+
+
+# originally "initialize_mesh"
+# TODO: Replace with a more robust port of the ImportObj add-on's process
+def obj_read(file: Path) -> ObjData:
+    # START def initialize_mesh(mesh_path: str):
+    obj_data = ObjData()
+    groupIndex: int = -1
+
+    # FIXME: what -is- the right encoding for obj files? Can we make this
+    # read as utf-8 or ascii instead?
+    with file.open('rb') as f:
+        for line in f:
+            line_split = line.split()
+            if not line_split:
+                continue
+            line_start = line_split[0]
+
+            # actual obj can have multiple mtllib files, but wow.export only
+            # exports one. We probably don't need this though.
+            if line_start == b'mtllib':
+                obj_data.mtlfile = str(line_split[1])
+
+            # Vertexes
+            elif line_start == b'v':
+                obj_data.verts.append(
+                    cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
+
+            # Vertex Normals
+            elif line_start == b'vn':
+                obj_data.normals.append(
+                    cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
+
+            # UV/texture coordinates (3rd set)
+            elif line_start == b'vt3':
+                obj_data.uv3.append(
+                    cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
+
+            # UV/texture coordinates (2nd set)
+            elif line_start == b'vt2':
+                # FIXME: What is the 'undefined' bit about?
+                if not line_split[1] == b'undefined':
+                    obj_data.uv2.append(
+                        cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
+                else:
+                    obj_data.uv2.append((0.0, 0.0))
+
+            # UV/texture coordinates (1st set)
+            elif line_start == b'vt':
+                obj_data.uv.append(
+                    cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
+
+            # Faces -- 3 fields (for WoW), in the format of vertex/uv/normal
+            elif line_start == b'f':
+                if groupIndex < 0:
+                    raise RuntimeError("obj file specifies faces before a face group")
+
+                line_split = line_split[1:]
+                # makes list from first element (vertex index) of each vertex
+                fv = [int(v.split(b'/')[0]) for v in line_split]
+
+                obj_data.groups[groupIndex].faces.append((fv[0], fv[1], fv[2]))
+                obj_data.groups[groupIndex].verts.update([i - 1 for i in fv])
+
+            # Object name
+            elif line_start == b'o':
+                obj_data.name = str(line_split[1])
+
+            # Groups
+            elif line_start == b'g':
+                groupIndex += 1
+                obj_data.groups.append(ObjGroup())
+                obj_data.groups[groupIndex].name = line_split[1].decode('utf-8')
+
+            # Materials
+            elif line_start == b'usemtl':
+                obj_data.groups[groupIndex].mtlname = line_split[1].decode('utf-8')
+
+    return obj_data
 
 
 # TL;DR:
@@ -68,8 +154,8 @@ class MeshData:
 @dataclasses.dataclass(init=False)
 class wmoGroup:
     # FIXME: Is the Optional[] bit needed on some of these?
-    mesh_data: MeshData
-    mesh_batches: List[MeshComponent] = dataclasses.field(default_factory=list)
+    obj_data: ObjData
+    mesh_batches: List[ObjGroup] = dataclasses.field(default_factory=list)
 
     json_group: JsonWmoGroup
     group_offset: int = -1
@@ -104,11 +190,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
         print(f"failed to load metadata file {file.with_suffix('.json')}")
         return
 
-    # to get the type right and not have it be a union with 'None' forever,
-    # we assign to itself with a cast.
-    # FIXME: Is there a better way?
-    json_config = cast(JsonWmoMetadata, json_config)
-
     if name_override:
         basename = name_override
     else:
@@ -121,8 +202,9 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
     if True:
         # START def setup_json_data(self, **kwargs):
         if ".wmo" not in json_config["fileName"]:
-            print("ERROR: trying to import a non-WMO file")
-            return
+            raise ValueError("import_wmo called to import a non-WMO file")
+
+        json_config = cast(JsonWmoMetadata, json_config)
         # END setup_json_data
 
         # START def setup_bl_object(self, progress):
@@ -137,53 +219,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             print("Reading OBJ File")
 
             # START def initialize_mesh(mesh_path: str):
-            mesh_data = MeshData()
-            meshIndex: int = -1
-
-            # TODO: Replace with a more robust port of the ImportObj add-on's process
-            # FIXME: what -is- the right encoding for obj files? Can we make this
-            # read as utf-8 or ascii instead?
-            with file.open('rb') as f:
-                f_count = 0
-                for line in f:
-                    line_split = line.split()
-                    if not line_split:
-                        continue
-                    line_start = line_split[0]
-                    if line_start == b'mtllib':
-                        mesh_data.mtlfile = str(line_split[1])
-                    elif line_start == b'v':
-                        # Is there a way to clean up these fugly expressions?
-                        mesh_data.verts.append(
-                            cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
-                    elif line_start == b'vn':
-                        mesh_data.normals.append(
-                            cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
-                    elif line_start == b'vt3':
-                        mesh_data.uv3.append(
-                            cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
-                    elif line_start == b'vt2':
-                        if not line_split[1] == b'undefined':
-                            mesh_data.uv2.append(
-                                cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
-                        else:
-                            mesh_data.uv2.append((0.0, 0.0))
-                    elif line_start == b'vt':
-                        mesh_data.uv.append(
-                            cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
-                    elif line_start == b'f':
-                        line_split = line_split[1:]
-                        fv = [int(v.split(b'/')[0]) for v in line_split]
-                        mesh_data.components[meshIndex].faces.append((fv[0], fv[1], fv[2]))
-                        mesh_data.components[meshIndex].verts.update([i - 1 for i in fv])
-                        f_count += 1
-                    elif line_start == b'g':
-                        meshIndex += 1
-                        mesh_data.components.append(MeshComponent())
-                        mesh_data.components[meshIndex].name = line_split[1].decode('utf-8')
-                    elif line_start == b'usemtl':
-                        mesh_data.components[meshIndex].usemtl = line_split[1].decode('utf-8')
-            # END INLINE: initialize_mesh
+            obj_data = obj_read(file)
 
             newMesh = bpy.data.meshes.new(basename)
             newMesh.use_auto_smooth = True
@@ -196,7 +232,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
             # FIXME: Not sure how to type annotate the props to make these not
             # complain? But should be possible?
-            WBJ.source_asset = str(file.name)
+            WBJ.source_file = str(file.name)
             WBJ.source_directory = str(file.parent)
             WBJ.initialized = True
 
@@ -204,14 +240,14 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             json_mats = json_config["materials"]
             json_groups = json_config["groups"]
 
-            # START def repack_wmo(import_container, groups: dict, mesh_data: meshObject, config: dict):
+            # START def repack_wmo(import_container, groups: dict, obj_data: meshObject, config: dict):
             groups: List[wmoGroup] = []
             offset = 0
 
             flat_colors: List[List[int]] = [[], [], []]
 
             for group in json_groups:
-                g_batches = group.get("renderBatches", [])
+                g_batches = group["renderBatches"]
                 g_length = len(g_batches)
 
                 if g_length > 0:
@@ -220,10 +256,10 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
                     wmo_group.json_group = group
                     wmo_group.json_batches = g_batches
-                    wmo_group.mesh_batches = mesh_data.components[g_slice]
+                    wmo_group.mesh_batches = obj_data.groups[g_slice]
                     wmo_group.batch_count = g_length
 
-                    wmo_group.mesh_data = mesh_data
+                    wmo_group.obj_data = obj_data
                     groups.append(wmo_group)
 
                     vcolors = group.get("vertexColours", [])
@@ -297,7 +333,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     # FIXME: make group num into metadata
                     base_name=f"{i:03d}_{basename}",
                     group=group,
-                    mesh_data=mesh_data,
+                    obj_data=obj_data,
                     mat_dict=mat_dict,
                     # merge_verts=merge_verts,
                     # make_quads=make_quads,
@@ -450,7 +486,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
 # FIXME: Legit needs fewer arguments
 def wmo_setup_blender_object(base_name: str, group: wmoGroup,
-                             mesh_data: MeshData, mat_dict: Dict[int, bpy.types.Material],
+                             obj_data: ObjData, mat_dict: Dict[int, bpy.types.Material],
                              merge_verts: bool = False, make_quads: bool = False,
                              use_collections: bool = True) -> Optional[bpy.types.Object]:
     if group.batch_count < 1:
@@ -504,13 +540,13 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                 # if type(v_dict.get(v)) == bmesh.types.BMVert:
                 #     vert = v_dict[v]
                 # else:
-                #     vert = bm.verts.new(mesh_data.verts[v - 1])
+                #     vert = bm.verts.new(obj_data.verts[v - 1])
                 #     v_dict[v] = vert
                 # FIXME: what's up with the switcheroo types here?
-                if v in v_dict and isinstance(v_dict[v], bmesh.types.BMVert):
+                if v in v_dict:
                     vert = v_dict[v]
                 else:
-                    vert = bm.verts.new(mesh_data.verts[v - 1])
+                    vert = bm.verts.new(obj_data.verts[v - 1])
                     v_dict[v] = vert
 
                 # The data layer for vertex color is actually in the face loop.
@@ -524,7 +560,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                             v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
                     else:
                         # FIXME: What even -is- this?
-                        v_color = wmo_read_color(color_list[v - 1], 'CImVector')
+                        v_color = wmo_read_color(color_list[v - 1], 'CImVector')  # ????
 
                     colors[vert] = v_color
 
@@ -563,9 +599,9 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     ), exampleFace)
 
             except ValueError as err:
-                v1 = bm.verts.new(mesh_data.verts[face[0] - 1])
-                v2 = bm.verts.new(mesh_data.verts[face[1] - 1])
-                v3 = bm.verts.new(mesh_data.verts[face[2] - 1])
+                v1 = bm.verts.new(obj_data.verts[face[0] - 1])
+                v2 = bm.verts.new(obj_data.verts[face[1] - 1])
+                v3 = bm.verts.new(obj_data.verts[face[2] - 1])
 
                 colors[v1] = colors[v_dict[face[0]]]
                 colors[v2] = colors[v_dict[face[1]]]
@@ -597,10 +633,10 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                 print(err_detail)
                 pass
 
-    if len(mesh_data.uv2) > 0:
+    if len(obj_data.uv2) > 0:
         uv2_layer = bm.loops.layers.uv.new('UV2Map')
 
-    if len(mesh_data.uv3) > 0:
+    if len(obj_data.uv3) > 0:
         uv3_layer = bm.loops.layers.uv.new('UV3Map')
 
     bm.faces.ensure_lookup_table()
@@ -610,13 +646,13 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
 
     for i, face in enumerate(face_list):
         for j, loop in enumerate(bm.faces[i].loops):
-            loop[uv_layer].uv = mesh_data.uv[face[j] - 1]
+            loop[uv_layer].uv = obj_data.uv[face[j] - 1]
 
-            if len(mesh_data.uv2) > 0:
-                loop[uv2_layer].uv = mesh_data.uv2[face[j] - 1]
+            if len(obj_data.uv2) > 0:
+                loop[uv2_layer].uv = obj_data.uv2[face[j] - 1]
 
-            if len(mesh_data.uv3) > 0:
-                loop[uv3_layer].uv = mesh_data.uv3[face[j] - 1]
+            if len(obj_data.uv3) > 0:
+                loop[uv3_layer].uv = obj_data.uv3[face[j] - 1]
 
     # bm.verts.ensure_lookup_table()
 

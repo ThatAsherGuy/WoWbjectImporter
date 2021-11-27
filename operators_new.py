@@ -19,102 +19,29 @@
 
 # Hell is other people's code
 
-import bmesh
 import bpy
 import bpy.props
-from mathutils import Vector
 
 import json
 import os
 import sys
-from math import radians
-
+import time
+# from math import radians
 from pathlib import Path
-from typing import (TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, cast)
+from typing import (TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple,
+                    Union, cast)
 
 from bpy_extras.io_utils import ImportHelper
 
-
-from .lookup_funcs import wmo_read_color, wmo_read_group_flags
-from .node_groups import do_wmo_combiner, get_utility_group
-from .preferences import WoWbject_ObjectProperties, get_prefs
-from .wbjtypes import JsonWmoGroup, JsonWmoMetadata
 from .import_wmo import import_wmo
+# from .lookup_funcs import wmo_read_color, wmo_read_group_flags
+# from .node_groups import do_wmo_combiner, get_utility_group
+# from .preferences import WoWbject_ObjectProperties, get_prefs
+# from .wbjtypes import JsonWmoGroup, JsonWmoMetadata
+from .preferences import get_prefs
 
 # FIXME: do we need to make this local/tweak this/etc?
 # from .node_groups import do_wmo_mats
-
-# ripped from obj_import.py, which was ripped from Kruinthe's addoon.
-# There may or may not be a better way to manage all this.
-#
-# FIXME: Can we make these a dataclass?
-class meshComponent:
-    usemtl: str
-    name: str
-    verts: Set[float]
-    faces: List[Tuple[int, ...]]
-    uv: List[float]
-
-    def __init__(self) -> None:
-        self.usemtl = ''
-        self.name = ''
-        self.verts = set()
-        self.faces = []
-        self.uv = []
-
-
-class meshObject:
-    usemtl: str
-    mtlfile: str
-    name: str
-
-    # These tuples actually are of a determinant size, but the type checker
-    # doesn't know that, so we're cheating a little.
-    verts: List[Tuple[float, ...]]
-    faces: List[Tuple[int, ...]]
-    normals: List[Tuple[float, ...]]
-    uv: List[Tuple[float, ...]]
-    uv2: List[Tuple[float, ...]]
-    uv3: List[Tuple[float, ...]]
-    components: List[meshComponent]
-
-    def __init__(self) -> None:
-        self.usemtl = ''
-        self.mtlfile = ''
-        self.name = ''
-        self.verts = []
-        self.faces = []
-        self.normals = []
-        self.uv = []
-        self.uv2 = []
-        self.uv3 = []
-        self.components = []
-
-
-class wmoGroup:
-    mesh_data: Optional[meshObject]
-    mesh_batches: List[meshComponent]
-
-    json_group: JsonWmoGroup
-    group_offset: int
-
-    json_batches: List[Any]  # FIXME: type
-    batch_count: int
-
-    colors: List[List[int]]
-
-    def __init__(self) -> None:
-        self.mesh_data = None
-        self.mesh_batches = []
-
-        self.json_group = None  # type: ignore
-        self.group_offset = -1
-
-        # The renderBatches that map to the meshComponent objects
-        self.json_batches = []
-        self.batch_count = -1
-
-        self.colors = []
 
 
 class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
@@ -300,6 +227,11 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         args: Dict[str, bpy.types.Property] = self.as_keywords(
             ignore=("filter_glob", "directory", "filepath", "files"))
 
+        if "PYDEVD_USE_FRAME_EVAL" in os.environ:
+            print("WARNING: debugging in use, coverage analysis and profiling will not be performed")
+            self.do_coverage = False
+            self.do_profiling = False
+
         if self.do_coverage and self.do_profiling:
             print("WARNING: code coverage and code profiling both enabled, results will be inaccurate")
 
@@ -316,7 +248,11 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
             pr = cProfile.Profile()
             pr.enable()
 
+        start_time = time.time()
         do_import(context, filepath, self.reuse_materials, str(self.base_shader), args)
+        end_time = time.time()
+        runtime = end_time - start_time
+        print(f"IMPORT COMPLETED in {runtime:0.2f}s")
 
         if self.do_profiling:
             pr.disable()

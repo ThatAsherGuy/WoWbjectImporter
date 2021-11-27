@@ -378,13 +378,24 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
 
     if TYPE_CHECKING:
         # source_asset: bpy.types.StringProperty
-        source_asset: str
+        source_file: str
     else:
-        source_asset: bpy.props.StringProperty(
+        source_file: bpy.props.StringProperty(
             name="Source File",
             description="Where it come from",
             default="",
             subtype='FILE_NAME',
+            # get=lambda self : self["source_asset"],
+            # options={''},
+        )
+
+    if TYPE_CHECKING:
+        source_fdid: int
+    else:
+        source_file: bpy.props.IntProperty(
+            name="Source FDID",
+            description="File Data ID of source asset",
+            default=0,
             # get=lambda self : self["source_asset"],
             # options={''},
         )
