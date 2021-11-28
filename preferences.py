@@ -392,7 +392,7 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
     if TYPE_CHECKING:
         source_fdid: int
     else:
-        source_file: bpy.props.IntProperty(
+        source_fdid: bpy.props.IntProperty(
             name="Source FDID",
             description="File Data ID of source asset",
             default=0,

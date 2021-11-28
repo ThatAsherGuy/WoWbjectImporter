@@ -695,9 +695,9 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
     use_combiner_nodes = True
     do_vertex_lighting = False
 
-    shader_info = WMO_Shaders[mat_info["shader"]]  # should this be a func call?
-    blend_mode = mat_info["blendMode"]
-    group_type = mat_info["groupType"]
+    shader_info = WMO_Shaders[mat_info.shader]  # should this be a func call?
+    blend_mode = mat_info.blendMode
+    group_type = mat_info.groupType
 
     tree = bl_mat.node_tree
     nodes = tree.nodes
@@ -710,7 +710,7 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
 
     bl_mat.use_backface_culling = False
 
-    flags = wmo_read_mat_flags(mat_info["flags"])
+    flags = wmo_read_mat_flags(mat_info.flags)
 
     for flag in flags:
         if flag == 'TWO_SIDED':

@@ -47,7 +47,11 @@ wowbjectifier_updater
 wowbjectimporter_updater
 .diff
 typings/
+typings-orig/
 *.bak
+
+# don't want vendor dirs -- we generate those from requirements.txt
+vendor/
 
 # Probably don't need to commit logs
 *.log

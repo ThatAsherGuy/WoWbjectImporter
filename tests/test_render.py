@@ -17,7 +17,15 @@ from pytest_html import extras
 # dname = os.path.dirname(abspath)
 # os.chdir(dname)
 
+# I hate having to calculate TESTDIR from the current file, but we can't
+# access the value of the pytest-determined root directory until an actual
+# test runs (so we can get it as part of 'request'). Boo.
 TESTSDIR = os.path.dirname(os.path.realpath(__file__))
+
+DATADIR = os.path.join("tests", "test_data")
+OUTPUTDIR = os.path.join("tests", "render_results")
+REFERENCEDIR = os.path.join("tests", "render_references_temp_test")
+DIFFSDIR = os.path.join("tests", "render_diffs")
 
 
 # returns from an underlying check
@@ -42,10 +50,10 @@ def blender_exe(pytestconfig):
 
 
 @pytest.mark.tryfirst
-def test_blender_exe(blender_exe):
+def test_blender_exe(request, blender_exe):
     """Test to verify that blender works, before running tests depending on it"""
     success, failmsg = run_blender_python(
-        os.path.join(TESTSDIR, "wowbject_render.py"),
+        os.path.join(request.config.rootdir, "tests", "wowbject_render.py"),
         ["--ping"],
         blender_exe=blender_exe,
     )
@@ -288,7 +296,7 @@ def tlist():
 # a named tuple with 'success' and 'failure message' fields. All the work
 # for this test is done in that fixture, with the test itself just checking
 # for success.
-def test_render(t_render, extra):
+def test_render(t_render, request, extra):
     """Validate a test render happens without error"""
     success = t_render.success
 
@@ -298,7 +306,7 @@ def test_render(t_render, extra):
     id = r['id']
     # Not sure how to display images if it's a multi-image
     if not isinstance(r["cameraloc"], list):
-        imgpath = os.path.join("render_results", f"{id}.png")
+        imgpath = os.path.join(request.config.rootdir, OUTPUTDIR, f"{id}.png")
         extra.append(caption_png_extra(imgpath, "Rendered Image"))
 
 
@@ -328,7 +336,7 @@ def caption_png_extra(img, caption):
 
     return extras.html(img_html)
 
-def test_render_check(t_render, extra):
+def test_render_check(t_render, request, extra):
     "Verify the result of a test render looks like it's expected to look"
     threshold = 0.00001
     r = t_render.param
@@ -351,9 +359,9 @@ def test_render_check(t_render, extra):
         # outimg = os.path.join("render_results", f"{fn}_img%02d.png")
 
         for i in range(1, len(r["cameraloc"]) + 1):
-            refimg = os.path.join("render_references_temp_test", fn % (i))
-            checkimg = os.path.join("render_results", fn % (i))
-            diffimg = os.path.join("render_diffs", fn % (i))
+            refimg = os.path.join(request.config.rootdir, REFERENCEDIR, fn % (i))
+            checkimg = os.path.join(request.config.rootdir, OUTPUTDIR, fn % (i))
+            diffimg = os.path.join(request.config.rootdir, DIFFSDIR, fn % (i))
 
             compared = checkimage(refimg, checkimg, diffimg)
 
@@ -366,9 +374,9 @@ def test_render_check(t_render, extra):
                 os.remove(diffimg)
 
     else:
-        refimg = os.path.join("render_references_temp_test", f"{id}.png")
-        checkimg = os.path.join("render_results", f"{id}.png")
-        diffimg = os.path.join("render_diffs", f"{id}.png")
+        refimg = os.path.join(request.config.rootdir, REFERENCEDIR, f"{id}.png")
+        checkimg = os.path.join(request.config.rootdir, OUTPUTDIR, f"{id}.png")
+        diffimg = os.path.join(request.config.rootdir, DIFFSDIR, f"{id}.png")
 
         compared = checkimage(refimg, checkimg, diffimg)
 
@@ -395,7 +403,7 @@ def t_render(request):
 
     # normalize our input file path, and make sure it exists
     print(f"root dir: {request.config.rootdir}")
-    objdata = os.path.join(request.config.rootdir, "tests", "test_data",
+    objdata = os.path.join(request.config.rootdir, DATADIR,
                            r["obj_file"].replace(posixpath.sep, os.sep))
     assert os.path.exists(objdata), f"no source file '{objdata}'"
 
@@ -411,7 +419,7 @@ def t_render(request):
     if isinstance(r["cameraloc"], list):
         cameraloc = ",".join(r["cameraloc"])
         camerarot = ",".join(r["camerarot"])
-        outimg = os.path.join("render_results", f"{id}_img%02d.png")
+        outimg = os.path.join(request.config.rootdir, OUTPUTDIR, f"{id}_img%02d.png")
 
         for i in range(1, len(r["cameraloc"]) + 1):
             checkfn = outimg % (i)
@@ -421,7 +429,7 @@ def t_render(request):
     else:
         cameraloc = r["cameraloc"]
         camerarot = r["camerarot"]
-        outimg = os.path.join("render_results", f"{id}.png")
+        outimg = os.path.join(request.config.rootdir, OUTPUTDIR, f"{id}.png")
 
         if os.path.exists(outimg):
             os.remove(outimg)

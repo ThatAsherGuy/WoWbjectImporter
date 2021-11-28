@@ -32,10 +32,10 @@ from typing import Any, Dict, List, Optional, Set, Tuple, cast
 from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 from .node_groups import do_wmo_combiner, get_utility_group
 from .preferences import WoWbject_ObjectProperties, get_prefs
-from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatches, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
+from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatch, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
 
 from mathutils import Vector
-
+from .vendor import mashumaro
 
 # FIXME: Which of these should be general, and which wmo-specific?
 @dataclasses.dataclass
@@ -155,14 +155,13 @@ def obj_read(file: Path) -> ObjData:
 class wmoGroup:
     # FIXME: Is the Optional[] bit needed on some of these?
     obj_data: ObjData
-    mesh_batches: List[ObjGroup] = dataclasses.field(default_factory=list)
 
     json_group: JsonWmoGroup
     group_offset: int = -1
 
-    json_batches: JsonWmoRenderBatches = dataclasses.field(default_factory=list)
     batch_count: int = -1
-
+    mesh_batches: List[ObjGroup] = dataclasses.field(default_factory=list)
+    json_batches: List[JsonWmoRenderBatch] = dataclasses.field(default_factory=list)
     colors: List[List[int]] = dataclasses.field(default_factory=list)
 
 
@@ -176,27 +175,26 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
     file = Path(filepath)
     name_override = op_args.get("name_override")
 
+    print("loading json metadata")
     # if do_search:
-    if file.with_suffix(".json").exists():
-        with file.with_suffix(".json").open() as p:
-            # FIXME: error handling here
-            json_config = json.load(p)
-    else:
+    if not file.with_suffix(".json").exists():
         # FIXME: user-facing error handling
-        print(f"failed to load metadata from '{file.with_suffix('.json')}, can't continue")
-        return
+        raise RuntimeError(
+            f"failed to load metadata from '{file.with_suffix('.json')}, can't continue")
+
+    with file.with_suffix(".json").open() as p:
+        # FIXME: error handling here
+        json_config = json.load(p)
 
     if not json_config:
-        print(f"failed to load metadata file {file.with_suffix('.json')}")
-        return
+        raise RuntimeError(f"failed to load metadata file {file.with_suffix('.json')}")
 
     if name_override:
         basename = name_override
     else:
         basename = file.stem
 
-    print(f"importing using base name: {basename}")
-
+    print(f"will be importing using base name: {basename}")
 
     # START def do_setup(self, files, directory, op_args, **kwargs):
     if True:
@@ -204,7 +202,15 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
         if ".wmo" not in json_config["fileName"]:
             raise ValueError("import_wmo called to import a non-WMO file")
 
-        json_config = cast(JsonWmoMetadata, json_config)
+
+
+        try:
+            json_config = JsonWmoMetadata.from_dict(json_config)  # type: ignore
+        # FIXME: Not sure why pylance can't figure out the types here
+        except mashumaro.exceptions.MissingField as e:
+            raise RuntimeError(str(e))
+        except mashumaro.exceptions.InvalidFieldValue as e:
+            raise RuntimeError("invalid field value (not repeating)")
         # END setup_json_data
 
         # START def setup_bl_object(self, progress):
@@ -237,8 +243,8 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             WBJ.initialized = True
 
             # if import_container.wmo:
-            json_mats = json_config["materials"]
-            json_groups = json_config["groups"]
+            json_mats = json_config.materials
+            json_groups = json_config.groups
 
             # START def repack_wmo(import_container, groups: dict, obj_data: meshObject, config: dict):
             groups: List[wmoGroup] = []
@@ -247,7 +253,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             flat_colors: List[List[int]] = [[], [], []]
 
             for group in json_groups:
-                g_batches = group["renderBatches"]
+                g_batches = group.renderBatches
                 g_length = len(g_batches)
 
                 if g_length > 0:
@@ -262,8 +268,13 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     wmo_group.obj_data = obj_data
                     groups.append(wmo_group)
 
-                    vcolors = group.get("vertexColours", [])
-                    last_color = g_batches[-1].get("lastVertex", -1) + 1
+                    # FIXME: Make sure vertex colors default correctly
+                    vcolors = group.vertexColours
+
+                    # FIXME: check vs. original line and figure out how missing
+                    # data is being handled w/ mashumaro
+                    # last_color = g_batches[-1].get("lastVertex", -1) + 1
+                    last_color = (g_batches[-1].lastVertex or -1) + 1
 
                     vertex_count = 0
                     for comp in wmo_group.mesh_batches:
@@ -291,20 +302,20 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     wmo_group.batch_count = 0
                     groups.append(wmo_group)
 
-                    err_gname = group.get("groupName", "")
-                    err_gdesc = group.get("groupDescription", "")
+                    err_gname = group.groupName or ""
+                    err_gdesc = group.groupDescription or ""
                     print(f"{err_gname} {err_gdesc} Batchless")
 
-                    err_numbatch = group.get("numPortals", "")
+                    err_numbatch = group.numPortals or ""
                     print(f"numPortals: {err_numbatch}")
 
-                    err_numbatch = group.get("numBatchesA", "")
+                    err_numbatch = group.numBatchesA or ""
                     print(f"numBatchesA: {err_numbatch}")
 
-                    err_numbatch = group.get("numBatchesB", "")
+                    err_numbatch = group.numBatchesB or ""
                     print(f"numBatchesB: {err_numbatch}")
 
-                    err_numbatch = group.get("numBatchesC", "")
+                    err_numbatch = group.numBatchcesC or ""
                     print(f"numBatchesC: {err_numbatch}")
 
             wmo_groups = groups
@@ -325,7 +336,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
             print("Generating meshes")
             for i, group in enumerate(wmo_groups):
-                sub = group.json_group.get("groupName", "")
+                sub = group.json_group.groupName or ""
                 print(f"Constructing object {i + 1}/{steps} | {sub}")
 
                 # FIXME: revisit -- should inline this probably, too
@@ -352,7 +363,9 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
         # START def setup_materials(self):
         # START def do_wmo_mats(**kwargs):
-        mats = json_config["materials"]
+
+        # FIXME: duplicates json_mats?
+        mats = json_config.materials
 
         configured_mats: Set[bpy.types.Material] = set()
 
@@ -368,7 +381,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 # next bits simplified from node_groups.py:get_tex
                 # tex1 = get_tex(container, str(mat.get("texture1")))
                 tex1: Optional[bpy.types.Image] = None
-                texnum = mat['texture1']
+                texnum = mat.texture1
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
 
@@ -381,7 +394,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
                 # tex2 = get_tex(container, str(mat.get("texture2")))
                 tex2: Optional[bpy.types.Image] = None
-                texnum = mat.get('texture2')
+                texnum = mat.texture2
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
 
@@ -394,7 +407,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
                 # tex3 = get_tex(container, str(mat.get("texture3")))
                 tex3: Optional[bpy.types.Image] = None
-                texnum = mat.get('texture3')
+                texnum = mat.texture3
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
                 if texnum > 0 and texfile.exists():
@@ -455,7 +468,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 baseColor = nodes.new('ShaderNodeRGB')
                 baseColor.location += Vector((-1200.0, 400.0))
                 baseColor.outputs["Color"].default_value = wmo_read_color(
-                    mat["color2"], 'CArgb')
+                    mat.color2, 'CArgb')
                 baseColor.label = 'BASE COLOR'
 
                 tex_nodes: List[bpy.types.ShaderNodeTexImage] = []
@@ -468,7 +481,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                         tex_node.label = ("TEXTURE_%s" % str(i + 1))
                         tex_nodes.append(tex_node)
 
-                ambColor = wmo_read_color(json_config["ambientColor"], 'CImVector')
+                ambColor = wmo_read_color(json_config.ambientColor, 'CImVector')
 
 
                 do_wmo_combiner(
@@ -494,9 +507,9 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
 
     json_group = group.json_group
 
-    full_name = base_name + "_" + json_group.get("groupName", "section")
-    collection_name = json_group.get("groupDescription", None)
-    flags = wmo_read_group_flags(json_group.get("flags", 0))
+    full_name = base_name + "_" + (json_group.groupName or "section")
+    collection_name = json_group.groupDescription  # FIXME: none-checking needed?
+    flags = wmo_read_group_flags(json_group.flags)  # FIXME: do we need a 0 default?
 
     mesh = bpy.data.meshes.new(base_name)
     mesh.use_auto_smooth = True
@@ -574,20 +587,21 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     exampleFace = bface
                     exampleFaceSet = True
 
-                    if json_batches[i]["flags"] == 2:
+                    if json_batches[i].flags == 2:
                         # FIXME: what is this?
-                        mat_ID = json_batches[i]["possibleBox2"][2]
+                        mat_ID = json_batches[i].possibleBox2[2]
                     else:
-                        mat_ID = json_batches[i]["materialID"]
+                        mat_ID = json_batches[i].materialID
 
                     # vvvv FIXME vvvv
                     local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
-                        mat_dict[mat_ID].name)
+                        mat_dict[int(mat_ID)].name)
 
                     if local_index == -1:
-                        newObj.data.materials.append(mat_dict[mat_ID])
+                        # FIXME: typing
+                        newObj.data.materials.append(mat_dict[int(mat_ID)])
                         bface.material_index = newObj.data.materials.find(
-                            mat_dict[mat_ID].name)
+                            mat_dict[int(mat_ID)].name)
                     else:
                         bface.material_index = local_index
 
@@ -603,6 +617,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                 v2 = bm.verts.new(obj_data.verts[face[1] - 1])
                 v3 = bm.verts.new(obj_data.verts[face[2] - 1])
 
+                # FIXME: types?
                 colors[v1] = colors[v_dict[face[0]]]
                 colors[v2] = colors[v_dict[face[1]]]
                 colors[v3] = colors[v_dict[face[2]]]
@@ -612,10 +627,10 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     exampleFace = bface
                     exampleFaceSet = True
 
-                    if json_batches[i].get("flags") == 2:
-                        mat_ID = json_batches[i].get("possibleBox2")[2]
+                    if json_batches[i].flags == 2:
+                        mat_ID = int(json_batches[i].possibleBox2[2])  # WTF is this?
                     else:
-                        mat_ID = json_batches[i].get("materialID")
+                        mat_ID = json_batches[i].materialID
 
                     local_index = newObj.data.materials.find(mat_dict[mat_ID].name)
 

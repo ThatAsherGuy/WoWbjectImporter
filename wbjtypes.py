@@ -1,11 +1,11 @@
 # other possibilities for json-to-something-checkable:
 #   https://stackoverflow.com/questions/53376099/python-dataclass-from-a-nested-dict/53498623#53498623
 #
-# We're using TypedDict for the json-related types at the moment, to at least
-# give some sort of type checking and field typing and such to the data we're
-# reading in. Sadly, this means that we can't use get() and still have type
-# checking, which sucks. We also can't use .attribute type accesses, either,
-# which also sucks a bit.
+# We started with TypedDict for the json-related types at the moment, to at
+# least give some sort of type checking and field typing and such to the data
+# we're reading in. Sadly, this means that we can't use get() and still have
+# type checking, which sucks. We also can't use .attribute type accesses,
+# either, which also sucks a bit.
 #
 # TypedDict is fast, though. Loading dalaran with it takes 0.93s, and loading
 # stormwind with it takes 0.56s. This is more than a full order of magnitude
@@ -23,9 +23,13 @@
 # Assuming we don't run into issues with it, we may have a winner!
 
 from typing import List, Dict, TypedDict, Tuple
+import typing
+import dataclasses
 from dataclasses import dataclass
-import mathutils
-from .lookup_tables import EGxBlend
+from .vendor.mashumaro import DataClassJSONMixin
+# from mashumaro import DataClassJSONMixin
+# import mathutils
+# from .lookup_tables import EGxBlend
 import enum
 
 # class Vec2(mathutils.Vector):
@@ -67,28 +71,35 @@ JsonPosition = Tuple[float, float, float]
 
 JsonRotation = Tuple[float, float, float, float]
 
-class JsonBoundingBox(TypedDict, total=True):
-    min: JsonVertex
-    max: JsonVertex
+JsonTextureCombos = List[int]
+
+JsonTextureTypes = List[int]
+
+JsonVertexColorLayer = List[int]
+
+@dataclass
+class JsonBoundingBox(DataClassJSONMixin):
+    min: 'JsonVertex'
+    max: 'JsonVertex'
 
 
-JsonM2Materials = List['JsonM2Material']
-class JsonM2Material(TypedDict, total=True):
+@dataclass
+class JsonM2Material(DataClassJSONMixin):
     flags: int
     blendingMode: int
 
 
-JsonTextures = List['JsonTexture']
-class JsonTexture(TypedDict, total=True):
+@dataclass
+class JsonTexture(DataClassJSONMixin):
     fileNameInternal: str
     fileNameExternal: str
     mtlName: str
-    flags: int  # FIXME: Not in WMO ... needs separate type?
     fileDataID: int
+    flags: int = 0  # FIXME: Not in WMO ... needs separate type?
 
 
-JsonTextureUnits = List['JsonTextureUnit']
-class JsonTextureUnit(TypedDict, total=True):
+@dataclass
+class JsonTextureUnit(DataClassJSONMixin):
     flags: int
     priority: int
     shaderID: int
@@ -104,12 +115,15 @@ class JsonTextureUnit(TypedDict, total=True):
     textureTransformComboIndex: int
 
 
-JsonTextureCombos = List[int]
+@dataclass
+class JsonSkin(DataClassJSONMixin):
+    fileName: str
+    fileDataID: int
+    subMeshes: List['JsonSubMesh'] = dataclasses.field(default_factory=list)
+    textureUnits: List['JsonTextureUnit'] = dataclasses.field(default_factory=list)
 
-JsonTextureTypes = List[int]
-
-JsonSubMeshes = List['JsonSubMesh']
-class JsonSubMesh(TypedDict, total=True):
+@dataclass
+class JsonSubMesh(DataClassJSONMixin):
     enabled: bool
     submeshID: int
     level: int
@@ -126,34 +140,28 @@ class JsonSubMesh(TypedDict, total=True):
     sortRadius: float
 
 
-class JsonSkin(TypedDict, total=True):
-    subMeshes: JsonSubMeshes
-    textureUnits: JsonTextureUnits
-    fileName: str
-    fileDataID: int
-
-
-class JsonM2Metadata(TypedDict, total=True):
+@dataclass
+class JsonM2Metadata(DataClassJSONMixin):
     fileDataID: int
     fileName: str
     internalName: str  # FIXME: optional?
-    textures: JsonTextures
-    textureTypes: JsonTextureTypes
-    materials: JsonM2Materials
-    textureCombos: JsonTextureCombos
+    textureTypes: 'JsonTextureTypes'
+    textureCombos: 'JsonTextureCombos'
     # colors:  ???
-    # textureWeights: ???
-    transparencyLookup: List[int]
-    # textureTransforms: ???
-    textureTransformsLookup: List[int]
-    boundingBox: JsonBoundingBox
+    boundingBox: 'JsonBoundingBox'
     boundingSphereRadius: float
-    collisionBox: JsonBoundingBox
+    collisionBox: 'JsonBoundingBox'
     collisionSphereRadius: float
-    skin: JsonSkin
+    skin: 'JsonSkin'
+    textures: List['JsonTexture'] = dataclasses.field(default_factory=list)
+    materials: List['JsonM2Material'] = dataclasses.field(default_factory=list)
+    # textureWeights: ???
+    transparencyLookup: List[int] = dataclasses.field(default_factory=list)
+    # textureTransforms: ???
+    textureTransformsLookup: List[int] = dataclasses.field(default_factory=list)
 
-
-class JsonWmoCounts(TypedDict, total=True):
+@dataclass
+class JsonWmoCounts(DataClassJSONMixin):
     material: int
     group: int
     portal: int
@@ -164,7 +172,8 @@ class JsonWmoCounts(TypedDict, total=True):
     lod: int
 
 
-class JsonPortalInformation(TypedDict, total=True):
+@dataclass
+class JsonPortalInformation(DataClassJSONMixin):
     """
     MOPT / SMOPortal - describes one portal separating two WMO groups. A single portal is usually made up of four vertices in a quad (starting at startVertex and going to startVertex + count). However, portals support more complex shapes, and can fully encompass holes such as the archway leading into Ironforge and parts of the Caverns of Time.
     """
@@ -173,7 +182,8 @@ class JsonPortalInformation(TypedDict, total=True):
     plane: Tuple[float, float, float, float]  # FIXME: what is this?
 
 
-class JsonPortalMapObjectReference(TypedDict, total=True):
+@dataclass
+class JsonPortalMapObjectReference(DataClassJSONMixin):
     """
     MOPR / SMOPortalRef - Map Object Portal References from groups.
     """
@@ -182,16 +192,17 @@ class JsonPortalMapObjectReference(TypedDict, total=True):
     side: int
 
 
-class JsonWmoMaterialInformation(TypedDict, total=True):
+@dataclass
+class JsonWmoMaterialInformation(DataClassJSONMixin):
     flags: int
     materialID: int
 
 
-JsonWmoRenderBatches = List['JsonWmoRenderBatch']
-class JsonWmoRenderBatch(TypedDict, total=True):
+@dataclass
+class JsonWmoRenderBatch(DataClassJSONMixin):
     # FIXME: what are these?
-    possibleBox1: JsonVertex   # actually int though?
-    possibleBox2: JsonVertex   # actually int though?
+    possibleBox1: 'JsonVertex'   # actually int though?
+    possibleBox2: 'JsonVertex'   # actually int though?
     firstFace: int
     numFaces: int
     firstVertex: int
@@ -200,68 +211,70 @@ class JsonWmoRenderBatch(TypedDict, total=True):
     materialID: int
 
 
-JsonVertexColorLayer = List[int]
-
-JsonWmoGroups = List['JsonWmoGroup']
-class JsonWmoGroup(TypedDict, total=True):
-    groupName: str
-    groupDescription: str
-    enabled: bool
+@dataclass
+class JsonWmoGroup(DataClassJSONMixin):
     version: int
     flags: int
-    boundingBox1: JsonVertex
-    boundingBox2: JsonVertex
+    boundingBox1: 'JsonVertex'
+    boundingBox2: 'JsonVertex'
     numPortals: int
     numBatchesA: int
     numBatchesB: int
     numBatchesC: int
     liquidType: int
     groupID: int
-    materialInfo: List[JsonWmoMaterialInformation]
-    renderBatches: JsonWmoRenderBatches
-    vertexColours: List[JsonVertexColorLayer]
+    materialInfo: List['JsonWmoMaterialInformation'] = dataclasses.field(default_factory=list)
+    renderBatches: List['JsonWmoRenderBatch'] = dataclasses.field(default_factory=list)
+    vertexColours: List['JsonVertexColorLayer'] = dataclasses.field(default_factory=list)
+    groupName: str = ""
+    groupDescription: str = ""
+    enabled: bool = True
 
 
-class JsonWmoGroupInformation(TypedDict, total=True):
+@dataclass
+class JsonWmoGroupInformation(DataClassJSONMixin):
     """MOGI / SMOGroupInfo - Information for WMO Groups"""
     flags: int  # FIXME: make real flags
     """Same as flags from MOGP"""
-    boundingBox1: JsonVertex
-    boundingBox2: JsonVertex
+    boundingBox1: 'JsonVertex'
+    boundingBox2: 'JsonVertex'
     nameIndex: int
 
 
 # MOMT / SMOMaterial
 # FIXME: make all the names here match up with kaitai-wow (or visa versa)
-class WmoMaterialFlags(enum.Flag):
-    F_UNLIT = 0x01
-    """disable lighting logic in shader (but can still use vertex colors)"""
-    F_UNFOGGED = 0x02
-    """disable fog shading (rarely used)"""
-    F_UNCULLED = 0x04
-    """two-sided"""
-    F_EXTLIGHT = 0x08
-    """darkened (internal face of windows?)"""
-    F_SIDN = 0x10
-    """bright at night, unshaded (used on windows and lamps)"""
-    F_WINDOW = 0x20
-    """unknown (lighting related)"""
-    F_CLAMP_S = 0x40
-    """force this material's textures to use clamp s addressing"""
-    F_CLAMP_T = 0x80
-    """force this material's textures to use clamp t addressing"""
-    flag_0x100 = 0x100
+# @dataclass
+# class WmoMaterialFlags(enum.Flag):
+#     F_UNLIT = 0x01
+#     """disable lighting logic in shader (but can still use vertex colors)"""
+#     F_UNFOGGED = 0x02
+#     """disable fog shading (rarely used)"""
+#     F_UNCULLED = 0x04
+#     """two-sided"""
+#     F_EXTLIGHT = 0x08
+#     """darkened (internal face of windows?)"""
+#     F_SIDN = 0x10
+#     """bright at night, unshaded (used on windows and lamps)"""
+#     F_WINDOW = 0x20
+#     """unknown (lighting related)"""
+#     F_CLAMP_S = 0x40
+#     """force this material's textures to use clamp s addressing"""
+#     F_CLAMP_T = 0x80
+#     """force this material's textures to use clamp t addressing"""
+#     flag_0x100 = 0x100
 
 
-JsonWmoMaterials = List['JsonWmoMaterial']
-class JsonWmoMaterial(TypedDict, total=True):
+@dataclass
+class JsonWmoMaterial(DataClassJSONMixin):
     """[summary]
      MOMT / SMOMaterial - Materials used in this map object, one per texture/blp
     """
-    flags: WmoMaterialFlags
+    # flags: WmoMaterialFlags
+    flags: int
     shader: int
     """shader to use from WMO_Shaders table"""
-    blendMode: EGxBlend
+    # blendMode: 'EGxBlend'
+    blendMode: int
     """blend mode"""
     texture1: FDID
     color1: int
@@ -278,8 +291,8 @@ class JsonWmoMaterial(TypedDict, total=True):
     flags3: int
 
 
-JsonWmoDoodadSets = List['JsonWmoDoodadSet']
-class JsonWmoDoodadSet(TypedDict, total=True):
+@dataclass
+class JsonWmoDoodadSet(DataClassJSONMixin):
     """
     MODS / SMODoodadSet - Doodad Sets. specify several versions of "interior
     decoration" for a WMO. Sets are exclusive except for the first one,
@@ -293,15 +306,15 @@ class JsonWmoDoodadSet(TypedDict, total=True):
     # unused: int
 
 
-JsonWmoDoodads = List['JsonWmoDoodad']
-class JsonWmoDoodad(TypedDict, total=True):
+@dataclass
+class JsonWmoDoodad(DataClassJSONMixin):
     """
     MODD / SMODoodadDef - information for doodad instances"""
     offset: int
     flags: int
-    position: JsonPosition
+    position: 'JsonPosition'
     """position as (X,Z,-Y)   WARNING: Might be adjusted by wow.export"""
-    rotation: JsonRotation
+    rotation: 'JsonRotation'
     """rotation as (X, Y, Z, W) quaternion   WARNING: might be just Euler by wow.export"""
     scale: float
     """doodad scale factor"""
@@ -309,25 +322,28 @@ class JsonWmoDoodad(TypedDict, total=True):
     """overrides pc_sunColor, see notes on wiki"""
 
 
-class JsonWmoMetadata(TypedDict, total=True):
+@dataclass
+class JsonWmoMetadata(DataClassJSONMixin):
     fileDataID: int
     fileName: str
     version: int
-    counts: JsonWmoCounts
-    portalVertices: List[JsonVertex]
-    portalInfo: List[JsonPortalInformation]
-    portalMapObjectRef: List[JsonPortalMapObjectReference]
+    counts: 'JsonWmoCounts'
+
     ambientColor: int
     areaTableID: int
-    boundingBox1: JsonVertex
-    boundingBox2: JsonVertex
+    boundingBox1: 'JsonVertex'
+    boundingBox2: 'JsonVertex'
     flags: int
-    groups: JsonWmoGroups
-    groupNames: List[str]
-    groupInfo: List[JsonWmoGroupInformation]
-    textures: JsonTextures
-    materials: JsonWmoMaterials
-    doodadSets: JsonWmoDoodadSets
-    fileDataIDs: List[int]
-    doodads: JsonWmoDoodads
-    groupIDs: List[int]
+    portalVertices: List['JsonVertex'] = dataclasses.field(default_factory=list)
+    portalInfo: List['JsonPortalInformation'] = dataclasses.field(default_factory=list)
+    portalMapObjectRef: List['JsonPortalMapObjectReference'] = dataclasses.field(
+        default_factory=list)
+    groups: List['JsonWmoGroup'] = dataclasses.field(default_factory=list)
+    groupNames: List[str] = dataclasses.field(default_factory=list)
+    groupInfo: List['JsonWmoGroupInformation'] = dataclasses.field(default_factory=list)
+    textures: List['JsonTexture'] = dataclasses.field(default_factory=list)
+    materials: List['JsonWmoMaterial'] = dataclasses.field(default_factory=list)
+    doodadSets: List['JsonWmoDoodadSet'] = dataclasses.field(default_factory=list)
+    fileDataIDs: List[int] = dataclasses.field(default_factory=list)
+    doodads: List['JsonWmoDoodad'] = dataclasses.field(default_factory=list)
+    groupIDs: List[int] = dataclasses.field(default_factory=list)
