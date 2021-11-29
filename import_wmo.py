@@ -36,13 +36,16 @@ from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatch, Vec2, V
 
 from mathutils import Vector
 from .vendor import mashumaro
+from .utilities import recursive_remove_doubles, tris_to_quads
 
 # FIXME: Which of these should be general, and which wmo-specific?
 @dataclasses.dataclass
 class ObjGroup:
+    """
+    An individual object group from within an obj
+    """
     mtlname: Optional[str] = None
     name: Optional[str] = None
-
     # FIXME: should this be 1-based like other obj things?
     verts: Set[int] = dataclasses.field(default_factory=set)
     """set of vertex indexes (0-based!) used in group"""
@@ -53,13 +56,19 @@ class ObjGroup:
 
 @dataclasses.dataclass
 class ObjData:
+    """
+    Raw data as read from an obj file, as exported from wow.export. Includes
+    vertexes, faces (as indexes into vertex list), normals, UV maps, etc.
+    """
     usemtl: str = ""
     mtlfile: str = ""
     name: Optional[str] = None
     verts: List[Vec3] = dataclasses.field(default_factory=list)
     """vertexes (x,y,z) - 1-indexed when referenced by 'faces' field"""
-    faces: List[Tri] = dataclasses.field(default_factory=list)
-    """faces (v1, v2, v3) - right-handed; indexes into 'verts' (1-based)"""
+    # Pretty sure 'faces' isn't needed, because all the faces are defined in
+    # the individual groups?
+    # faces: List[Tri] = dataclasses.field(default_factory=list)
+    # """faces (v1, v2, v3) - right-handed; indexes into 'verts' (1-based)"""
     normals: List[Vec3] = dataclasses.field(default_factory=list)
     """vertex normals (x, y, z) - might not be unit vectors"""
     uv: List[Vec2] = dataclasses.field(default_factory=list)
@@ -69,6 +78,7 @@ class ObjData:
 
 
 # originally "initialize_mesh"
+# format description: https://en.wikipedia.org/wiki/Wavefront_.obj_file
 # TODO: Replace with a more robust port of the ImportObj add-on's process
 def obj_read(file: Path) -> ObjData:
     # START def initialize_mesh(mesh_path: str):
@@ -140,6 +150,7 @@ def obj_read(file: Path) -> ObjData:
                 obj_data.groups.append(ObjGroup())
                 obj_data.groups[groupIndex].name = line_split[1].decode('utf-8')
 
+            # Smooth shading
             # Materials
             elif line_start == b'usemtl':
                 obj_data.groups[groupIndex].mtlname = line_split[1].decode('utf-8')
@@ -202,10 +213,8 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
         if ".wmo" not in json_config["fileName"]:
             raise ValueError("import_wmo called to import a non-WMO file")
 
-
-
         try:
-            json_config = JsonWmoMetadata.from_dict(json_config)  # type: ignore
+            json_config = JsonWmoMetadata.from_dict(json_config)
         # FIXME: Not sure why pylance can't figure out the types here
         except mashumaro.exceptions.MissingField as e:
             raise RuntimeError(str(e))
@@ -315,7 +324,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     err_numbatch = group.numBatchesB or ""
                     print(f"numBatchesB: {err_numbatch}")
 
-                    err_numbatch = group.numBatchcesC or ""
+                    err_numbatch = group.numBatchesC or ""
                     print(f"numBatchesC: {err_numbatch}")
 
             wmo_groups = groups
@@ -508,8 +517,6 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     json_group = group.json_group
 
     full_name = base_name + "_" + (json_group.groupName or "section")
-    collection_name = json_group.groupDescription  # FIXME: none-checking needed?
-    flags = wmo_read_group_flags(json_group.flags)  # FIXME: do we need a 0 default?
 
     mesh = bpy.data.meshes.new(base_name)
     mesh.use_auto_smooth = True
@@ -520,8 +527,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     WBJ.wow_model_type = 'WMO'
     WBJ.initialized = True
 
-    # if "INTERIOR" in flags:
-    #     newObj.pass_index = 1
+    flags = wmo_read_group_flags(json_group.flags)  # FIXME: do we need a 0 default?
     if 'INTERIOR' in flags and 'EXTERIOR' in flags:
         WBJ.wmo_lighting_type = 'TRANSITION'
     elif 'INTERIOR' in flags:
@@ -546,7 +552,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     # uv_dict = {}
 
     for i, batch in enumerate(batches):
-        exampleFaceSet = False
+        exampleFace: Optional[bmesh.types.BMFace] = None
         # cull_list = []
         for face in batch.faces:
             for v in face:
@@ -578,14 +584,13 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     colors[vert] = v_color
 
             try:
-                if exampleFaceSet == False:
+                if not exampleFace:
                     bface = bm.faces.new((
                         v_dict[face[0]],
                         v_dict[face[1]],
                         v_dict[face[2]]
                     ))
                     exampleFace = bface
-                    exampleFaceSet = True
 
                     if json_batches[i].flags == 2:
                         # FIXME: what is this?
@@ -593,13 +598,14 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                     else:
                         mat_ID = json_batches[i].materialID
 
-                    # vvvv FIXME vvvv
+                    # FIXME: is there a way to not have to always repeat this cast?
                     local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
                         mat_dict[int(mat_ID)].name)
 
                     if local_index == -1:
                         # FIXME: typing
-                        newObj.data.materials.append(mat_dict[int(mat_ID)])
+                        cast(bpy.types.Mesh, newObj.data).materials.append(
+                            mat_dict[int(mat_ID)])
                         bface.material_index = newObj.data.materials.find(
                             mat_dict[int(mat_ID)].name)
                     else:
@@ -622,21 +628,21 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                 colors[v2] = colors[v_dict[face[1]]]
                 colors[v3] = colors[v_dict[face[2]]]
 
-                if exampleFaceSet == False:
+                if not exampleFace:
                     bface = bm.faces.new((v1, v2, v3))
                     exampleFace = bface
-                    exampleFaceSet = True
 
                     if json_batches[i].flags == 2:
                         mat_ID = int(json_batches[i].possibleBox2[2])  # WTF is this?
                     else:
                         mat_ID = json_batches[i].materialID
 
-                    local_index = newObj.data.materials.find(mat_dict[mat_ID].name)
+                    local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
+                        mat_dict[mat_ID].name)
 
                     if local_index == -1:
-                        newObj.data.materials.append(mat_dict[mat_ID])
-                        bface.material_index = newObj.data.materials.find(
+                        cast(bpy.types.Mesh, newObj.data).materials.append(mat_dict[mat_ID])
+                        bface.material_index = cast(bpy.types.Mesh, newObj.data).materials.find(
                             mat_dict[mat_ID].name)
                     else:
                         bface.material_index = local_index
@@ -660,7 +666,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     face_list = [face for sublist in face_list for face in sublist]
 
     for i, face in enumerate(face_list):
-        for j, loop in enumerate(bm.faces[i].loops):
+        for j, loop in enumerate(bm.faces[i].loops):  # <--- fix types
             loop[uv_layer].uv = obj_data.uv[face[j] - 1]
 
             if len(obj_data.uv2) > 0:
@@ -697,6 +703,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     newObj.rotation_euler = [0, 0, 0]
     newObj.rotation_euler.x = radians(90)
 
+    collection_name = json_group.groupDescription
     if use_collections and collection_name:
         if collection_name in bpy.data.collections:
             collection = bpy.data.collections[collection_name]

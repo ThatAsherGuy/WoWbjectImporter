@@ -214,7 +214,6 @@ class JsonWmoRenderBatch(DataClassJSONMixin):
 @dataclass
 class JsonWmoGroup(DataClassJSONMixin):
     version: int
-    flags: int
     boundingBox1: 'JsonVertex'
     boundingBox2: 'JsonVertex'
     numPortals: int
@@ -223,6 +222,7 @@ class JsonWmoGroup(DataClassJSONMixin):
     numBatchesC: int
     liquidType: int
     groupID: int
+    flags: int = 0
     materialInfo: List['JsonWmoMaterialInformation'] = dataclasses.field(default_factory=list)
     renderBatches: List['JsonWmoRenderBatch'] = dataclasses.field(default_factory=list)
     vertexColours: List['JsonVertexColorLayer'] = dataclasses.field(default_factory=list)

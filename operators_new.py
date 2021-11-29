@@ -227,6 +227,7 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
         args: Dict[str, bpy.types.Property] = self.as_keywords(
             ignore=("filter_glob", "directory", "filepath", "files"))
 
+        # is there a better way to detect that we're debugging?
         if "PYDEVD_USE_FRAME_EVAL" in os.environ:
             print("WARNING: debugging in use, coverage analysis and profiling will not be performed")
             self.do_coverage = False
@@ -311,4 +312,4 @@ def do_import(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_
     if ".wmo" in json_config["fileName"]:
         import_wmo(context, filepath, reuse_mats, base_shader, op_args)
     else:
-        print("ERROR: trying to import an unsupported file type")
+        raise ValueError("attempted import of unsupported file type")

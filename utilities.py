@@ -32,6 +32,7 @@ from .obj_import import import_obj
 from .kaitai.m2_handler import load_kaitai, read_m2
 from bpy_extras.wm_utils.progress_report import ProgressReport
 from collections import namedtuple
+from typing import List, Dict, Tuple, cast, Union
 
 
 # Rather than pass everything individually or assign stuff to globals, I made this... Thing.
@@ -685,3 +686,55 @@ def read_mtl(directory, mtl):
     else:
         print("Invalid MTL!")
         return False
+
+
+def recursive_remove_doubles(bm: bmesh.types.BMesh, verts: bmesh.types.BMVertSeq, dist: float = 0.00001) -> Dict[str, Union[int, float]]:
+    start_time = time.time()
+    start_verts = len(bm.verts)
+
+    merge_passes = 0
+    while True:
+        merge_passes += 1
+        before_verts = len(bm.verts)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00001)
+        after_verts = len(bm.verts)
+        if after_verts == before_verts:
+            total_time = time.time() - start_time
+            stats = {
+                "start_verts": start_verts,
+                "end_verts": after_verts,
+                "removed_verts": start_verts - after_verts,
+                "merge_passes": merge_passes,
+                "total_time": total_time,
+            }
+
+            return stats
+
+
+# No bmesh version of tris-to-quads, so we need to use an operator. Make sure
+# object is linked into the current scene before calling.
+def tris_to_quads(obj: bpy.types.Object, face_thresholdz: float = 5.0):
+    start_time = time.time()
+    old_active = bpy.context.view_layer.objects.active
+
+    before_faces = len(obj.data.polygons)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.tris_convert_to_quads(
+        face_threshold=radians(face_threshold), uvs=True, vcols=True, seam=True,
+        sharp=True, materials=True)
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    after_faces = before_faces - len(obj.data.polygons)
+
+    bpy.context.view_layer.objects.active = old_active
+
+    total_time = time.time() - start_time
+    stats = {
+        "start_faces": before_faces,
+        "end_faces": after_faces,
+        "removed_faces": before_faces - after_faces,
+        "total_time": total_time,
+    }
+    return stats

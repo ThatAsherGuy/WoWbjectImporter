@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Union, Set
 from .node_groups import serialize_nodegroups
 from .node_groups import generate_nodegroups
 from .node_groups import get_utility_group
-from .utilties import do_import
+from .utilities import do_import
 # from . import preferences
 from .preferences import get_prefs
 
