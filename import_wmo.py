@@ -22,6 +22,7 @@
 import bmesh
 import bpy
 import bpy.props
+from mathutils import Vector, Euler
 
 import dataclasses
 import json
@@ -34,7 +35,6 @@ from .node_groups import do_wmo_combiner, get_utility_group
 from .preferences import WoWbject_ObjectProperties, get_prefs
 from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatch, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
 
-from mathutils import Vector
 from .vendor import mashumaro
 from .utilities import recursive_remove_doubles, tris_to_quads
 
@@ -42,7 +42,8 @@ from .utilities import recursive_remove_doubles, tris_to_quads
 @dataclasses.dataclass
 class ObjGroup:
     """
-    An individual object group from within an obj
+    An individual object group from within an obj. There is one of these
+    per obj object group.
     """
     mtlname: Optional[str] = None
     name: Optional[str] = None
@@ -58,7 +59,8 @@ class ObjGroup:
 class ObjData:
     """
     Raw data as read from an obj file, as exported from wow.export. Includes
-    vertexes, faces (as indexes into vertex list), normals, UV maps, etc.
+    vertexes, faces (as indexes into vertex list), normals, UV maps, etc for
+    the entire WMO, root + groups
     """
     usemtl: str = ""
     mtlfile: str = ""
@@ -77,10 +79,32 @@ class ObjData:
     groups: List[ObjGroup] = dataclasses.field(default_factory=list)
 
 
+
+@dataclasses.dataclass(init=False)
+class WmoGroup:
+    """
+    An individual group from within a WMO. There is one of these per WMO
+    group.
+    """
+    obj_data: ObjData
+    """the full obj data for the entire import"""
+
+    json_group: JsonWmoGroup
+    """the metadata, from json, for this specific WMO group"""
+
+    group_offset: int = -1
+
+    batch_count: int = -1
+    mesh_batches: List[ObjGroup] = dataclasses.field(default_factory=list)
+    json_batches: List[JsonWmoRenderBatch] = dataclasses.field(default_factory=list)
+    colors: List[List[int]] = dataclasses.field(default_factory=list)
+
+
 # originally "initialize_mesh"
 # format description: https://en.wikipedia.org/wiki/Wavefront_.obj_file
 # TODO: Replace with a more robust port of the ImportObj add-on's process
-def obj_read(file: Path) -> ObjData:
+def read_obj(file: Path) -> ObjData:
+    print(f"Importing obj data from {file}")
     # START def initialize_mesh(mesh_path: str):
     obj_data = ObjData()
     groupIndex: int = -1
@@ -155,33 +179,17 @@ def obj_read(file: Path) -> ObjData:
             elif line_start == b'usemtl':
                 obj_data.groups[groupIndex].mtlname = line_split[1].decode('utf-8')
 
+    total_verts = sum([len(g.verts) for g in obj_data.groups])
+    total_faces = sum([len(g.faces) for g in obj_data.groups])
+    print(f"Read {groupIndex + 1} groups, {total_verts} total verts and {total_faces} total faces")
+
     return obj_data
 
-
-# TL;DR:
-# Step one: Repack OBJ into meshObject
-# Step two: Repack meshObject into wmoGroups
-# Step three: Generate blenderObjects from wmoGroups
-@dataclasses.dataclass(init=False)
-class wmoGroup:
-    # FIXME: Is the Optional[] bit needed on some of these?
-    obj_data: ObjData
-
-    json_group: JsonWmoGroup
-    group_offset: int = -1
-
-    batch_count: int = -1
-    mesh_batches: List[ObjGroup] = dataclasses.field(default_factory=list)
-    json_batches: List[JsonWmoRenderBatch] = dataclasses.field(default_factory=list)
-    colors: List[List[int]] = dataclasses.field(default_factory=list)
 
 
 # FIXME: return type
 def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base_shader: str, op_args: Dict[str, Any]) -> None:
-    '''
-    The pre-sorting and initializing function called by the import operator.
-    Most of the actual data-handling is handled by an import_container object.
-    '''
+    debug = True
 
     file = Path(filepath)
     name_override = op_args.get("name_override")
@@ -214,7 +222,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             raise ValueError("import_wmo called to import a non-WMO file")
 
         try:
-            json_config = JsonWmoMetadata.from_dict(json_config)
+            json_config = JsonWmoMetadata.from_dict(json_config)  # type: ignore
         # FIXME: Not sure why pylance can't figure out the types here
         except mashumaro.exceptions.MissingField as e:
             raise RuntimeError(str(e))
@@ -234,14 +242,15 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             print("Reading OBJ File")
 
             # START def initialize_mesh(mesh_path: str):
-            obj_data = obj_read(file)
+            obj_data = read_obj(file)
+
+            # for i, group in enumerate(obj_data.groups):
+            #     print(f"obj group {i} has {len(group.verts)} verts")
 
             newMesh = bpy.data.meshes.new(basename)
             newMesh.use_auto_smooth = True
             newMesh.auto_smooth_angle = radians(60)
 
-
-            # FIXME: Not sure how to annotate the dynamic attribute here
             newObj = bpy.data.objects.new(basename, newMesh)
             WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)  # type: ignore
 
@@ -251,89 +260,134 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             WBJ.source_directory = str(file.parent)
             WBJ.initialized = True
 
-            # if import_container.wmo:
-            json_mats = json_config.materials
-            json_groups = json_config.groups
-
             # START def repack_wmo(import_container, groups: dict, obj_data: meshObject, config: dict):
-            groups: List[wmoGroup] = []
-            offset = 0
+            wmo_groups: List[WmoGroup] = []
 
+            # ? Why was this all the way up here? Seems only needed much further down?
+            # offset = 0
+
+            # not sure why we need the big flat vertex color list -- ask Asher,
+            # if he reappears
             flat_colors: List[List[int]] = [[], [], []]
 
-            for group in json_groups:
-                g_batches = group.renderBatches
-                g_length = len(g_batches)
+            # So, there's going to be more vertex colors than there are verts.
+            # This is because the collision meshes (as definedd in MOBN and MOBR
+            # chunks in the WMO) reference verts that are not actually included
+            # in the OBJ export, but the vertex color data (from MOCV) includes
+            # those verts, and is passed through unchanged.
+            #
+            # An extremely brief eyeball suggests that vertex colors for verts
+            # which got elided have a vertex color of 4286545791 (0xff7f7f7f
+            # (in abgr, I think)), which might be worth checking for as a
+            # sanity check to make sure we're not off in our count somewhere.
+            # This only applies to the first set of vertex colors.
+            total_groups = -1
+            total_batches = -1
+            for i, group in enumerate(json_config.groups):
+                total_groups += 1
+                verts_in_json_group = 0
+                for j, batch in enumerate(group.renderBatches):
+                    total_batches += 1
+                    verts_in_json_batch = batch.lastVertex - batch.firstVertex + 1
+                    verts_in_json_group += verts_in_json_batch
+                    obj_group_verts = len(obj_data.groups[total_batches].verts)
 
-                if g_length > 0:
-                    g_slice = slice(offset, offset + g_length)
-                    wmo_group = wmoGroup()
+                    if debug:
+                        print(
+                            f"verts in json group {i:-2d} batch {j:-2d} (global {total_groups:-2d}, {total_batches:-3d}) = {verts_in_json_batch:-3d}     verts in obj group: {obj_group_verts}")
 
+                    if verts_in_json_batch != obj_group_verts:
+                        print(
+                            f"WARNING: sanity check failed: unequal vert counts; verts in json group {i:-2d} batch {j:-2d} (global {total_batches:-3d}): {verts_in_json_batch:-3d}     verts in obj group: {obj_group_verts}")
+
+                # if len(group.vertexColours) == 0:
+                #     vcol_count = 0
+                # else:
+                #     vcol_count = len(group.vertexColours[0])
+
+            # these are WMO groups here
+            offset = 0
+            for group in json_config.groups:
+                wmo_group = WmoGroup()
+                wmo_group.obj_data = obj_data
+                wmo_group.batch_count = len(group.renderBatches)
+                wmo_groups.append(wmo_group)
+
+                if wmo_group.batch_count > 0:
                     wmo_group.json_group = group
-                    wmo_group.json_batches = g_batches
-                    wmo_group.mesh_batches = obj_data.groups[g_slice]
-                    wmo_group.batch_count = g_length
+                    wmo_group.json_batches = group.renderBatches
 
-                    wmo_group.obj_data = obj_data
-                    groups.append(wmo_group)
+                    # the obj is all the batches, each as a group, so we need
+                    # to know which of those represent the batches in this
+                    # WMO group. Gah, we need better terminology, using 'group'
+                    # waaaaay too many places here.
+                    batch_range = slice(offset, offset + wmo_group.batch_count)
+                    wmo_group.mesh_batches = obj_data.groups[batch_range]
 
-                    # FIXME: Make sure vertex colors default correctly
+                    # These are the vertex colors for the entire WMO group,
+                    # which consists of multiple obj groups/wmo render batches.
                     vcolors = group.vertexColours
 
-                    # FIXME: check vs. original line and figure out how missing
-                    # data is being handled w/ mashumaro
-                    # last_color = g_batches[-1].get("lastVertex", -1) + 1
-                    last_color = (g_batches[-1].lastVertex or -1) + 1
+                    # if there isn't a lastVertex, it will be -1, thus making
+                    # this 0. Otherwise, gives us the number of vertexes (thus
+                    # vertex colors) in the entire WMO group.
+                    last_vertex = group.renderBatches[-1].lastVertex + 1
 
-                    vertex_count = 0
-                    for comp in wmo_group.mesh_batches:
-                        vertex_count += len(comp.verts)
+                    group_vertex_count = 0
 
+                    # FIXME: Can/does this differ from the vertex count in
+                    # the json metadata?
+                    for batch in wmo_group.mesh_batches:
+                        group_vertex_count += len(batch.verts)
+
+                    if group_vertex_count != last_vertex:
+                        print(
+                            f"WARNING: vertex count mismatch: {group_vertex_count} != {last_vertex}")
+
+                    # Not sure why we're doing this, rather than just updating the
+                    # group.vertexColours struct in place, or copying/updating
+                    # to wmo_group.something
                     if len(vcolors) == 2:
-                        flat_colors[0] += vcolors[0][0:last_color]
-                        flat_colors[1] += vcolors[1][0:last_color]
+                        flat_colors[0] += vcolors[0][0:last_vertex]
+                        flat_colors[1] += vcolors[1][0:last_vertex]
                     elif len(vcolors) == 1:
-                        flat_colors[0] += vcolors[0][0:last_color]
-                        flat_colors[1] += [0 for _ in vcolors[0]]
+                        flat_colors[0] += vcolors[0][0:last_vertex]
+                        flat_colors[1] += [0 for _ in range(last_vertex)]
                     elif len(vcolors) == 0:
-                        if vertex_count > 0:
-                            flat_colors[0] += [0 for _ in range(vertex_count)]
-                            flat_colors[1] += [0 for _ in range(vertex_count)]
+                        if group_vertex_count > 0:
+                            flat_colors[0] += [0 for _ in range(last_vertex)]
+                            flat_colors[1] += [0 for _ in range(last_vertex)]
+
+                    l1 = len(flat_colors[0])
+                    l2 = len(flat_colors[1])
+
+                    if debug:
+                        print(
+                            f"color1 count: {l1}   color2 count: {l2}   group vertex count: {group_vertex_count}")
+
+                    if l1 != group_vertex_count:
+                        print(
+                            f"WARNING: vertex color count mismatch: {group_vertex_count} != {l1}")
 
                     wmo_group.colors = flat_colors
 
-                    offset += g_length
+                    offset += wmo_group.batch_count
                     wmo_group.group_offset = offset
 
+                # wmo_group.batch_count == 0
                 else:
-                    wmo_group = wmoGroup()
-                    wmo_group.json_group = group
-                    wmo_group.batch_count = 0
-                    groups.append(wmo_group)
+                    print(f"{group.groupName} {group.groupDescription} Batchless")
+                    print(f"numPortals: {group.numPortals}")
+                    print(f"numBatchesA: {group.numBatchesA}")
+                    print(f"numBatchesB: {group.numBatchesB}")
+                    print(f"numBatchesC: {group.numBatchesC}")
 
-                    err_gname = group.groupName or ""
-                    err_gdesc = group.groupDescription or ""
-                    print(f"{err_gname} {err_gdesc} Batchless")
-
-                    err_numbatch = group.numPortals or ""
-                    print(f"numPortals: {err_numbatch}")
-
-                    err_numbatch = group.numBatchesA or ""
-                    print(f"numBatchesA: {err_numbatch}")
-
-                    err_numbatch = group.numBatchesB or ""
-                    print(f"numBatchesB: {err_numbatch}")
-
-                    err_numbatch = group.numBatchesC or ""
-                    print(f"numBatchesC: {err_numbatch}")
-
-            wmo_groups = groups
             # END repack_wmo
 
             # FIXME: Is mat_dict a dict or a list?
             mat_dict: Dict[int, bpy.types.Material] = {}
 
-            for i, mat in enumerate(json_mats):
+            for i, mat in enumerate(json_config.materials):
                 mat = bpy.data.materials.new(name=basename + "_mat_" + str(i))
                 mat.use_nodes = True
                 mat_dict[i] = mat
@@ -345,15 +399,14 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
             print("Generating meshes")
             for i, group in enumerate(wmo_groups):
-                sub = group.json_group.groupName or ""
-                print(f"Constructing object {i + 1}/{steps} | {sub}")
+                # sub = group.json_group.groupName or ""
+                #### print(f"Constructing object {i + 1}/{steps} | {group.json_group.groupName}")
 
                 # FIXME: revisit -- should inline this probably, too
                 bl_obj = wmo_setup_blender_object(
                     # FIXME: make group num into metadata
                     base_name=f"{i:03d}_{basename}",
                     group=group,
-                    obj_data=obj_data,
                     mat_dict=mat_dict,
                     # merge_verts=merge_verts,
                     # make_quads=make_quads,
@@ -373,9 +426,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
         # START def setup_materials(self):
         # START def do_wmo_mats(**kwargs):
 
-        # FIXME: duplicates json_mats?
-        mats = json_config.materials
-
         configured_mats: Set[bpy.types.Material] = set()
 
         # for obj in container.bl_obj:
@@ -385,7 +435,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 mat_number = slot.material.name.split('_')[-1]
                 if '.' in mat_number:
                     mat_number = mat_number.split('.')[0]
-                mat = mats[int(mat_number)]
+                mat = json_config.materials[int(mat_number)]
 
                 # next bits simplified from node_groups.py:get_tex
                 # tex1 = get_tex(container, str(mat.get("texture1")))
@@ -492,7 +542,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
                 ambColor = wmo_read_color(json_config.ambientColor, 'CImVector')
 
-
                 do_wmo_combiner(
                     tex_nodes=tex_nodes,
                     bl_mat=bl_mat,
@@ -507,13 +556,14 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
 
 # FIXME: Legit needs fewer arguments
-def wmo_setup_blender_object(base_name: str, group: wmoGroup,
-                             obj_data: ObjData, mat_dict: Dict[int, bpy.types.Material],
+def wmo_setup_blender_object(base_name: str, group: WmoGroup,
+                             mat_dict: Dict[int, bpy.types.Material],
                              merge_verts: bool = False, make_quads: bool = False,
                              use_collections: bool = True) -> Optional[bpy.types.Object]:
     if group.batch_count < 1:
         return None
 
+    obj_data = group.obj_data
     json_group = group.json_group
 
     full_name = base_name + "_" + (json_group.groupName or "section")
@@ -547,6 +597,15 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     color_list = [clist for clist in group.colors if len(clist) > 0]
     do_colors = True if len(color_list) > 0 else False
 
+    # from pprint import pformat
+    # before = str(group.colors)
+    # after = str(color_list)
+    # Path(f"before_{group.json_group.groupID}.txt").write_text(pformat(before))
+    # Path(f"after_{group.json_group.groupID}.txt").write_text(pformat(after))
+
+    # if before != after:
+    #     print("color comparison differs")
+
     colors = {}
     v_dict: Dict[int, bmesh.types.BMVert] = {}
     # uv_dict = {}
@@ -579,6 +638,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                             v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
                     else:
                         # FIXME: What even -is- this?
+                        x = color_list
                         v_color = wmo_read_color(color_list[v - 1], 'CImVector')  # ????
 
                     colors[vert] = v_color
@@ -606,7 +666,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                         # FIXME: typing
                         cast(bpy.types.Mesh, newObj.data).materials.append(
                             mat_dict[int(mat_ID)])
-                        bface.material_index = newObj.data.materials.find(
+                        bface.material_index = cast(bpy.types.Mesh, newObj.data).materials.find(
                             mat_dict[int(mat_ID)].name)
                     else:
                         bface.material_index = local_index
@@ -618,7 +678,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
                         v_dict[face[2]]
                     ), exampleFace)
 
-            except ValueError as err:
+            except ValueError as e:
                 v1 = bm.verts.new(obj_data.verts[face[0] - 1])
                 v2 = bm.verts.new(obj_data.verts[face[1] - 1])
                 v3 = bm.verts.new(obj_data.verts[face[2] - 1])
@@ -651,8 +711,8 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
 
                 err_detail = (
                     f"Duplicate Face: {face[0]}/{face[0]}/{face[0]} {face[1]}/{face[1]}/{face[1]} {face[2]}/{face[2]}/{face[2]}")
-                print(err_detail)
-                pass
+                # print(err_detail)
+
 
     if len(obj_data.uv2) > 0:
         uv2_layer = bm.loops.layers.uv.new('UV2Map')
@@ -700,7 +760,7 @@ def wmo_setup_blender_object(base_name: str, group: wmoGroup,
     bm.to_mesh(mesh)
     bm.free()
 
-    newObj.rotation_euler = [0, 0, 0]
+    newObj.rotation_euler = Euler((0, 0, 0))
     newObj.rotation_euler.x = radians(90)
 
     collection_name = json_group.groupDescription

@@ -206,22 +206,22 @@ class JsonWmoRenderBatch(DataClassJSONMixin):
     firstFace: int
     numFaces: int
     firstVertex: int
-    lastVertex: int
-    flags: int
     materialID: int
+    flags: int = 0
+    lastVertex: int = -1
 
 
 @dataclass
 class JsonWmoGroup(DataClassJSONMixin):
     version: int
+    groupID: int
     boundingBox1: 'JsonVertex'
     boundingBox2: 'JsonVertex'
-    numPortals: int
-    numBatchesA: int
-    numBatchesB: int
-    numBatchesC: int
-    liquidType: int
-    groupID: int
+    numPortals: int = 0
+    numBatchesA: int = 0
+    numBatchesB: int = 0
+    numBatchesC: int = 0
+    liquidType: int = 0
     flags: int = 0
     materialInfo: List['JsonWmoMaterialInformation'] = dataclasses.field(default_factory=list)
     renderBatches: List['JsonWmoRenderBatch'] = dataclasses.field(default_factory=list)
