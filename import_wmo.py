@@ -40,7 +40,7 @@ from .utilities import recursive_remove_doubles, tris_to_quads
 
 # FIXME: Which of these should be general, and which wmo-specific?
 @dataclasses.dataclass
-class ObjGroup:
+class ImportedSubmesh:
     """
     An individual object group from within an obj. There is one of these
     per obj object group.
@@ -48,7 +48,7 @@ class ObjGroup:
     mtlname: Optional[str] = None
     name: Optional[str] = None
     # FIXME: should this be 1-based like other obj things?
-    verts: Set[int] = dataclasses.field(default_factory=set)
+    vert_indexes: Set[int] = dataclasses.field(default_factory=set)
     """set of vertex indexes (0-based!) used in group"""
     faces: List[Tri] = dataclasses.field(default_factory=list)
     """list of faces in group, using vertex indexes (1-based)"""
@@ -56,7 +56,7 @@ class ObjGroup:
 
 
 @dataclasses.dataclass
-class ObjData:
+class ImportedMesh:
     """
     Raw data as read from an obj file, as exported from wow.export. Includes
     vertexes, faces (as indexes into vertex list), normals, UV maps, etc for
@@ -76,7 +76,7 @@ class ObjData:
     uv: List[Vec2] = dataclasses.field(default_factory=list)
     uv2: List[Vec2] = dataclasses.field(default_factory=list)
     uv3: List[Vec2] = dataclasses.field(default_factory=list)
-    groups: List[ObjGroup] = dataclasses.field(default_factory=list)
+    submeshes: List[ImportedSubmesh] = dataclasses.field(default_factory=list)
 
 
 
@@ -84,29 +84,32 @@ class ObjData:
 class WmoGroup:
     """
     An individual group from within a WMO. There is one of these per WMO
-    group.
+    group. This should (maybe? hopefully?) contain all the info needed to
+    render a single group.
     """
-    obj_data: ObjData
-    """the full obj data for the entire import"""
 
-    json_group: JsonWmoGroup
+    # needed because it has our actual vert coordinates and such
+    imported_mesh: ImportedMesh
+    # """the full obj data for the entire import"""
+
+    group_metadata: JsonWmoGroup
     """the metadata, from json, for this specific WMO group"""
 
-    group_offset: int = -1
+    # group_offset: int = -1
 
     batch_count: int = -1
-    mesh_batches: List[ObjGroup] = dataclasses.field(default_factory=list)
-    json_batches: List[JsonWmoRenderBatch] = dataclasses.field(default_factory=list)
-    colors: List[List[int]] = dataclasses.field(default_factory=list)
+    imported_submeshes: List[ImportedSubmesh] = dataclasses.field(default_factory=list)
+    batches_metadata: List[JsonWmoRenderBatch] = dataclasses.field(default_factory=list)
+    vertex_colors: List[List[int]] = dataclasses.field(default_factory=list)
 
 
 # originally "initialize_mesh"
 # format description: https://en.wikipedia.org/wiki/Wavefront_.obj_file
 # TODO: Replace with a more robust port of the ImportObj add-on's process
-def read_obj(file: Path) -> ObjData:
+def read_obj(file: Path) -> ImportedMesh:
     print(f"Importing obj data from {file}")
     # START def initialize_mesh(mesh_path: str):
-    obj_data = ObjData()
+    imported_mesh = ImportedMesh()
     groupIndex: int = -1
 
     # FIXME: what -is- the right encoding for obj files? Can we make this
@@ -121,35 +124,35 @@ def read_obj(file: Path) -> ObjData:
             # actual obj can have multiple mtllib files, but wow.export only
             # exports one. We probably don't need this though.
             if line_start == b'mtllib':
-                obj_data.mtlfile = str(line_split[1])
+                imported_mesh.mtlfile = str(line_split[1])
 
             # Vertexes
             elif line_start == b'v':
-                obj_data.verts.append(
+                imported_mesh.verts.append(
                     cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
 
             # Vertex Normals
             elif line_start == b'vn':
-                obj_data.normals.append(
+                imported_mesh.normals.append(
                     cast(Vec3, tuple([float(v) for v in line_split[1:4]])))
 
             # UV/texture coordinates (3rd set)
             elif line_start == b'vt3':
-                obj_data.uv3.append(
+                imported_mesh.uv3.append(
                     cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
 
             # UV/texture coordinates (2nd set)
             elif line_start == b'vt2':
                 # FIXME: What is the 'undefined' bit about?
                 if not line_split[1] == b'undefined':
-                    obj_data.uv2.append(
+                    imported_mesh.uv2.append(
                         cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
                 else:
-                    obj_data.uv2.append((0.0, 0.0))
+                    imported_mesh.uv2.append((0.0, 0.0))
 
             # UV/texture coordinates (1st set)
             elif line_start == b'vt':
-                obj_data.uv.append(
+                imported_mesh.uv.append(
                     cast(Vec2, tuple([float(v) for v in line_split[1:3]])))
 
             # Faces -- 3 fields (for WoW), in the format of vertex/uv/normal
@@ -161,29 +164,29 @@ def read_obj(file: Path) -> ObjData:
                 # makes list from first element (vertex index) of each vertex
                 fv = [int(v.split(b'/')[0]) for v in line_split]
 
-                obj_data.groups[groupIndex].faces.append((fv[0], fv[1], fv[2]))
-                obj_data.groups[groupIndex].verts.update([i - 1 for i in fv])
+                imported_mesh.submeshes[groupIndex].faces.append((fv[0], fv[1], fv[2]))
+                imported_mesh.submeshes[groupIndex].vert_indexes.update([i - 1 for i in fv])
 
             # Object name
             elif line_start == b'o':
-                obj_data.name = str(line_split[1])
+                imported_mesh.name = str(line_split[1])
 
             # Groups
             elif line_start == b'g':
                 groupIndex += 1
-                obj_data.groups.append(ObjGroup())
-                obj_data.groups[groupIndex].name = line_split[1].decode('utf-8')
+                imported_mesh.submeshes.append(ImportedSubmesh())
+                imported_mesh.submeshes[groupIndex].name = line_split[1].decode('utf-8')
 
             # Smooth shading
             # Materials
             elif line_start == b'usemtl':
-                obj_data.groups[groupIndex].mtlname = line_split[1].decode('utf-8')
+                imported_mesh.submeshes[groupIndex].mtlname = line_split[1].decode('utf-8')
 
-    total_verts = sum([len(g.verts) for g in obj_data.groups])
-    total_faces = sum([len(g.faces) for g in obj_data.groups])
+    total_verts = sum([len(g.vert_indexes) for g in imported_mesh.submeshes])
+    total_faces = sum([len(g.faces) for g in imported_mesh.submeshes])
     print(f"Read {groupIndex + 1} groups, {total_verts} total verts and {total_faces} total faces")
 
-    return obj_data
+    return imported_mesh
 
 
 
@@ -203,9 +206,9 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
     with file.with_suffix(".json").open() as p:
         # FIXME: error handling here
-        json_config = json.load(p)
+        metadata = json.load(p)
 
-    if not json_config:
+    if not metadata:
         raise RuntimeError(f"failed to load metadata file {file.with_suffix('.json')}")
 
     if name_override:
@@ -218,11 +221,11 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
     # START def do_setup(self, files, directory, op_args, **kwargs):
     if True:
         # START def setup_json_data(self, **kwargs):
-        if ".wmo" not in json_config["fileName"]:
+        if ".wmo" not in metadata["fileName"]:
             raise ValueError("import_wmo called to import a non-WMO file")
 
         try:
-            json_config = JsonWmoMetadata.from_dict(json_config)  # type: ignore
+            metadata = JsonWmoMetadata.from_dict(metadata)  # type: ignore
         # FIXME: Not sure why pylance can't figure out the types here
         except mashumaro.exceptions.MissingField as e:
             raise RuntimeError(str(e))
@@ -242,26 +245,26 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             print("Reading OBJ File")
 
             # START def initialize_mesh(mesh_path: str):
-            obj_data = read_obj(file)
+            imported_mesh = read_obj(file)
 
             # for i, group in enumerate(obj_data.groups):
             #     print(f"obj group {i} has {len(group.verts)} verts")
 
-            newMesh = bpy.data.meshes.new(basename)
-            newMesh.use_auto_smooth = True
-            newMesh.auto_smooth_angle = radians(60)
+            # The blender object stuff is all done in wmo_setup_blender_object
+            # right now, so don't need it here.
+            if False:
+                newMesh = bpy.data.meshes.new(basename)
+                newMesh.use_auto_smooth = True
+                newMesh.auto_smooth_angle = radians(60)
 
-            newObj = bpy.data.objects.new(basename, newMesh)
-            WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)  # type: ignore
+                newObj = bpy.data.objects.new(basename, newMesh)
+                WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)  # type: ignore
 
-            # FIXME: Not sure how to type annotate the props to make these not
-            # complain? But should be possible?
-            WBJ.source_file = str(file.name)
-            WBJ.source_directory = str(file.parent)
-            WBJ.initialized = True
+                WBJ.source_file = str(file.name)
+                WBJ.source_directory = str(file.parent)
+                WBJ.initialized = True
 
             # START def repack_wmo(import_container, groups: dict, obj_data: meshObject, config: dict):
-            wmo_groups: List[WmoGroup] = []
 
             # ? Why was this all the way up here? Seems only needed much further down?
             # offset = 0
@@ -281,145 +284,164 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             # (in abgr, I think)), which might be worth checking for as a
             # sanity check to make sure we're not off in our count somewhere.
             # This only applies to the first set of vertex colors.
-            total_groups = -1
-            total_batches = -1
-            for i, group in enumerate(json_config.groups):
-                total_groups += 1
-                verts_in_json_group = 0
-                for j, batch in enumerate(group.renderBatches):
-                    total_batches += 1
-                    verts_in_json_batch = batch.lastVertex - batch.firstVertex + 1
-                    verts_in_json_group += verts_in_json_batch
-                    obj_group_verts = len(obj_data.groups[total_batches].verts)
 
-                    if debug:
-                        print(
-                            f"verts in json group {i:-2d} batch {j:-2d} (global {total_groups:-2d}, {total_batches:-3d}) = {verts_in_json_batch:-3d}     verts in obj group: {obj_group_verts}")
+            # A bunch of stuff for info/debugging
+            if False:
+                total_groups = -1   # Just for info/debugging
+                total_batches = -1  # Just for info/debugging
 
-                    if verts_in_json_batch != obj_group_verts:
-                        print(
-                            f"WARNING: sanity check failed: unequal vert counts; verts in json group {i:-2d} batch {j:-2d} (global {total_batches:-3d}): {verts_in_json_batch:-3d}     verts in obj group: {obj_group_verts}")
+                # For each WMO group (metadata group)
+                for i, group in enumerate(metadata.groups):
+                    total_groups += 1  # Just for info/debugging
 
-                # if len(group.vertexColours) == 0:
-                #     vcol_count = 0
-                # else:
-                #     vcol_count = len(group.vertexColours[0])
+                    # each group has a bunch of render batches. Each render batch
+                    # has some set of verts/faces, and (I think) a single material.
+                    for j, batch in enumerate(group.renderBatches):
+                        # Stuff just for info purposes, not needed for building things
+                        total_batches += 1
+                        verts_in_metadata_batch = batch.lastVertex - batch.firstVertex + 1
+                        obj_group_verts = len(imported_mesh.submeshes[total_batches].verts)
+                        if debug:
+                            print(
+                                f"verts in json group {i:-2d} batch {j:-2d} (global {total_groups:-2d}, {total_batches:-3d}) = {verts_in_metadata_batch:-3d}     verts in obj group: {obj_group_verts}")
 
-            # these are WMO groups here
-            offset = 0
-            for group in json_config.groups:
+                        if verts_in_metadata_batch != obj_group_verts:
+                            print(
+                                f"WARNING: sanity check failed: unequal vert counts; verts in json group {i:-2d} batch {j:-2d} (global {total_batches:-3d}): {verts_in_metadata_batch:-3d}     verts in obj group: {obj_group_verts}")
+
+                    # if len(group.vertexColours) == 0:
+                    #     vcol_count = 0
+                    # else:
+                    #     vcol_count = len(group.vertexColours[0])
+
+
+            wmo_groups: List[WmoGroup] = []
+
+            # the obj is all the batches, each as a 'group' inside the obj,
+            # which we will herein call submeshes. This counter lets us know
+            # how far into the obj we currently need to be indexing.
+            submesh_offset = 0
+
+            for group_metadata in metadata.groups:
                 wmo_group = WmoGroup()
-                wmo_group.obj_data = obj_data
-                wmo_group.batch_count = len(group.renderBatches)
+                wmo_group.batch_count = len(group_metadata.renderBatches)
+
+                if wmo_group.batch_count <= 0:
+                    print(
+                        f"{group_metadata.groupName} {group_metadata.groupDescription} has no render batches?")
+                    print(f"numPortals: {group_metadata.numPortals}")
+                    print(f"numBatchesA: {group_metadata.numBatchesA}")
+                    print(f"numBatchesB: {group_metadata.numBatchesB}")
+                    print(f"numBatchesC: {group_metadata.numBatchesC}")
+
+                    wmo_groups.append(wmo_group)
+                    continue
+
+                # FIXME: Do we actually need all the metadata as a whole? Can
+                # we split it up to make it easier to follow?
+                wmo_group.group_metadata = group_metadata
+                wmo_group.batches_metadata = group_metadata.renderBatches
+
+                submesh_low = submesh_offset
+                submesh_high = submesh_low + wmo_group.batch_count - 1
+
+                batch_range = slice(submesh_low, submesh_high + 1)  # need + 1
+                wmo_group.imported_mesh = imported_mesh
+
+                # FIXME: Should we just make this a min/max value, rather than
+                # the entire submesh range, since we have the full mesh
+                # structure along for the ride anyhow?
+                wmo_group.imported_submeshes = imported_mesh.submeshes[batch_range]
+
+                # These are the vertex colors for the entire WMO group,
+                # which consists of multiple submeshes/render batches.
+                vcolors = group_metadata.vertexColours
+
+                # The last vertex in the last batch. lastVertex defaults to
+                # -1, so if there are no vertexes, count will be 0
+                group_vertex_count = group_metadata.renderBatches[-1].lastVertex + 1
+
+                # FIXME: Can/does this differ from the vertex count in
+                # the json metadata?
+                # for batch in wmo_group.import_submeshes:
+                #     group_vertex_count += len(batch.verts)
+
+                # if group_vertex_count != last_vertex:
+                #     print(
+                #         f"WARNING: vertex count mismatch: {group_vertex_count} != {last_vertex}")
+
+                # Not sure why we're doing this, rather than just updating the
+                # group.vertexColours struct in place, or copying/updating
+                # to wmo_group.something   ... should we?
+                if len(vcolors) == 2:
+                    flat_colors[0] += vcolors[0][0:group_vertex_count]
+                    flat_colors[1] += vcolors[1][0:group_vertex_count]
+                elif len(vcolors) == 1:
+                    flat_colors[0] += vcolors[0][0:group_vertex_count]
+                    flat_colors[1] += [0 for _ in range(group_vertex_count)]
+                elif len(vcolors) == 0:
+                    if group_vertex_count > 0:
+                        # FIXME: I think first group might need alpha = 1.0?
+                        flat_colors[0] += [0 for _ in range(group_vertex_count)]
+                        flat_colors[1] += [0 for _ in range(group_vertex_count)]
+
+                # l1 = len(flat_colors[0])
+                # l2 = len(flat_colors[1])
+
+                # if debug:
+                #     print(
+                #         f"color1 count: {l1}   color2 count: {l2}   group vertex count: {group_vertex_count}")
+
+                # if l1 != group_vertex_count:
+                #     print(
+                #         f"WARNING: vertex color count mismatch: {group_vertex_count} != {l1}")
+
+                wmo_group.vertex_colors = flat_colors
+
+                submesh_offset += wmo_group.batch_count
+                # wmo_group.group_offset = submesh_offset
+
                 wmo_groups.append(wmo_group)
-
-                if wmo_group.batch_count > 0:
-                    wmo_group.json_group = group
-                    wmo_group.json_batches = group.renderBatches
-
-                    # the obj is all the batches, each as a group, so we need
-                    # to know which of those represent the batches in this
-                    # WMO group. Gah, we need better terminology, using 'group'
-                    # waaaaay too many places here.
-                    batch_range = slice(offset, offset + wmo_group.batch_count)
-                    wmo_group.mesh_batches = obj_data.groups[batch_range]
-
-                    # These are the vertex colors for the entire WMO group,
-                    # which consists of multiple obj groups/wmo render batches.
-                    vcolors = group.vertexColours
-
-                    # if there isn't a lastVertex, it will be -1, thus making
-                    # this 0. Otherwise, gives us the number of vertexes (thus
-                    # vertex colors) in the entire WMO group.
-                    last_vertex = group.renderBatches[-1].lastVertex + 1
-
-                    group_vertex_count = 0
-
-                    # FIXME: Can/does this differ from the vertex count in
-                    # the json metadata?
-                    for batch in wmo_group.mesh_batches:
-                        group_vertex_count += len(batch.verts)
-
-                    if group_vertex_count != last_vertex:
-                        print(
-                            f"WARNING: vertex count mismatch: {group_vertex_count} != {last_vertex}")
-
-                    # Not sure why we're doing this, rather than just updating the
-                    # group.vertexColours struct in place, or copying/updating
-                    # to wmo_group.something
-                    if len(vcolors) == 2:
-                        flat_colors[0] += vcolors[0][0:last_vertex]
-                        flat_colors[1] += vcolors[1][0:last_vertex]
-                    elif len(vcolors) == 1:
-                        flat_colors[0] += vcolors[0][0:last_vertex]
-                        flat_colors[1] += [0 for _ in range(last_vertex)]
-                    elif len(vcolors) == 0:
-                        if group_vertex_count > 0:
-                            flat_colors[0] += [0 for _ in range(last_vertex)]
-                            flat_colors[1] += [0 for _ in range(last_vertex)]
-
-                    l1 = len(flat_colors[0])
-                    l2 = len(flat_colors[1])
-
-                    if debug:
-                        print(
-                            f"color1 count: {l1}   color2 count: {l2}   group vertex count: {group_vertex_count}")
-
-                    if l1 != group_vertex_count:
-                        print(
-                            f"WARNING: vertex color count mismatch: {group_vertex_count} != {l1}")
-
-                    wmo_group.colors = flat_colors
-
-                    offset += wmo_group.batch_count
-                    wmo_group.group_offset = offset
-
-                # wmo_group.batch_count == 0
-                else:
-                    print(f"{group.groupName} {group.groupDescription} Batchless")
-                    print(f"numPortals: {group.numPortals}")
-                    print(f"numBatchesA: {group.numBatchesA}")
-                    print(f"numBatchesB: {group.numBatchesB}")
-                    print(f"numBatchesC: {group.numBatchesC}")
-
             # END repack_wmo
 
-            # FIXME: Is mat_dict a dict or a list?
-            mat_dict: Dict[int, bpy.types.Material] = {}
 
-            for i, mat in enumerate(json_config.materials):
-                mat = bpy.data.materials.new(name=basename + "_mat_" + str(i))
+            bl_materials: List[bpy.types.Material] = []
+
+            for i, mat in enumerate(metadata.materials):
+                mat = bpy.data.materials.new(name=f"{basename}_mat_{i}")
                 mat.use_nodes = True
-                mat_dict[i] = mat
+                bl_materials.append(mat)
 
-            objects: List[bpy.types.Object] = []
+            bl_objects: List[bpy.types.Object] = []
 
             steps = len(wmo_groups)
             print(f"working on {steps} groups")
 
             print("Generating meshes")
-            for i, group in enumerate(wmo_groups):
+            for i, wmo_group in enumerate(wmo_groups):
                 # sub = group.json_group.groupName or ""
                 #### print(f"Constructing object {i + 1}/{steps} | {group.json_group.groupName}")
 
-                # FIXME: revisit -- should inline this probably, too
+                # FIXME: revisit -- should inline this probably, too... maybe
                 bl_obj = wmo_setup_blender_object(
                     # FIXME: make group num into metadata
                     base_name=f"{i:03d}_{basename}",
-                    group=group,
-                    mat_dict=mat_dict,
+                    wmo_group=wmo_group,
+                    bl_materials=bl_materials,
                     # merge_verts=merge_verts,
                     # make_quads=make_quads,
                     # use_collections=use_collections
                 )
 
                 if bl_obj:
-                    objects.append(bl_obj)
+                    bl_objects.append(bl_obj)
 
             # END initialize_mesh (maybe?)
         # END import_obj
 
         print("leaving substeps")
+
+        return
 
         print("generating materials")
 
@@ -429,13 +451,13 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
         configured_mats: Set[bpy.types.Material] = set()
 
         # for obj in container.bl_obj:
-        for obj in objects:
+        for obj in bl_objects:
             # FIXME: give MaterialSlot an __iter__  method instead of the typecast?
             for slot in obj.material_slots:
                 mat_number = slot.material.name.split('_')[-1]
                 if '.' in mat_number:
                     mat_number = mat_number.split('.')[0]
-                mat = json_config.materials[int(mat_number)]
+                mat = metadata.materials[int(mat_number)]
 
                 # next bits simplified from node_groups.py:get_tex
                 # tex1 = get_tex(container, str(mat.get("texture1")))
@@ -540,7 +562,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                         tex_node.label = ("TEXTURE_%s" % str(i + 1))
                         tex_nodes.append(tex_node)
 
-                ambColor = wmo_read_color(json_config.ambientColor, 'CImVector')
+                ambColor = wmo_read_color(metadata.ambientColor, 'CImVector')
 
                 do_wmo_combiner(
                     tex_nodes=tex_nodes,
@@ -556,28 +578,29 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
 
 # FIXME: Legit needs fewer arguments
-def wmo_setup_blender_object(base_name: str, group: WmoGroup,
-                             mat_dict: Dict[int, bpy.types.Material],
+def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
+                             bl_materials: List[bpy.types.Material],
                              merge_verts: bool = False, make_quads: bool = False,
                              use_collections: bool = True) -> Optional[bpy.types.Object]:
-    if group.batch_count < 1:
+    if wmo_group.batch_count < 1:
         return None
 
-    obj_data = group.obj_data
-    json_group = group.json_group
+    imported_mesh = wmo_group.imported_mesh
+    imported_submeshes = wmo_group.imported_submeshes
+    metadata = wmo_group.group_metadata
 
-    full_name = base_name + "_" + (json_group.groupName or "section")
+    full_name = base_name + "_" + (metadata.groupName or "section")
 
-    mesh = bpy.data.meshes.new(base_name)
-    mesh.use_auto_smooth = True
-    mesh.auto_smooth_angle = radians(60)
+    bl_mesh = bpy.data.meshes.new(base_name)
+    bl_mesh.use_auto_smooth = True
+    bl_mesh.auto_smooth_angle = radians(60)
 
-    newObj = bpy.data.objects.new(full_name, mesh)
-    WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)  # type: ignore
+    bl_obj = bpy.data.objects.new(full_name, bl_mesh)
+    WBJ = cast(WoWbject_ObjectProperties, bl_obj.WBJ)  # type: ignore
     WBJ.wow_model_type = 'WMO'
     WBJ.initialized = True
 
-    flags = wmo_read_group_flags(json_group.flags)  # FIXME: do we need a 0 default?
+    flags = wmo_read_group_flags(metadata.flags)  # FIXME: do we need a 0 default?
     if 'INTERIOR' in flags and 'EXTERIOR' in flags:
         WBJ.wmo_lighting_type = 'TRANSITION'
     elif 'INTERIOR' in flags:
@@ -590,12 +613,14 @@ def wmo_setup_blender_object(base_name: str, group: WmoGroup,
 
     bm = bmesh.new()
     # vcols = bm.loops.layers.color.new("vcols")
-    uv_layer = bm.loops.layers.uv.new()
 
-    batches = group.mesh_batches
-    json_batches = group.json_batches
-    color_list = [clist for clist in group.colors if len(clist) > 0]
-    do_colors = True if len(color_list) > 0 else False
+    # batches = group.imported_submeshes
+    batches = wmo_group.batches_metadata
+
+    # FIXME: I think we guarantee we have colors before calling here, so do we
+    # need to check here?  (answer: yes, probably, when doing more than WMOs)
+    vertex_colors = [clist for clist in wmo_group.vertex_colors if len(clist) > 0]
+    do_colors = True if len(vertex_colors) > 0 else False
 
     # from pprint import pformat
     # before = str(group.colors)
@@ -607,139 +632,151 @@ def wmo_setup_blender_object(base_name: str, group: WmoGroup,
     #     print("color comparison differs")
 
     colors = {}
-    v_dict: Dict[int, bmesh.types.BMVert] = {}
+
+    # needs to be a dict, since we might be inserting the verts out of order
+    bm_verts: Dict[int, bmesh.types.BMVert] = {}
     # uv_dict = {}
 
     for i, batch in enumerate(batches):
-        exampleFace: Optional[bmesh.types.BMFace] = None
+        example_face: Optional[bmesh.types.BMFace] = None
         # cull_list = []
-        for face in batch.faces:
+        for face in imported_submeshes[i].faces:
+            # vertex indexes
             for v in face:
+                # FIXME: what's up with the switcheroo types here?
                 # if type(v_dict.get(v)) == bmesh.types.BMVert:
                 #     vert = v_dict[v]
                 # else:
                 #     vert = bm.verts.new(obj_data.verts[v - 1])
                 #     v_dict[v] = vert
-                # FIXME: what's up with the switcheroo types here?
-                if v in v_dict:
-                    vert = v_dict[v]
+                if v in bm_verts:
+                    vert = bm_verts[v]
                 else:
-                    vert = bm.verts.new(obj_data.verts[v - 1])
-                    v_dict[v] = vert
+                    vert = bm.verts.new(imported_mesh.verts[v - 1])
+                    bm_verts[v] = vert
 
                 # The data layer for vertex color is actually in the face loop.
                 # We can't set the color until after all of the faces are made,
                 # So we throw it all into a dictionary and brute-force it later.
                 # Note: There can theoretically be three sets of vertex colors.
                 if do_colors:
-                    if type(color_list[0]) == list:
-                        v_color: List[fColor4] = []
-                        for sublist in color_list:
-                            v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
-                    else:
-                        # FIXME: What even -is- this?
-                        x = color_list
-                        v_color = wmo_read_color(color_list[v - 1], 'CImVector')  # ????
+                    # if type(vertex_colors[0]) == list:
+                    v_color: List[fColor4] = []
+                    for sublist in vertex_colors:
+                        v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
+
+                    # else:
+                    #     # FIXME: What even -is- this?
+                    #     x = vertex_colors
+                    #     v_color = wmo_read_color(vertex_colors[v - 1], 'CImVector')  # ????
 
                     colors[vert] = v_color
 
             try:
-                if not exampleFace:
+                if not example_face:
                     bface = bm.faces.new((
-                        v_dict[face[0]],
-                        v_dict[face[1]],
-                        v_dict[face[2]]
+                        bm_verts[face[0]],
+                        bm_verts[face[1]],
+                        bm_verts[face[2]]
                     ))
-                    exampleFace = bface
+                    example_face = bface
 
-                    if json_batches[i].flags == 2:
+                    if batches[i].flags == 2:
                         # FIXME: what is this?
-                        mat_ID = json_batches[i].possibleBox2[2]
+                        mat_ID = batches[i].possibleBox2[2]
                     else:
-                        mat_ID = json_batches[i].materialID
+                        mat_ID = batches[i].materialID
 
                     # FIXME: is there a way to not have to always repeat this cast?
-                    local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
-                        mat_dict[int(mat_ID)].name)
+                    local_index = cast(bpy.types.Mesh, bl_obj.data).materials.find(
+                        bl_materials[int(mat_ID)].name)
 
                     if local_index == -1:
                         # FIXME: typing
-                        cast(bpy.types.Mesh, newObj.data).materials.append(
-                            mat_dict[int(mat_ID)])
-                        bface.material_index = cast(bpy.types.Mesh, newObj.data).materials.find(
-                            mat_dict[int(mat_ID)].name)
+                        cast(bpy.types.Mesh, bl_obj.data).materials.append(
+                            bl_materials[int(mat_ID)])
+                        bface.material_index = cast(bpy.types.Mesh, bl_obj.data).materials.find(
+                            bl_materials[int(mat_ID)].name)
                     else:
                         bface.material_index = local_index
 
                 else:
                     bface = bm.faces.new((
-                        v_dict[face[0]],
-                        v_dict[face[1]],
-                        v_dict[face[2]]
-                    ), exampleFace)
+                        bm_verts[face[0]],
+                        bm_verts[face[1]],
+                        bm_verts[face[2]]
+                    ), example_face)
 
             except ValueError as e:
-                v1 = bm.verts.new(obj_data.verts[face[0] - 1])
-                v2 = bm.verts.new(obj_data.verts[face[1] - 1])
-                v3 = bm.verts.new(obj_data.verts[face[2] - 1])
+                # v1 = bm.verts.new(imported_submeshes.verts[face[0] - 1])
+                # v2 = bm.verts.new(imported_submeshes.verts[face[1] - 1])
+                # v3 = bm.verts.new(imported_submeshes.verts[face[2] - 1])
+                v1 = bm.verts.new(imported_mesh.verts[face[0] - 1])
+                v2 = bm.verts.new(imported_mesh.verts[face[1] - 1])
+                v3 = bm.verts.new(imported_mesh.verts[face[2] - 1])
 
-                # FIXME: types?
-                colors[v1] = colors[v_dict[face[0]]]
-                colors[v2] = colors[v_dict[face[1]]]
-                colors[v3] = colors[v_dict[face[2]]]
+                colors[v1] = colors[bm_verts[face[0]]]
+                colors[v2] = colors[bm_verts[face[1]]]
+                colors[v3] = colors[bm_verts[face[2]]]
 
-                if not exampleFace:
+                if not example_face:
                     bface = bm.faces.new((v1, v2, v3))
-                    exampleFace = bface
+                    example_face = bface
 
-                    if json_batches[i].flags == 2:
-                        mat_ID = int(json_batches[i].possibleBox2[2])  # WTF is this?
+                    if batches[i].flags == 2:
+                        mat_ID = int(batches[i].possibleBox2[2])  # WTF is this?
                     else:
-                        mat_ID = json_batches[i].materialID
+                        mat_ID = batches[i].materialID
 
-                    local_index = cast(bpy.types.Mesh, newObj.data).materials.find(
-                        mat_dict[mat_ID].name)
+                    local_index = cast(bpy.types.Mesh, bl_obj.data).materials.find(
+                        bl_materials[mat_ID].name)
 
                     if local_index == -1:
-                        cast(bpy.types.Mesh, newObj.data).materials.append(mat_dict[mat_ID])
-                        bface.material_index = cast(bpy.types.Mesh, newObj.data).materials.find(
-                            mat_dict[mat_ID].name)
+                        cast(bpy.types.Mesh, bl_obj.data).materials.append(bl_materials[mat_ID])
+                        bface.material_index = cast(bpy.types.Mesh, bl_obj.data).materials.find(
+                            bl_materials[mat_ID].name)
                     else:
                         bface.material_index = local_index
                 else:
-                    bface = bm.faces.new((v1, v2, v3), exampleFace)
+                    bface = bm.faces.new((v1, v2, v3), example_face)
 
                 err_detail = (
                     f"Duplicate Face: {face[0]}/{face[0]}/{face[0]} {face[1]}/{face[1]}/{face[1]} {face[2]}/{face[2]}/{face[2]}")
-                # print(err_detail)
+                print(err_detail)
 
 
-    if len(obj_data.uv2) > 0:
+    uv_layer = bm.loops.layers.uv.new("UVMap")
+
+    if len(imported_mesh.uv2) > 0:
         uv2_layer = bm.loops.layers.uv.new('UV2Map')
 
-    if len(obj_data.uv3) > 0:
+    if len(imported_mesh.uv3) > 0:
         uv3_layer = bm.loops.layers.uv.new('UV3Map')
 
     bm.faces.ensure_lookup_table()
 
-    face_list = [batch.faces for batch in batches]
-    face_list = [face for sublist in face_list for face in sublist]
+    face_list_tmp = [submesh.faces for submesh in imported_mesh.submeshes]
+    face_list = [face for sublist in face_list_tmp for face in sublist]
+
+    # face_list = [batch.faces for batch in batches]
+    # face_list = [face for sublist in face_list for face in sublist]
+
 
     for i, face in enumerate(face_list):
-        for j, loop in enumerate(bm.faces[i].loops):  # <--- fix types
-            loop[uv_layer].uv = obj_data.uv[face[j] - 1]
+        for j, loop in enumerate(bm.faces[i].loops):
+            loop[uv_layer].uv = imported_mesh.uv[face[j] - 1]
 
-            if len(obj_data.uv2) > 0:
-                loop[uv2_layer].uv = obj_data.uv2[face[j] - 1]
+            if len(imported_mesh.uv2) > 0:
+                loop[uv2_layer].uv = imported_mesh.uv2[face[j] - 1]
 
-            if len(obj_data.uv3) > 0:
-                loop[uv3_layer].uv = obj_data.uv3[face[j] - 1]
+            if len(imported_mesh.uv3) > 0:
+                loop[uv3_layer].uv = imported_mesh.uv3[face[j] - 1]
 
     # bm.verts.ensure_lookup_table()
 
-    if len(color_list) > 0:
+    if len(vertex_colors) > 0:
         vcols = []
-        for i, clist in enumerate(color_list):
+        for i, clist in enumerate(vertex_colors):
             vcols.append(bm.loops.layers.color.new(f"vcols_{i}"))
 
         for i, vert in enumerate(bm.verts):
@@ -750,20 +787,20 @@ def wmo_setup_blender_object(base_name: str, group: WmoGroup,
     if merge_verts:
         st = recursive_remove_doubles(bm, verts=bm.verts, dist=0.00001)
         print(
-            f"{newObj.name}:"
+            f"{bl_obj.name}:"
             f" {st['removed_verts']} of {st['start_verts']} verts removed"
             f" in {st['merge_passes']} passes"
             f" in {st['total_time']:1.6f}s"
             f" ({st['end_verts']} verts remain)"
         )
 
-    bm.to_mesh(mesh)
+    bm.to_mesh(bl_mesh)
     bm.free()
 
-    newObj.rotation_euler = Euler((0, 0, 0))
-    newObj.rotation_euler.x = radians(90)
+    bl_obj.rotation_euler = Euler((0, 0, 0))
+    bl_obj.rotation_euler.x = radians(90)
 
-    collection_name = json_group.groupDescription
+    collection_name = metadata.groupDescription
     if use_collections and collection_name:
         if collection_name in bpy.data.collections:
             collection = bpy.data.collections[collection_name]
@@ -771,16 +808,16 @@ def wmo_setup_blender_object(base_name: str, group: WmoGroup,
             collection = bpy.data.collections.new(collection_name)
             bpy.context.scene.collection.children.link(collection)
 
-        collection.objects.link(newObj)
+        collection.objects.link(bl_obj)
     else:
         bpy.context.view_layer.active_layer_collection.collection.objects.link(
-            newObj)
+            bl_obj)
 
 
     if make_quads:
-        st = tris_to_quads(newObj, 5.0)
+        st = tris_to_quads(bl_obj, 5.0)
         print(
-            f"{newObj.name}:"
+            f"{bl_obj.name}:"
             f" {st['removed_faces']} of {st['start_faces']} faces removed"
             f" in {st['total_time']:1.6f}s"
             f" ({st['end_faces']} faces remain)"
@@ -788,8 +825,8 @@ def wmo_setup_blender_object(base_name: str, group: WmoGroup,
 
     # Give us a reasonable origin on everything
     bpy.ops.object.select_all('INVOKE_DEFAULT', False, action='DESELECT')
-    newObj.select_set(True)
+    bl_obj.select_set(True)
     bpy.ops.object.origin_set('INVOKE_DEFAULT', False, type='ORIGIN_GEOMETRY', center='MEDIAN')
     bpy.ops.object.shade_smooth('INVOKE_DEFAULT', False)
 
-    return newObj
+    return bl_obj
