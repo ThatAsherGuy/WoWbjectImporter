@@ -586,7 +586,7 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
         return None
 
     imported_mesh = wmo_group.imported_mesh
-    imported_submeshes = wmo_group.imported_submeshes
+    group_submeshes = wmo_group.imported_submeshes
     metadata = wmo_group.group_metadata
 
     full_name = base_name + "_" + (metadata.groupName or "section")
@@ -640,7 +640,7 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
     for i, batch in enumerate(batches):
         example_face: Optional[bmesh.types.BMFace] = None
         # cull_list = []
-        for face in imported_submeshes[i].faces:
+        for face in group_submeshes[i].faces:
             # vertex indexes
             for v in face:
                 # FIXME: what's up with the switcheroo types here?
@@ -755,7 +755,8 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
 
     bm.faces.ensure_lookup_table()
 
-    face_list_tmp = [submesh.faces for submesh in imported_mesh.submeshes]
+    # face_list_tmp = [submesh.faces for submesh in imported_mesh.submeshes]
+    face_list_tmp = [submesh.faces for submesh in group_submeshes]
     face_list = [face for sublist in face_list_tmp for face in sublist]
 
     # face_list = [batch.faces for batch in batches]
