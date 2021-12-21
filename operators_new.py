@@ -249,9 +249,9 @@ class WOWBJ_OT_Import(bpy.types.Operator, ImportHelper):
             pr = cProfile.Profile()
             pr.enable()
 
-        start_time = time.time()
+        start_time = time.perf_counter()
         do_import(context, filepath, self.reuse_materials, str(self.base_shader), args)
-        end_time = time.time()
+        end_time = time.perf_counter()
         runtime = end_time - start_time
         print(f"IMPORT COMPLETED in {runtime:0.2f}s")
 

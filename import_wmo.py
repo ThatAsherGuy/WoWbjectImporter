@@ -441,8 +441,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
         print("leaving substeps")
 
-        return
-
         print("generating materials")
 
         # START def setup_materials(self):
