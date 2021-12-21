@@ -185,13 +185,15 @@ def dorender(args):
         # Update the tile size as one of the last things we do, after everything
         # is prepped and ready to render.
         # FIXME: can we abstract this better?
-        bpy.ops.render.autotilesize_set()
-        tsize = f"{bpy.context.scene.render.tile_x},{bpy.context.scene.render.tile_y}"
+        # bpy.ops.render.autotilesize_set()
+        # tsize = f"{bpy.context.scene.render.tile_x},{bpy.context.scene.render.tile_y}"
 
         # Do the actual render
         print(f"camera len: {camera.data.lens}")
+        # print(
+        #     f"Starting render #{rendercount} with tile size ({tsize})")
         print(
-            f"Starting render #{rendercount} with tile size ({tsize})")
+            f"Starting render #{rendercount}")
         start_time = now()
         bpy.ops.render.render(animation=False, write_still=True,
                               use_viewport=False)

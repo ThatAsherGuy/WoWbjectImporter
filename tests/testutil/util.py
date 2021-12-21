@@ -9,11 +9,12 @@ from mathutils import Euler
 
 def init_blender() -> None:
     bpy.context.preferences.view.show_splash = False
-    bpy.context.preferences.filepaths.use_save_preview_images = False
+    # bpy.context.preferences.filepaths.use_save_preview_images = False
+    # bpy.context.preferences.filepaths.file_preview_type = 'NONE'
     # bpy.context.space_data.shading.type = 'MATERIAL')
     bpy.ops.preferences.addon_enable(module="WoWbjectImporter")
-    bpy.ops.preferences.addon_enable(module="render_auto_tile_size")
-    bpy.context.scene.ats_settings.use_optimal = False
+    # bpy.ops.preferences.addon_enable(module="render_auto_tile_size")
+    # bpy.context.scene.ats_settings.use_optimal = False
 
 
 def load_wowobj(input: str):
@@ -80,12 +81,13 @@ def set_render_properties(scene: bpy.types.Scene,
 def enable_gpus(device_type='CUDA'):
     preferences = bpy.context.preferences
     cycles_preferences = preferences.addons["cycles"].preferences
-    cuda_devices, opencl_devices = cycles_preferences.get_devices()
+    optix_devices = cycles_preferences.get_devices_for_type('OPTIX')
+    cuda_devices = cycles_preferences.get_devices_for_type('CUDA')
 
-    if device_type == "CUDA":
+    if len(optix_devices) > 0:
+        devices = optix_devices
+    elif len(cuda_devices) > 0:
         devices = cuda_devices
-    elif device_type == "OPENCL":
-        devices = opencl_devices
     else:
         raise RuntimeError("Unsupported device type")
 
@@ -129,6 +131,8 @@ def set_eevee_renderer(scene: bpy.types.Scene,
     scene.render.film_transparent = use_transparent_bg
     scene.view_layers[0].cycles.use_denoising = use_denoising
 
+    # disable adaptive samples to help (maybe) with consistency
+    scene.cycles.use_adaptive_sampling = False
     scene.cycles.samples = num_samples
 
 
