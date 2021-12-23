@@ -378,12 +378,12 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     flat_colors[1] += vcolors[1][0:group_vertex_count]
                 elif len(vcolors) == 1:
                     flat_colors[0] += vcolors[0][0:group_vertex_count]
-                    flat_colors[1] += [0 for _ in range(group_vertex_count)]
+                    # black + alpha = 1.0
+                    flat_colors[1] += [0xff000000 for _ in range(group_vertex_count)]
                 elif len(vcolors) == 0:
                     if group_vertex_count > 0:
-                        # FIXME: I think first group might need alpha = 1.0?
-                        flat_colors[0] += [0 for _ in range(group_vertex_count)]
-                        flat_colors[1] += [0 for _ in range(group_vertex_count)]
+                        flat_colors[0] += [0x00000000 for _ in range(group_vertex_count)]
+                        flat_colors[1] += [0xff000000 for _ in range(group_vertex_count)]
 
                 # l1 = len(flat_colors[0])
                 # l2 = len(flat_colors[1])
@@ -407,7 +407,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
             bl_materials: List[bpy.types.Material] = []
 
-            for i, mat in enumerate(metadata.materials):
+            for i, _ in enumerate(metadata.materials):
                 mat = bpy.data.materials.new(name=f"{basename}_mat_{i}")
                 mat.use_nodes = True
                 bl_materials.append(mat)
@@ -450,17 +450,17 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
         # for obj in container.bl_obj:
         for obj in bl_objects:
-            # FIXME: give MaterialSlot an __iter__  method instead of the typecast?
             for slot in obj.material_slots:
+                # this is a weird way to wrangle the material number
                 mat_number = slot.material.name.split('_')[-1]
                 if '.' in mat_number:
                     mat_number = mat_number.split('.')[0]
-                mat = metadata.materials[int(mat_number)]
+                matmeta = metadata.materials[int(mat_number)]
 
                 # next bits simplified from node_groups.py:get_tex
                 # tex1 = get_tex(container, str(mat.get("texture1")))
                 tex1: Optional[bpy.types.Image] = None
-                texnum = mat.texture1
+                texnum = matmeta.texture1
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
 
@@ -473,7 +473,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
                 # tex2 = get_tex(container, str(mat.get("texture2")))
                 tex2: Optional[bpy.types.Image] = None
-                texnum = mat.texture2
+                texnum = matmeta.texture2
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
 
@@ -486,7 +486,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
                 # tex3 = get_tex(container, str(mat.get("texture3")))
                 tex3: Optional[bpy.types.Image] = None
-                texnum = mat.texture3
+                texnum = matmeta.texture3
                 texfilename = f"{texnum}.png"
                 texfile = file.parent / texfilename
                 if texnum > 0 and texfile.exists():
@@ -547,7 +547,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 baseColor = nodes.new('ShaderNodeRGB')
                 baseColor.location += Vector((-1200.0, 400.0))
                 baseColor.outputs["Color"].default_value = wmo_read_color(
-                    mat.color2, 'CArgb')
+                    matmeta.color2, 'CArgb')
                 baseColor.label = 'BASE COLOR'
 
                 tex_nodes: List[bpy.types.ShaderNodeTexImage] = []
@@ -566,7 +566,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     tex_nodes=tex_nodes,
                     bl_mat=bl_mat,
                     shader_out=shader,
-                    mat_info=mat,
+                    mat_info=matmeta,
                     ambient=ambColor,
                 )
 
@@ -629,16 +629,21 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
     # if before != after:
     #     print("color comparison differs")
 
-    colors = {}
+    colors: Dict[bmesh.types.BMVert, List[fColor4]] = {}
 
     # needs to be a dict, since we might be inserting the verts out of order
     bm_verts: Dict[int, bmesh.types.BMVert] = {}
     # uv_dict = {}
 
-    for i, batch in enumerate(batches):
+    # FIXME: should we sanity check the lengths of these?
+    if len(batches) != len(group_submeshes):
+        print(
+            f"WARNING: sanity check failed: unequal batch and submesh counts in blender object setup ({len(batches)} != {len(group_submeshes)})")
+
+    for batch, submesh in zip(batches, group_submeshes):
         example_face: Optional[bmesh.types.BMFace] = None
         # cull_list = []
-        for face in group_submeshes[i].faces:
+        for face in submesh.faces:
             # vertex indexes
             for v in face:
                 # FIXME: what's up with the switcheroo types here?
@@ -668,6 +673,7 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
                     #     x = vertex_colors
                     #     v_color = wmo_read_color(vertex_colors[v - 1], 'CImVector')  # ????
 
+                    # ? I thiiiiiink this puts all the vertex color layers in one list? --A
                     colors[vert] = v_color
 
             try:
@@ -679,11 +685,11 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
                     ))
                     example_face = bface
 
-                    if batches[i].flags == 2:
+                    if batch.flags == 2:
                         # FIXME: what is this?
-                        mat_ID = batches[i].possibleBox2[2]
+                        mat_ID = batch.possibleBox2[2]
                     else:
-                        mat_ID = batches[i].materialID
+                        mat_ID = batch.materialID
 
                     # FIXME: is there a way to not have to always repeat this cast?
                     local_index = cast(bpy.types.Mesh, bl_obj.data).materials.find(
@@ -705,7 +711,7 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
                         bm_verts[face[2]]
                     ), example_face)
 
-            except ValueError as e:
+            except ValueError:
                 # v1 = bm.verts.new(imported_submeshes.verts[face[0] - 1])
                 # v2 = bm.verts.new(imported_submeshes.verts[face[1] - 1])
                 # v3 = bm.verts.new(imported_submeshes.verts[face[2] - 1])
@@ -721,10 +727,10 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
                     bface = bm.faces.new((v1, v2, v3))
                     example_face = bface
 
-                    if batches[i].flags == 2:
-                        mat_ID = int(batches[i].possibleBox2[2])  # WTF is this?
+                    if batch.flags == 2:
+                        mat_ID = int(batch.possibleBox2[2])  # WTF is this?
                     else:
-                        mat_ID = batches[i].materialID
+                        mat_ID = batch.materialID
 
                     local_index = cast(bpy.types.Mesh, bl_obj.data).materials.find(
                         bl_materials[mat_ID].name)
@@ -744,38 +750,29 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
 
 
     uv_layer = bm.loops.layers.uv.new("UVMap")
-
-    if len(imported_mesh.uv2) > 0:
-        uv2_layer = bm.loops.layers.uv.new('UV2Map')
-
-    if len(imported_mesh.uv3) > 0:
-        uv3_layer = bm.loops.layers.uv.new('UV3Map')
+    uv2_layer = bm.loops.layers.uv.new('UV2Map') if len(imported_mesh.uv2) else None
+    uv3_layer = bm.loops.layers.uv.new('UV3Map') if len(imported_mesh.uv3) else None
 
     bm.faces.ensure_lookup_table()
 
-    # face_list_tmp = [submesh.faces for submesh in imported_mesh.submeshes]
     face_list_tmp = [submesh.faces for submesh in group_submeshes]
     face_list = [face for sublist in face_list_tmp for face in sublist]
 
-    # face_list = [batch.faces for batch in batches]
-    # face_list = [face for sublist in face_list for face in sublist]
-
-
     for i, face in enumerate(face_list):
-        for j, loop in enumerate(bm.faces[i].loops):
-            loop[uv_layer].uv = imported_mesh.uv[face[j] - 1]
+        for j, uvloop in enumerate(bm.faces[i].loops):
+            uvloop[uv_layer].uv = imported_mesh.uv[face[j] - 1]
 
-            if len(imported_mesh.uv2) > 0:
-                loop[uv2_layer].uv = imported_mesh.uv2[face[j] - 1]
+            if uv2_layer is not None:
+                uvloop[uv2_layer].uv = imported_mesh.uv2[face[j] - 1]
 
-            if len(imported_mesh.uv3) > 0:
-                loop[uv3_layer].uv = imported_mesh.uv3[face[j] - 1]
+            if uv3_layer is not None:
+                uvloop[uv3_layer].uv = imported_mesh.uv3[face[j] - 1]
 
     # bm.verts.ensure_lookup_table()
 
     if len(vertex_colors) > 0:
-        vcols = []
-        for i, clist in enumerate(vertex_colors):
+        vcols: List[bmesh.types.BMLayerItem] = []  # FIXME: is this the right type?
+        for i, _ in enumerate(vertex_colors):
             vcols.append(bm.loops.layers.color.new(f"vcols_{i}"))
 
         for i, vert in enumerate(bm.verts):

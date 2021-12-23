@@ -147,10 +147,9 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
         update_settings_ui(self, context)
 
 
+    # FIXME: This seems like entirely the wrong place for this
     def get_base_shader(self, base: str) -> str:
         if base is None:
-            # FIXME: why isn't enumproperty assignable to str in pylance? Have
-            # to do the str() thing instead, which shouldn't be needed?
             base = str(self.base_shader)
 
         if base == 'EMIT':
