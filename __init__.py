@@ -49,7 +49,8 @@ from .preferences import WoWbject_texture
 
 from .ui import VIEW3D_PT_wowbject_scene_panel
 from .ui import VIEW3D_PT_wowbject_object_panel
-from .ui import VIEW3D_PT_wowbject_combiner_panel
+# from .ui import VIEW3D_PT_wowbject_combiner_panel
+from .ui import VIEW3D_PT_wowbject_material_panel
 
 from .addon_updater_ops import register as addon_updater_register, unregister as addon_updater_unregister
 from typing import List
@@ -74,7 +75,8 @@ classes: List[type] = [
     # UI stuff
     VIEW3D_PT_wowbject_scene_panel,
     VIEW3D_PT_wowbject_object_panel,
-    VIEW3D_PT_wowbject_combiner_panel,
+    # VIEW3D_PT_wowbject_combiner_panel,
+    VIEW3D_PT_wowbject_material_panel
 ]
 
 

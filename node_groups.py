@@ -133,7 +133,7 @@ def build_shader(unit, mat, asset_mats, asset_textures, asset_tex_combos, base_s
 
     for i, tex in enumerate(textures):
         t_node = nodes.new('ShaderNodeTexImage')
-        t_node.location += Vector((-1200.0, (200 - i * 300.0)))
+        t_node.location += Vector((-975.0, (500 - (i * 500.0))))
 
         i = min(i, len(mapping) - 1)
 
@@ -574,6 +574,7 @@ def generate_nodegroups(path):
                     'from_socket')], to_node.inputs[link_def.get('to_socket')])
 
 
+
 def do_wmo_mats(**kwargs):
     container = kwargs.get("container")
     config = kwargs.get("json")
@@ -645,7 +646,7 @@ def do_wmo_mats(**kwargs):
                 if tex:
                     tex_node = nodes.new('ShaderNodeTexImage')
                     tex_node.image = tex
-                    tex_node.location += Vector((-1200.0, (200 - i * 300.0)))
+                    tex_node.location += Vector((-975.0, (500 - (i * 500.0))))
                     tex_node.label = ("TEXTURE_%s" % str(i + 1))
                     tex_nodes.append(tex_node)
 
@@ -679,129 +680,3 @@ def get_tex(container, tex_num: int):
             return img
     else:
         return None
-
-
-# do_wmo_combiner(
-#     tex_nodes=tex_nodes,  # list[ShaderNodeTexImage]
-#     bl_mat=bl_mat,        # Material
-#     shader_out=shader,    # ShaderNodeGroup | Node | ShaderNodeEmission
-#     mat_info=mat,         # JsonMaterial
-#     ambient=ambColor,     # Tuple[float, float, float, float]
-# )
-# FIXME: Make 'ambient' a proper data type
-def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
-                    bl_mat: bpy.types.Material, shader_out: bpy.types.ShaderNode,
-                    mat_info: JsonWmoMaterial, ambient: Tuple[float, float, float, float]):
-    use_combiner_nodes = True
-    do_vertex_lighting = False
-
-    shader_info = WMO_Shaders[mat_info.shader]  # should this be a func call?
-    blend_mode = mat_info.blendMode
-    group_type = mat_info.groupType
-
-    tree = bl_mat.node_tree
-    nodes = tree.nodes
-
-    # FIXME: This is probably *not* what we actually want to name the output
-    # node, since it's very weird to have an emmission node, for example, with
-    # a name of "Diffuse"
-    shader_out.label = shader_info.name
-    # shader_out.inputs[5].default_value = 0.0 # Breaking all measures of physical accuracy here.
-
-    bl_mat.use_backface_culling = False
-
-    flags = wmo_read_mat_flags(mat_info.flags)
-
-    for flag in flags:
-        if flag == 'TWO_SIDED':
-            bl_mat.use_backface_culling = False  # FIXME: make this optional again
-
-    # FIXME: make blend modes a data table somewhere (and use it)
-    if blend_mode == 2:
-        bl_mat.blend_method = 'BLEND'
-    elif blend_mode == 1:
-        bl_mat.blend_method = 'CLIP'
-
-    mixer = nodes.new('ShaderNodeGroup')
-    mixer.node_tree = get_utility_group(name=shader_info.pixel)
-    mixer.location = Vector((-575.0, 30.0))
-
-    offset = 0
-
-    # FIXME: Would we ever -not- want to use combiner nodes?
-    # if use_combiner_nodes:
-    if True:
-        v_colors = None
-        v_colors2 = None
-
-        for i, node_input in enumerate(mixer.inputs):
-            # FIXME: instead of calling these vcols_0 and vcols_1, make them
-            # use 1 and 2 instead, to match other things? Maybe.
-            if node_input.name == "Vertex RGB":
-                if do_vertex_lighting:
-                    v_colors = nodes.new("ShaderNodeVertexColor")
-                    v_colors.layer_name = 'vcols_0'
-                    v_colors.location = Vector((-975.0, 200.0))
-
-                    lighting = nodes.new('ShaderNodeGroup')
-                    lighting.node_tree = get_utility_group(name="WMO_VertexLighting")
-                    # lighting.node_tree = get_utility_group(name="WMO_VertexLightingFancy")
-                    lighting.location = Vector((-775.0, 150.0))
-
-                    cast(
-                        bpy.types.NodeSocketColor, lighting.inputs["Ambient Color"]).default_value = ambient
-
-                    tree.links.new(lighting.outputs["Lit Color"], mixer.inputs[i])
-
-                    tree.links.new(v_colors.outputs["Color"], lighting.inputs["Vertex Color"])
-                    tree.links.new(v_colors.outputs["Alpha"], mixer.inputs[i + 1])
-
-            elif node_input.name == "Vertex2 RGB":
-                v_colors2 = nodes.new("ShaderNodeVertexColor")
-                v_colors2.layer_name = 'vcols_1'
-                v_colors2.location = Vector((-975.0, 30.0))
-                tree.links.new(v_colors2.outputs["Color"], mixer.inputs[i])
-                tree.links.new(v_colors2.outputs["Alpha"], mixer.inputs[i + 1])
-
-            elif node_input.name == "Tex0 RGB":
-                tex_nodes[0].location = Vector((-975.0, -100.0))
-                tree.links.new(tex_nodes[0].outputs["Color"], mixer.inputs[i])
-                tree.links.new(tex_nodes[0].outputs["Alpha"], mixer.inputs[i + 1])
-
-            elif node_input.name == "Tex1 RGB":
-                if len(tex_nodes) > 1:
-                    tex_nodes[1].location = Vector((-975.0, -200.0))
-                    tree.links.new(tex_nodes[1].outputs["Color"], mixer.inputs[i])
-                    tree.links.new(tex_nodes[1].outputs["Alpha"], mixer.inputs[i + 1])
-
-                    # FIXME: Is this how we want to detect the need for this?
-                    if "Env" in shader_info.pixel:
-                        env_map = nodes.new('ShaderNodeGroup')
-                        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
-                        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
-                        tree.links.new(env_map.outputs["Vector"], tex_nodes[1].inputs["Vector"])
-                else:
-                    mixer.inputs[i + 1].default_value = 0.0
-
-
-            elif node_input.name == "Tex2 RGB":
-                if len(tex_nodes) > 2:
-                    tex_nodes[2].location = Vector((-975.0, -400.0))
-                    tree.links.new(tex_nodes[2].outputs["Color"], mixer.inputs[i])
-                    tree.links.new(tex_nodes[2].outputs["Alpha"], mixer.inputs[i + 1])
-
-
-        if len(mixer.outputs) > 2:
-            mix_1 = nodes.new("ShaderNodeMixRGB")
-            mix_1.blend_type = 'ADD'
-            mix_1.label = "Mix 1"
-            mix_1.location = Vector((-275.0, 200.0))
-            mix_1.inputs["Fac"].default_value = 1.0
-
-            tree.links.new(mixer.outputs["Output RGB"], mix_1.inputs["Color1"])
-            tree.links.new(mixer.outputs["Environment RGB"], mix_1.inputs["Color2"])
-            tree.links.new(mix_1.outputs["Color"], shader_out.inputs["Color"])
-
-        else:
-            tree.links.new(mixer.outputs["Output RGB"], shader_out.inputs["Color"])
-        return

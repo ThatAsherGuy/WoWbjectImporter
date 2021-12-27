@@ -23,7 +23,6 @@
 # Assuming we don't run into issues with it, we may have a winner!
 
 from typing import List, Dict, TypedDict, Tuple
-import typing
 import dataclasses
 from dataclasses import dataclass
 from .vendor.mashumaro import DataClassJSONMixin

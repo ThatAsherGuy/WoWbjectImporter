@@ -18,49 +18,129 @@
 
 # Hell is other people's code. Also your own.
 
-from typing import Dict, List, Set, Tuple, Union, Literal  # type: ignore # noqa: F401
-from .lookup_tables import shader_table
+from typing import Dict, List, Set, Tuple, Union, Literal, Optional  # type: ignore # noqa: F401
+from .lookup_tables import shader_table, WMOShader, WMO_Shaders
 
+
+# General flag parsing
+#
+# This ends up duplicating the bit number as both a dict key, and in the tuple,
+# but that means that we can do individual bit number lookups via the dict, *and*
+# we have the option of pasing the FlagSpec tuple around and still have it be
+# complete.
+#
+# FIXME: Do we really need that duplication?
+#
+# FIXME: Can we turn this into a proper enum when we read the json?
+FlagSpec = Tuple[int, str, Optional[str]]  # bit number, name, description
+
+def parse_flags(flags: int, flag_spec: Dict[int, FlagSpec]) -> Set[str]:
+    flag_list: Set[str] = set()
+    for k, v in flag_spec.items():
+        if flags & 1 << k:
+            flag_list.add(v[1])
+
+    return flag_list
+
+
+bone_flags: Dict[int, FlagSpec] = {
+    0: (0, 'IGNORE_PARENT_TRANSLATE', None),
+    1: (1, 'IGNORE_PARENT_SCALE', None),
+    2: (2, 'IGNORE_PARENT_ROTATION', None),
+    3: (3, 'SPHERICAL_BILLBOARD', None),
+    4: (4, 'CYL_BILLBOARD_LOCK_X', None),
+    5: (5, 'CYL_BILLBOARD_LOCK_Y', None),
+    6: (6, 'CYL_BILLBOARD_LOCK_Z', None),
+    # 7: (7, '', None),
+
+    # 8: (8, '', None),
+    9: (9, 'TRANSFORMED', None),
+    10: (10, 'KINEMATIC_BONE', None),
+    # 11: (11, '', None),
+    12: (12, 'HELMET_ANIM_SCALED', None),
+    13: (13, 'SOMETHING_SEQUENCE_ID', None),
+    # 14: (14, '', None),
+    # 15: (15, '', None),
+}
 
 # A really hacky bitfield unpacker.
 # I should be able to abstract this into an enum-agnostic function.
 def get_bone_flags(flags: int) -> Set[str]:
-    flag_list: Set[str] = set()
+    return parse_flags(flags, bone_flags)
 
-    if flags & 0x1:
-        flag_list.add("ignoreParentTranslate")
 
-    if flags & 0x2:
-        flag_list.add("ignoreParentScale")
+wmo_mat_flags: Dict[int, FlagSpec] = {
+    0: (0, 'UNLIT', None),
+    1: (1, 'UNFOGGED', None),
+    2: (2, 'TWO_SIDED', None),
+    3: (3, 'EXT_LIGHT', None),
+    4: (4, 'SIDN', None),
+    5: (5, 'WINDOW', None),
+    6: (6, 'CLAMP_S', None),
+    7: (7, 'CLAMP_T', None),
 
-    if flags & 0x4:
-        flag_list.add("ignoreParentRotation")
+    8: (8, 'unknown1', None),
+    # 32-bit flag, but bits 9 - 31 are unused
+}
 
-    if flags & 0x8:
-        flag_list.add("spherical_billboard")
+def wmo_read_mat_flags(flags: int) -> Set[str]:
+    return parse_flags(flags, wmo_mat_flags)
 
-    if flags & 0x10:
-        flag_list.add("cylindrical_billboard_lock_x")
 
-    if flags & 0x20:
-        flag_list.add("cylindrical_billboard_lock_y")
+wmo_root_flags: Dict[int, FlagSpec] = {
+    0: (0, 'NO_ATTENUATE_PORTAL_DIST', None),
+    1: (1, 'UNIFIED_RENDER_PATH', "Use unified render path for all objects in this WMO"),
+    2: (2, 'LIQUID_FROM_DBC', "Liquid type is from DBC (see MLIQ)"),
+    3: (3, 'NO_FIX_VCOLOR_ALPHA', "Don't call FixColorVertexAlpha (and other effects)"),
+    4: (4, 'LOD', None),
+    5: (5, 'DEFAULT_MAX_LOD', None),
+}
 
-    if flags & 0x40:
-        flag_list.add("cylindrical_billboard_lock_z")
+def wmo_read_root_flags(flags: int) -> Set[str]:
+    return parse_flags(flags, wmo_root_flags)
 
-    if flags & 0x200:
-        flag_list.add("transformed")
 
-    if flags & 0x400:
-        flag_list.add("kinematic_bone")
+# FIXME: Wouldn't it be cool if we could create this entirely from kaitai defs?
+wmo_group_flags: Dict[int, FlagSpec] = {
+    0: (0, 'HAS_BSP_TREE', None),
+    1: (1, 'HAS_LIGHT_MAP', None),
+    2: (2, 'HAS_VERTEX_COLORS', None),
+    3: (3, 'EXTERIOR', None),
+    # 4: (4, '', None),
+    # 5: (5, '', None),
+    6: (6, 'EXTERIOR_LIT', None),
+    7: (7, 'UNREACHABLE', None),
 
-    if flags & 0x1000:
-        flag_list.add("helmet_anim_scaled")
+    8: (8, 'EXTERIOR_SKYBOX', None),
+    9: (9, 'HAS_LIGHTS', None),
+    10: (10, 'HAS_LOD', None),
+    11: (11, 'HAS_DOODADS', None),
+    12: (12, 'HAS_WATER', None),
+    13: (13, 'INTERIOR', None),
+    # 14: (14, '', None),
+    # 15: (15, '', None),
 
-    if flags & 0x2000:
-        flag_list.add("something_sequence_id")
+    16: (16, 'ALWAYS_DRAW', None),
+    17: (17, 'HAS_MORI', None),
+    18: (18, 'SHOW_SKYBOX', None),
+    19: (19, 'HAS_OCEAN', None),
+    20: (20, 'UNKNOWN1', None),
+    21: (21, 'MOUNT_ALLOWED', None),
+    # 22: (22, '', None),
+    # 23: (23, '', None),
 
-    return flag_list
+    24: (24, 'HAS_VC2', None),
+    25: (25, 'HAS_UV2', None),
+    26: (26, 'ANTIPORTAL', None),
+    27: (27, 'UNKNOWN2', None),
+    # 28: (28, '', None),
+    29: (29, 'EXTERIOR_CULL', None),
+    30: (30, 'HAS_UV3', None),
+    31: (31, 'UNKNOWN3', None),
+}
+
+def wmo_read_group_flags(flags: int) -> Set[str]:
+    return parse_flags(flags, wmo_group_flags)
 
 
 # Based on M2GetPixelShaderID() from: https://wowdev.wiki/M2/.skin
@@ -247,140 +327,6 @@ def read_wmo_face_flags(flag_in: int, func: Literal["is_transition", "is_color",
 
     return False
 
-# FIXME: do something enum-ish with the flag bit identities here
-def wmo_read_mat_flags(flag: int) -> Set[str]:
-    flag_list: Set[str] = set()
 
-    if flag & 1:
-        flag_list.add('UNLIT')
-
-    if flag & 2:
-        flag_list.add('UNFOGGED')
-
-    if flag & 4:
-        flag_list.add('TWO_SIDED')
-
-    if flag & 8:
-        flag_list.add('EXT_LIGHT')
-
-    if flag & 16:
-        flag_list.add('SIDN')
-
-    if flag & 32:
-        flag_list.add('WINDOW')
-
-    if flag & 64:
-        flag_list.add('CLAMP_S')
-
-    if flag & 128:
-        flag_list.add('CLAMP_T')
-
-    if flag & 256:
-        flag_list.add('0x100')
-
-    return flag_list
-
-
-def wmo_read_group_flags(flag: int) -> Set[str]:
-    flag_list: Set[str] = set()
-
-    if flag & 0x1:
-        flag_list.add('HAS_BSP')
-
-    if flag & 0x2:
-        flag_list.add('HAS_LIGHTMAP')
-
-    if flag & 0x4:
-        flag_list.add('HAS_VC1')
-
-    if flag & 0x8:
-        flag_list.add('EXTERIOR')
-
-    if flag & 0x10:
-        pass  # unused flag
-
-    if flag & 0x20:
-        pass  # unused flag
-
-    if flag & 0x40:
-        flag_list.add('EXTERIOR_LIT')
-
-    if flag & 0x80:
-        flag_list.add('UNREACHABLE')
-
-
-    if flag & 0x100:
-        flag_list.add('EXTERIOR_SKY')
-
-    if flag & 0x200:
-        flag_list.add('HAS_LIGHTS')
-
-    if flag & 0x400:
-        flag_list.add('HAS_LOD')
-
-    if flag & 0x800:
-        flag_list.add('HAS_DOODADS')
-
-    if flag & 0x1000:
-        flag_list.add('HAS_WATER')
-
-    if flag & 0x2000:
-        flag_list.add('INTERIOR')
-
-    if flag & 0x4000:
-        pass  # unused
-
-    if flag & 0x8000:
-        flag_list.add('QUERY_MOUNT')
-
-
-    if flag & 0x10000:
-        flag_list.add('ALWAYS_DRAW')
-
-    if flag & 0x20000:
-        flag_list.add('HAS_MORI')
-
-    if flag & 0x40000:
-        flag_list.add('SHOW_SKY')
-
-    if flag & 0x80000:
-        flag_list.add('HAS_OCEAN')
-
-    if flag & 0x100000:
-        pass  # unused
-
-    if flag & 0x200000:
-        flag_list.add('MOUNT_ALLOWED')
-
-    if flag & 0x400000:
-        pass  # unused
-
-    if flag & 0x800000:
-        pass  # unused
-
-
-    if flag & 0x1000000:
-        flag_list.add('HAS_VC2')
-
-    if flag & 0x2000000:
-        flag_list.add('HAS_UV2')
-
-    if flag & 0x4000000:
-        flag_list.add('ANTIPORTAL')
-
-    if flag & 0x8000000:
-        flag_list.add('0x8000000')  # Unknown, but not unused
-
-    if flag & 0x10000000:
-        pass  # unused
-
-    if flag & 0x20000000:
-        flag_list.add('EXTERIOR_CULL')
-
-    if flag & 0x40000000:
-        flag_list.add('HAS_UV3')
-
-    if flag & 0x80000000:
-        flag_list.add('0x80000000')  # Unknown, but not unused
-
-    return flag_list
+def wmo_get_shader(shaderid: int) -> WMOShader:
+    return WMO_Shaders[shaderid]

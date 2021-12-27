@@ -105,20 +105,44 @@ class VIEW3D_PT_wowbject_object_panel(bpy.types.Panel):
         # op.filepath = obj_props.source_directory
 
 
-class VIEW3D_PT_wowbject_combiner_panel(bpy.types.Panel):
+# class VIEW3D_PT_wowbject_combiner_panel(bpy.types.Panel):
+#     bl_space_type = 'NODE_EDITOR'
+#     bl_region_type = 'UI'
+#     bl_category = "WoWbject"
+#     bl_label = "WoWbject Combiners"
+
+#     def draw(self, context):
+#         layout = self.layout
+#         root = layout.column(align=True)
+
+#         op = root.operator_menu_enum(
+#             "wowbj.get_combiner",
+#             "combiner"
+#         )
+
+#         if context.active_node:
+#             root.prop(context.active_node, "location")
+
+
+class VIEW3D_PT_wowbject_material_panel(bpy.types.Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
-    bl_category = "WoWbject"
-    bl_label = "WoWbject Combiners"
+    bl_category = "WBJ"
+    bl_label = "WoWbject"
 
     def draw(self, context):
         layout = self.layout
         root = layout.column(align=True)
+        root.active = True
+        root.enabled = True
+        if context.material:
+            root.prop(context.material.WBJ, "wmo_shader_id")
+            root.prop(context.material.WBJ, "wmo_blend_mode")
 
-        op = root.operator_menu_enum(
-            "wowbj.get_combiner",
-            "combiner"
-        )
+        # op = root.operator_menu_enum(
+        #     "wowbj.get_combiner",
+        #     "combiner"
+        # )
 
-        if context.active_node:
-            root.prop(context.active_node, "location")
+        # if context.active_node:
+        #     root.prop(context.active_node, "location")

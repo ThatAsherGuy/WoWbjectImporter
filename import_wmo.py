@@ -30,10 +30,10 @@ from math import radians
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
-from .lookup_funcs import wmo_read_color, wmo_read_group_flags
-from .node_groups import do_wmo_combiner, get_utility_group
+from .lookup_funcs import wmo_read_color, wmo_read_group_flags, wmo_read_mat_flags, wmo_get_shader
+from .node_groups import get_utility_group
 from .preferences import WoWbject_ObjectProperties, get_prefs
-from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoRenderBatch, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
+from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoMaterial, JsonWmoRenderBatch, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
 
 from .vendor import mashumaro
 from .utilities import recursive_remove_doubles, tris_to_quads
@@ -182,6 +182,29 @@ def read_obj(file: Path) -> ImportedMesh:
             elif line_start == b'usemtl':
                 imported_mesh.submeshes[groupIndex].mtlname = line_split[1].decode('utf-8')
 
+    vcount = len(imported_mesh.verts)
+
+    if len(imported_mesh.uv) == 0:
+        imported_mesh.uv = [(1.0, 1.0) for _ in range(vcount)]
+
+    elif len(imported_mesh.uv) != vcount:
+        print(
+            f"WARNING: sanity check failed: obj file has {len(imported_mesh.uv)} uv coordinates, but {vcount} vertexes")
+
+    if len(imported_mesh.uv2) == 0:
+        imported_mesh.uv2 = [(1.0, 1.0) for _ in range(vcount)]
+
+    elif len(imported_mesh.uv2) != vcount:
+        print(
+            f"WARNING: sanity check failed: obj file has {len(imported_mesh.uv2)} uv2 coordinates, but {vcount} vertexes")
+
+    if len(imported_mesh.uv3) == 0:
+        imported_mesh.uv3 = [(1.0, 1.0) for _ in range(vcount)]
+
+    elif len(imported_mesh.uv3) != vcount:
+        print(
+            f"WARNING: sanity check failed: obj file has {len(imported_mesh.uv3)} uv3 coordinates, but {vcount} vertexes")
+
     total_verts = sum([len(g.vert_indexes) for g in imported_mesh.submeshes])
     total_faces = sum([len(g.faces) for g in imported_mesh.submeshes])
     print(f"Read {groupIndex + 1} groups, {total_verts} total verts and {total_faces} total faces")
@@ -326,13 +349,14 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 wmo_group = WmoGroup()
                 wmo_group.batch_count = len(group_metadata.renderBatches)
 
+                print(f"numPortals: {group_metadata.numPortals}")
+                print(f"numBatchesA: {group_metadata.numBatchesA}")
+                print(f"numBatchesB: {group_metadata.numBatchesB}")
+                print(f"numBatchesC: {group_metadata.numBatchesC}")
+
                 if wmo_group.batch_count <= 0:
                     print(
                         f"{group_metadata.groupName} {group_metadata.groupDescription} has no render batches?")
-                    print(f"numPortals: {group_metadata.numPortals}")
-                    print(f"numBatchesA: {group_metadata.numBatchesA}")
-                    print(f"numBatchesB: {group_metadata.numBatchesB}")
-                    print(f"numBatchesC: {group_metadata.numBatchesC}")
 
                     wmo_groups.append(wmo_group)
                     continue
@@ -506,27 +530,14 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     continue
 
                 shader: Optional[bpy.types.Node] = None
-                out_node = None
                 # FIXME: give Nodes an __iter__ instead of using this typecast?
                 for node in nodes:
                     if node.type == 'BSDF_PRINCIPLED':
                         shader = cast(bpy.types.ShaderNodeBsdfPrincipled, node)
                         shader.inputs["Roughness"].default_value = 1.0
-
-                    if node.type == 'OUTPUT_MATERIAL':
-                        out_node = node
-
-                    if shader and out_node:
                         break
 
-                if not out_node:
-                    out_node = nodes.new('ShaderNodeOutputMaterial')
-
-                if not shader:
-                    # FIXME
-                    print("DO LATER")
-
-                # FIXME: What's this for?
+                # remove whatever existing shader we found
                 if shader:
                     nodes.remove(shader)
 
@@ -542,8 +553,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 else:
                     shader = nodes.new("ShaderNodeEmission")
 
-                tree.links.new(shader.outputs[0], out_node.inputs[0])
-
                 baseColor = nodes.new('ShaderNodeRGB')
                 baseColor.location += Vector((-1200.0, 400.0))
                 baseColor.outputs["Color"].default_value = wmo_read_color(
@@ -556,8 +565,9 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     if tex:
                         tex_node = nodes.new('ShaderNodeTexImage')
                         tex_node.image = tex
-                        tex_node.location += Vector((-1200.0, (200 - i * 300.0)))
-                        tex_node.label = ("TEXTURE_%s" % str(i + 1))
+                        # tex_node.location += Vector((-1200.0, (500 - (i * 500.0))))
+                        # print(f"DEBUG: Create texture {i+1} at {tex_node.location}")
+                        tex_node.label = ("TEXTURE_%s" % str(i))
                         tex_nodes.append(tex_node)
 
                 ambColor = wmo_read_color(metadata.ambientColor, 'CImVector')
@@ -750,8 +760,8 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
 
 
     uv_layer = bm.loops.layers.uv.new("UVMap")
-    uv2_layer = bm.loops.layers.uv.new('UV2Map') if len(imported_mesh.uv2) else None
-    uv3_layer = bm.loops.layers.uv.new('UV3Map') if len(imported_mesh.uv3) else None
+    uv2_layer = bm.loops.layers.uv.new('UV2Map')
+    uv3_layer = bm.loops.layers.uv.new('UV3Map')
 
     bm.faces.ensure_lookup_table()
 
@@ -761,12 +771,8 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
     for i, face in enumerate(face_list):
         for j, uvloop in enumerate(bm.faces[i].loops):
             uvloop[uv_layer].uv = imported_mesh.uv[face[j] - 1]
-
-            if uv2_layer is not None:
-                uvloop[uv2_layer].uv = imported_mesh.uv2[face[j] - 1]
-
-            if uv3_layer is not None:
-                uvloop[uv3_layer].uv = imported_mesh.uv3[face[j] - 1]
+            uvloop[uv2_layer].uv = imported_mesh.uv2[face[j] - 1]
+            uvloop[uv3_layer].uv = imported_mesh.uv3[face[j] - 1]
 
     # bm.verts.ensure_lookup_table()
 
@@ -826,3 +832,179 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
     bpy.ops.object.shade_smooth('INVOKE_DEFAULT', False)
 
     return bl_obj
+
+
+# do_wmo_combiner(
+#     tex_nodes=tex_nodes,  # list[ShaderNodeTexImage]
+#     bl_mat=bl_mat,        # Material
+#     shader_out=shader,    # ShaderNodeGroup | Node | ShaderNodeEmission
+#     mat_info=mat,         # JsonMaterial
+#     ambient=ambColor,     # Tuple[float, float, float, float]
+# )
+# FIXME: Make 'ambient' a proper data type
+# FIXME: Can we actually hold a reference to the texture nodes?
+def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
+                    bl_mat: bpy.types.Material, shader_out: bpy.types.ShaderNode,
+                    mat_info: JsonWmoMaterial, ambient: Tuple[float, float, float, float]):
+    use_combiner_nodes = True
+    do_vertex_lighting = False
+
+    bl_mat.WBJ.wmo_shader_id = mat_info.shader
+    shader_info = wmo_get_shader(mat_info.shader)
+
+    bl_mat.WBJ.wmo_blend_mode = mat_info.blendMode
+    blend_mode = mat_info.blendMode
+
+    # # I think this is actually 'ground type'
+    # group_type = mat_info.groupType
+
+    tree = bl_mat.node_tree
+    nodes = tree.nodes
+
+    # FIXME: This is probably *not* what we actually want to name the output
+    # node, since it's very weird to have an emmission node, for example, with
+    # a name of "Diffuse"
+    # shader_out.label = shader_info.name
+    # shader_out.inputs[5].default_value = 0.0 # Breaking all measures of physical accuracy here.
+
+    bl_mat.use_backface_culling = False
+
+    flags = wmo_read_mat_flags(mat_info.flags)
+
+    for flag in flags:
+        if flag == 'TWO_SIDED':
+            bl_mat.use_backface_culling = False  # FIXME: make this optional again
+
+    # FIXME: make blend modes a data table somewhere (and use it)
+    if blend_mode == 2:
+        bl_mat.blend_method = 'BLEND'
+    elif blend_mode == 1:
+        bl_mat.blend_method = 'CLIP'
+
+    out_node = None
+    for node in nodes:
+        if node.type == 'OUTPUT_MATERIAL':
+            out_node = node
+            break
+
+    if not out_node:
+        out_node = nodes.new('ShaderNodeOutputMaterial')
+
+    vert_shader = nodes.new('ShaderNodeGroup')
+    vert_shader.node_tree = get_utility_group(name=shader_info.vertex)
+    vert_shader.location = Vector((-1400.0, -300.0))  # FIXME: find best spot
+
+    for i in range(3):
+        # FIXME: Use better names and we don't need the if/then
+        if i == 0:
+            uvname = "UVMap"
+        else:
+            uvname = f"UV{i+1}Map"
+
+        uv_map = nodes.new('ShaderNodeUVMap')
+        uv_map.location = Vector((-1650.0, (i * -300.0)))
+        uv_map.uv_map = uvname
+        tree.links.new(uv_map.outputs[0], vert_shader.inputs[i])
+
+        if len(tex_nodes) > i:
+            tree.links.new(vert_shader.outputs[i], tex_nodes[i].inputs[0])
+
+    mixer = nodes.new('ShaderNodeGroup')
+    mixer.node_tree = get_utility_group(name=shader_info.pixel)
+    mixer.location = Vector((-575.0, 30.0))
+
+    offset = 0
+
+    # FIXME: Would we ever -not- want to use combiner nodes?
+    # if use_combiner_nodes:
+    if True:
+        v_colors = None
+        v_colors2 = None
+
+        for i, node_input in enumerate(mixer.inputs):
+            # FIXME: instead of calling these vcols_0 and vcols_1, make them
+            # use 1 and 2 instead, to match other things? Maybe.
+            if node_input.name == "Vertex RGB":
+                # if do_vertex_lighting:
+                if True:
+                    v_colors = nodes.new("ShaderNodeVertexColor")
+                    v_colors.layer_name = 'vcols_0'
+                    v_colors.location = Vector((-975.0, 200.0))
+
+                    # lighting = nodes.new('ShaderNodeGroup')
+                    # lighting.node_tree = get_utility_group(name="WMO_VertexLighting")
+                    # lighting.node_tree = get_utility_group(name="WMO_VertexLightingFancy")
+                    # lighting.location = Vector((-775.0, 150.0))
+
+                    # cast(
+                    #     bpy.types.NodeSocketColor, lighting.inputs["Ambient Color"]).default_value = ambient
+
+                    # tree.links.new(lighting.outputs["Lit Color"], mixer.inputs[i])
+                    # tree.links.new(v_colors.outputs["Color"], lighting.inputs["Vertex Color"])
+                    tree.links.new(v_colors.outputs["Color"], mixer.inputs[i])
+                    tree.links.new(v_colors.outputs["Alpha"], mixer.inputs[i + 1])
+
+            elif node_input.name == "Vertex2 RGB":
+                v_colors2 = nodes.new("ShaderNodeVertexColor")
+                v_colors2.layer_name = 'vcols_1'
+                v_colors2.location = Vector((-975.0, 30.0))
+                tree.links.new(v_colors2.outputs["Color"], mixer.inputs[i])
+                tree.links.new(v_colors2.outputs["Alpha"], mixer.inputs[i + 1])
+
+            elif node_input.name == "Tex0 RGB":
+                tex_nodes[0].location = Vector((-975.0, 200.0))
+                tree.links.new(tex_nodes[0].outputs["Color"], mixer.inputs[i])
+                tree.links.new(tex_nodes[0].outputs["Alpha"], mixer.inputs[i + 1])
+
+            elif node_input.name == "Tex1 RGB":
+                if len(tex_nodes) > 1:
+                    tex_nodes[1].location = Vector((-975.0, -200.0))
+                    tree.links.new(tex_nodes[1].outputs["Color"], mixer.inputs[i])
+                    tree.links.new(tex_nodes[1].outputs["Alpha"], mixer.inputs[i + 1])
+
+                    # FIXME: Is this how we want to detect the need for this?
+                    if "Env" in shader_info.pixel:
+                        env_map = nodes.new('ShaderNodeGroup')
+                        env_map.node_tree = get_utility_group(name="SphereMap_Alt")
+                        env_map.location += Vector((-1400.0, (300 - 2 * 325.0)))
+                        tree.links.new(env_map.outputs["Vector"], tex_nodes[1].inputs["Vector"])
+                else:
+                    mixer.inputs[i + 1].default_value = 0.0
+
+            elif node_input.name == "Tex2 RGB":
+                if len(tex_nodes) > 2:
+                    tex_nodes[2].location = Vector((-975.0, -600.0))
+                    tree.links.new(tex_nodes[2].outputs["Color"], mixer.inputs[i])
+                    tree.links.new(tex_nodes[2].outputs["Alpha"], mixer.inputs[i + 1])
+
+            elif node_input.name == "Blend Mode":
+                blendmode_value = nodes.new('ShaderNodeValue')
+                blendmode_value.outputs["Value"].default_value = blend_mode
+                tree.links.new(blendmode_value.outputs["Value"], mixer.inputs[i])
+
+
+        final_color_out = mixer.outputs["Output RGB"]
+        if len(mixer.outputs) > 2:
+            mix_1 = nodes.new("ShaderNodeMixRGB")
+            mix_1.blend_type = 'ADD'
+            mix_1.label = "Mix 1"
+            mix_1.location = Vector((-275.0, 200.0))
+            mix_1.inputs["Fac"].default_value = 1.0
+
+            tree.links.new(mixer.outputs["Output RGB"], mix_1.inputs["Color1"])
+            tree.links.new(mixer.outputs["Environment RGB"], mix_1.inputs["Color2"])
+            final_color_out = mix_1.outputs["Color"]
+
+        tree.links.new(final_color_out, shader_out.inputs["Color"])
+
+        final_shader_out = shader_out.outputs[0]
+        if blend_mode == 1:
+            alpha_shader = nodes.new('ShaderNodeGroup')
+            alpha_shader.node_tree = get_utility_group(name="Alpha Shader")
+            tree.links.new(final_shader_out, alpha_shader.inputs["Shader"])
+            tree.links.new(mixer.outputs["Output Alpha"], alpha_shader.inputs["Alpha"])
+            final_shader_out = alpha_shader.outputs[0]
+
+        tree.links.new(final_shader_out, out_node.inputs["Surface"])
+
+        return

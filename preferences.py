@@ -510,14 +510,32 @@ class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
         )
 
     if TYPE_CHECKING:
-        linked_asset: bpy.types.StringProperty
+        wmo_shader_id: int
     else:
-        linked_asset: bpy.props.StringProperty(
-            name="Source File",
-            description="Where it come from",
-            default="",
-            # options={''},
+        wmo_shader_id: bpy.props.IntProperty(
+            name='Shader ID',
+            description="WMO material shader ID",
+            default=-1,
         )
+
+    if TYPE_CHECKING:
+        wmo_blend_mode: int
+    else:
+        wmo_blend_mode: bpy.props.IntProperty(
+            name='Blend Mode',
+            description="WMO material blend mode",
+            default=-1,
+        )
+
+    # if TYPE_CHECKING:
+    #     linked_asset: bpy.types.StringProperty
+    # else:
+    #     linked_asset: bpy.props.StringProperty(
+    #         name="Source File",
+    #         description="Where it come from",
+    #         default="",
+    #         # options={''},
+    #     )
 
     if TYPE_CHECKING:
         textures: bpy.types.CollectionProperty

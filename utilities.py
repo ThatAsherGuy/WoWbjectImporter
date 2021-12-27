@@ -189,7 +189,7 @@ class import_container():
 
                 bone_flags = get_bone_flags(bone.flags)
                 for flag in bone_flags:
-                    if flag in {'spherical_billboard', 'cylindrical_billboard_lock_x', 'cylindrical_billboard_lock_y', 'cylindrical_billboard_lock_z'}:
+                    if flag in {'SPHERICAL_BILLBOARD', 'CYL_BILLBOARD_LOCK_X', 'CYL_BILLBOARD_LOCK_Y', 'CYL_BILLBOARD_LOCK_Z'}:
                         bone_tag = "_" + flag
 
                 ebone = armature.edit_bones.new("Bone_" + str(i))
@@ -223,7 +223,7 @@ class import_container():
                 bone_flags = get_bone_flags(bone.flags)
 
                 for flag in bone_flags:
-                    if flag in {'spherical_billboard', 'cylindrical_billboard_lock_x', 'cylindrical_billboard_lock_y', 'cylindrical_billboard_lock_z'}:
+                    if flag in {'SPHERICAL_BILLBOARD', 'CYL_BILLBOARD_LOCK_X', 'CYL_BILLBOARD_LOCK_Y', 'CYL_BILLBOARD_LOCK_Z'}:
                         do_billboard = True
 
                 if do_billboard:
