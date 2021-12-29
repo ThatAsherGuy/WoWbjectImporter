@@ -27,6 +27,9 @@ from typing import TYPE_CHECKING, cast, Dict, Tuple
 class wowbjectAddonPrefs(bpy.types.AddonPreferences):
     bl_idname = __package__
 
+    # FIXME: This feels dirty
+    layout: bpy.types.UILayout
+
     # Stuff from the CGCookie Add-on Updater.
     if TYPE_CHECKING:
         auto_check_update: bool
@@ -109,9 +112,6 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
             default="EMIT",
         )
 
-    # This feels dirty
-    layout: bpy.types.UILayout
-
     report_items = [
         ('WARNING', "Warnings", "Show warnings", 'ERROR', 1),
         ('ERROR', "Errors", "Show error reports", 'CANCEL', 2),
@@ -120,7 +120,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
     ]
 
     if TYPE_CHECKING:
-        reporting: bpy.types.EnumProperty
+        reporting: str
     else:
         reporting: bpy.props.EnumProperty(
             name="Report Level",
@@ -130,7 +130,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
             default={'WARNING', 'ERROR'},
         )
 
-    def draw(self, context: bpy.types.Context):
+    def draw(self, context: bpy.types.Context) -> None:
         # print(type(bpy.context.scene.WBJ))
         layout = self.layout
         # works best if a column, or even just self.layout
@@ -144,7 +144,7 @@ class wowbjectAddonPrefs(bpy.types.AddonPreferences):
 
         # updater draw function
         # could also pass in col as third arg
-        update_settings_ui(self, context)
+        update_settings_ui(self, context)  # type: ignore
 
 
     # FIXME: This seems like entirely the wrong place for this
@@ -252,7 +252,7 @@ class WoWbject_texture(bpy.types.PropertyGroup):
         )
 
     if TYPE_CHECKING:
-        path: bpy.types.StringProperty
+        path: str
     else:
         path: bpy.props.StringProperty(
             name="Texture Path",
@@ -338,23 +338,22 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
             default='M2',
         )
 
-    wmo_lighting_types = [
-        ('UNLIT', "Unlit", "Model is Unlit", 0),
-        ('EXTERIOR', "Exterior", "Model is Exterior Surfaces", 1),
-        ('TRANSITION', "Transition", "Model is Transition Surfaces", 2),
-        ('INTERIOR', "Interior", "Model is Interior Surfaces", 3),
-    ]
-
-    # FIXME: Is this better as an enum, or something broken down?
     if TYPE_CHECKING:
-        # wmo_lighting_type: bpy.types.EnumProperty
-        wmo_lighting_type: str
+        source_fdid: int
     else:
-        wmo_lighting_type: bpy.props.EnumProperty(
-            name="Lighting",
-            description='Lighting calculation to be used for WMO object',
-            items=wmo_lighting_types,
-            default='UNLIT',
+        source_fdid: bpy.props.IntProperty(
+            name="Source FDID",
+            description="File Data ID of source asset",
+            default=-1,
+        )
+
+    if TYPE_CHECKING:
+        wmo_root_fdid: int
+    else:
+        wmo_root_fdid: bpy.props.IntProperty(
+            name="Root FDID",
+            description="File Data ID of WMO root file",
+            default=-1,
         )
 
     if TYPE_CHECKING:
@@ -384,17 +383,6 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
             description="Where it come from",
             default="",
             subtype='FILE_NAME',
-            # get=lambda self : self["source_asset"],
-            # options={''},
-        )
-
-    if TYPE_CHECKING:
-        source_fdid: int
-    else:
-        source_fdid: bpy.props.IntProperty(
-            name="Source FDID",
-            description="File Data ID of source asset",
-            default=0,
             # get=lambda self : self["source_asset"],
             # options={''},
         )
@@ -481,6 +469,7 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
             get=get_wmo_exterior_direct,
             set=set_wmo_exterior_direct,
         )
+
     if TYPE_CHECKING:
         # wmo_exterior_direct_color_direction: bpy.types.FloatVectorAttribute
         wmo_exterior_direct_color_direction: Tuple[float, float, float]
@@ -496,13 +485,82 @@ class WoWbject_ObjectProperties(bpy.types.PropertyGroup):
             set=set_wmo_exterior_direct_direction,
         )
 
+    if TYPE_CHECKING:
+        wmo_root_flags: int
+    else:
+        wmo_root_flags: bpy.props.IntProperty(
+            name="Root Flags",
+            description="WMO Root Flags",
+            subtype='UNSIGNED',
+            default=0
+        )
+
+    if TYPE_CHECKING:
+        wmo_group_flags: int
+    else:
+        wmo_group_flags: bpy.props.IntProperty(
+            name="Group Flags",
+            description="WMO Group Flags",
+            subtype='UNSIGNED',
+            default=0
+        )
+
+    wmo_lighting_types = [
+        ('TRANSITION', "Transition", "Batch is interior <-> exterior transition faces", 0),
+        ('INTERIOR', "Interior", "Batch is interior faces", 1),
+        ('EXTERIOR', "Exterior", "Batch is exterior faces", 2),
+        ('OTHER', "Other", "Batch is unknown/other faces", 3),
+    ]
+
+    # FIXME: Is this better as an enum, or something broken down?
+    if TYPE_CHECKING:
+        # wmo_lighting_type: bpy.types.EnumProperty
+        wmo_lighting_type: str
+    else:
+        wmo_lighting_type: bpy.props.EnumProperty(
+            name="Lighting Type",
+            description='Lighting type for WMO',
+            items=wmo_lighting_types,
+            default='OTHER',
+        )
+
+    if TYPE_CHECKING:
+        wmo_group_batches_a: int
+    else:
+        wmo_group_batches_a: bpy.props.IntProperty(
+            name="Batch Count A",
+            description="WMO render batch count for type A batches",
+            subtype='UNSIGNED',
+            default=0
+        )
+
+    if TYPE_CHECKING:
+        wmo_group_batches_b: int
+    else:
+        wmo_group_batches_b: bpy.props.IntProperty(
+            name="Batch Count B",
+            description="WMO render batch count for type B batches",
+            subtype='UNSIGNED',
+            default=0
+        )
+
+    if TYPE_CHECKING:
+        wmo_group_batches_c: int
+    else:
+        wmo_group_batches_c: bpy.props.IntProperty(
+            name="Batch Count C",
+            description="WMO render batch count for type C batches",
+            subtype='UNSIGNED',
+            default=0
+        )
+
 
 class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
     """
     Mostly Summary Information
     """
     if TYPE_CHECKING:
-        initialized: bpy.types.BoolProperty
+        initialized: bool
     else:
         initialized: bpy.props.BoolProperty(
             default=False,
@@ -527,6 +585,15 @@ class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
             default=-1,
         )
 
+    if TYPE_CHECKING:
+        wmo_mat_flags: int
+    else:
+        wmo_mat_flags: bpy.props.IntProperty(
+            name='Material Flags',
+            description="WMO material flags",
+            default=-1,
+        )
+
     # if TYPE_CHECKING:
     #     linked_asset: bpy.types.StringProperty
     # else:
@@ -546,8 +613,8 @@ class WoWbject_MaterialProperties(bpy.types.PropertyGroup):
         )
 
 
-def get_rate(self: 'WoWbject_NodeGroupProperties'):
-    return bpy.context.scene.render.fps
+def get_rate(self: 'WoWbject_NodeGroupProperties') -> float:
+    return bpy.context.scene.render.fps / bpy.context.scene.render.fps_base
 
 
 class WoWbject_NodeGroupProperties(bpy.types.PropertyGroup):

@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 from .lookup_funcs import wmo_read_color, wmo_read_group_flags, wmo_read_mat_flags, wmo_get_shader
 from .node_groups import get_utility_group
-from .preferences import WoWbject_ObjectProperties, get_prefs
+from .preferences import WoWbject_ObjectProperties, WoWbject_MaterialProperties, get_prefs
 from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoMaterial, JsonWmoRenderBatch, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
 
 from .vendor import mashumaro
@@ -251,9 +251,9 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             metadata = JsonWmoMetadata.from_dict(metadata)  # type: ignore
         # FIXME: Not sure why pylance can't figure out the types here
         except mashumaro.exceptions.MissingField as e:
-            raise RuntimeError(str(e))
+            raise RuntimeError("missing field: " + str(e))
         except mashumaro.exceptions.InvalidFieldValue as e:
-            raise RuntimeError("invalid field value (not repeating)")
+            raise RuntimeError("invalid field value" + str(e))
         # END setup_json_data
 
         # START def setup_bl_object(self, progress):
@@ -273,28 +273,11 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             # for i, group in enumerate(obj_data.groups):
             #     print(f"obj group {i} has {len(group.verts)} verts")
 
-            # The blender object stuff is all done in wmo_setup_blender_object
-            # right now, so don't need it here.
-            if False:
-                newMesh = bpy.data.meshes.new(basename)
-                newMesh.use_auto_smooth = True
-                newMesh.auto_smooth_angle = radians(60)
-
-                newObj = bpy.data.objects.new(basename, newMesh)
-                WBJ = cast(WoWbject_ObjectProperties, newObj.WBJ)  # type: ignore
-
-                WBJ.source_file = str(file.name)
-                WBJ.source_directory = str(file.parent)
-                WBJ.initialized = True
-
             # START def repack_wmo(import_container, groups: dict, obj_data: meshObject, config: dict):
 
             # ? Why was this all the way up here? Seems only needed much further down?
             # offset = 0
 
-            # not sure why we need the big flat vertex color list -- ask Asher,
-            # if he reappears
-            flat_colors: List[List[int]] = [[], [], []]
 
             # So, there's going to be more vertex colors than there are verts.
             # This is because the collision meshes (as definedd in MOBN and MOBR
@@ -349,10 +332,10 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 wmo_group = WmoGroup()
                 wmo_group.batch_count = len(group_metadata.renderBatches)
 
-                print(f"numPortals: {group_metadata.numPortals}")
-                print(f"numBatchesA: {group_metadata.numBatchesA}")
-                print(f"numBatchesB: {group_metadata.numBatchesB}")
-                print(f"numBatchesC: {group_metadata.numBatchesC}")
+                # print(f"numPortals: {group_metadata.numPortals}")
+                # print(f"numBatchesA: {group_metadata.numBatchesA}")
+                # print(f"numBatchesB: {group_metadata.numBatchesB}")
+                # print(f"numBatchesC: {group_metadata.numBatchesC}")
 
                 if wmo_group.batch_count <= 0:
                     print(
@@ -393,6 +376,11 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 # if group_vertex_count != last_vertex:
                 #     print(
                 #         f"WARNING: vertex count mismatch: {group_vertex_count} != {last_vertex}")
+
+                # not sure why we need the big flat vertex color list -- ask Asher,
+                # if he reappears Not sure why we need three, either, since there
+                # can only be two MOCV chunks.
+                flat_colors: List[List[int]] = [[], [], []]
 
                 # Not sure why we're doing this, rather than just updating the
                 # group.vertexColours struct in place, or copying/updating
@@ -456,6 +444,11 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     # make_quads=make_quads,
                     # use_collections=use_collections
                 )
+
+                WBJ = cast(WoWbject_ObjectProperties, bl_obj.WBJ)  # type: ignore
+                WBJ.wmo_root_fdid = metadata.fileDataID
+                WBJ.source_fdid = metadata.groupIDs[i]
+                WBJ.wmo_root_flags = metadata.flags
 
                 if bl_obj:
                     bl_objects.append(bl_obj)
@@ -605,10 +598,21 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
 
     bl_obj = bpy.data.objects.new(full_name, bl_mesh)
     WBJ = cast(WoWbject_ObjectProperties, bl_obj.WBJ)  # type: ignore
-    WBJ.wow_model_type = 'WMO'
     WBJ.initialized = True
+    WBJ.wow_model_type = 'WMO'
+    WBJ.wmo_group_batches_a = metadata.numBatchesA
+    WBJ.wmo_group_batches_b = metadata.numBatchesB
+    WBJ.wmo_group_batches_c = metadata.numBatchesC
 
-    flags = wmo_read_group_flags(metadata.flags)  # FIXME: do we need a 0 default?
+    # blender IntProperty fields, even when subtype='UNSIGNED', won't accept
+    # a value over 2147483647. In our case, that top bit is an unknown flag
+    # that we have no use for right now, so we're just going to drop it rather
+    # than go through gymnastics to make blender happy with the full value
+    WBJ.wmo_group_flags = metadata.flags & 0x7fffffff
+
+
+    # FIXME: may need more logic here
+    flags = wmo_read_group_flags(metadata.flags)
     if 'INTERIOR' in flags and 'EXTERIOR' in flags:
         WBJ.wmo_lighting_type = 'TRANSITION'
     elif 'INTERIOR' in flags:
@@ -625,10 +629,18 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
     # batches = group.imported_submeshes
     batches = wmo_group.batches_metadata
 
+    # batch_types: List[str] = []
+    # batch_types.extend('TRANSITION' * metadata.numBatchesA)
+    # batch_types.extend('INTERIOR' * metadata.numBatchesB)
+    # batch_types.extend('EXTERIOR' * metadata.numBatchesC)
+
+    # batch_other = len(batches) - len(batch_types)
+    # batch_types.extend('OTHER' * batch_other)
+
     # FIXME: I think we guarantee we have colors before calling here, so do we
     # need to check here?  (answer: yes, probably, when doing more than WMOs)
     vertex_colors = [clist for clist in wmo_group.vertex_colors if len(clist) > 0]
-    do_colors = True if len(vertex_colors) > 0 else False
+    # do_colors = True if len(vertex_colors) > 0 else False
 
     # from pprint import pformat
     # before = str(group.colors)
@@ -672,19 +684,19 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
                 # We can't set the color until after all of the faces are made,
                 # So we throw it all into a dictionary and brute-force it later.
                 # Note: There can theoretically be three sets of vertex colors.
-                if do_colors:
-                    # if type(vertex_colors[0]) == list:
-                    v_color: List[fColor4] = []
-                    for sublist in vertex_colors:
-                        v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
+                # if do_colors:
+                # if type(vertex_colors[0]) == list:
+                v_color: List[fColor4] = []
+                for sublist in vertex_colors:
+                    v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
 
-                    # else:
-                    #     # FIXME: What even -is- this?
-                    #     x = vertex_colors
-                    #     v_color = wmo_read_color(vertex_colors[v - 1], 'CImVector')  # ????
+                # else:
+                #     # FIXME: What even -is- this?
+                #     x = vertex_colors
+                #     v_color = wmo_read_color(vertex_colors[v - 1], 'CImVector')  # ????
 
-                    # ? I thiiiiiink this puts all the vertex color layers in one list? --A
-                    colors[vert] = v_color
+                # ? I thiiiiiink this puts all the vertex color layers in one list? --A
+                colors[vert] = v_color
 
             try:
                 if not example_face:
@@ -845,15 +857,19 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
 # FIXME: Can we actually hold a reference to the texture nodes?
 def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
                     bl_mat: bpy.types.Material, shader_out: bpy.types.ShaderNode,
-                    mat_info: JsonWmoMaterial, ambient: Tuple[float, float, float, float]):
-    use_combiner_nodes = True
-    do_vertex_lighting = False
+                    mat_info: JsonWmoMaterial, ambient: Tuple[float, float, float, float]) -> None:
+    # use_combiner_nodes = True
+    # do_vertex_lighting = False
 
-    bl_mat.WBJ.wmo_shader_id = mat_info.shader
+    WBJ = cast(WoWbject_MaterialProperties, bl_mat.WBJ)  # type: ignore
+    WBJ.wmo_shader_id = mat_info.shader
     shader_info = wmo_get_shader(mat_info.shader)
 
-    bl_mat.WBJ.wmo_blend_mode = mat_info.blendMode
+    WBJ.wmo_blend_mode = mat_info.blendMode
     blend_mode = mat_info.blendMode
+
+    WBJ.wmo_mat_flags = mat_info.flags
+    # print(f"Material Flags: {mat_info.flags}")
 
     # # I think this is actually 'ground type'
     # group_type = mat_info.groupType
@@ -913,7 +929,7 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
     mixer.node_tree = get_utility_group(name=shader_info.pixel)
     mixer.location = Vector((-575.0, 30.0))
 
-    offset = 0
+    # offset = 0
 
     # FIXME: Would we ever -not- want to use combiner nodes?
     # if use_combiner_nodes:

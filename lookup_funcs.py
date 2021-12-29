@@ -36,6 +36,10 @@ FlagSpec = Tuple[int, str, Optional[str]]  # bit number, name, description
 
 def parse_flags(flags: int, flag_spec: Dict[int, FlagSpec]) -> Set[str]:
     flag_list: Set[str] = set()
+
+    if flags == -1:
+        return flag_list
+
     for k, v in flag_spec.items():
         if flags & 1 << k:
             flag_list.add(v[1])
@@ -223,7 +227,7 @@ def get_vertex_shader(shader_id: int, op_count: int = 2) -> str:
 
 
 # Currently unused, needs actual interp functions to be useful.
-def get_interpolation_type(index: int):
+def get_interpolation_type(index: int) -> str:
     types = (
         'CONST',
         'LINEAR',
@@ -272,28 +276,28 @@ def wmo_read_color(color: int, color_type: Literal["CImVector", "CArgb"]) -> Tup
     do_gamma = False
 
     if do_gamma:
-        if (0 <= float(red) / 255 <= 0.04045):
-            red = (float(red) / 255) / 12.92
+        if (0 <= float(red) / 255.0 <= 0.04045):
+            red_f = (float(red) / 255.0) / 12.92
         else:
-            red = pow((float(red) / 255 + 0.55) / 1.055, 2.4)
+            red_f = pow((float(red) / 255.0 + 0.55) / 1.055, 2.4)
 
-        if (0 <= float(green) / 255 <= 0.04045):
-            green = (float(green) / 255) / 12.92
+        if (0 <= float(green) / 255.0 <= 0.04045):
+            green_f = (float(green) / 255.0) / 12.92
         else:
-            green = pow((float(green) / 255 + 0.55) / 1.055, 2.4)
+            green_f = pow((float(green) / 255.0 + 0.55) / 1.055, 2.4)
 
-        if (0 <= float(blue) / 255 <= 0.04045):
-            blue = (float(blue) / 255) / 12.92
+        if (0 <= float(blue) / 255.0 <= 0.04045):
+            blue_f = (float(blue) / 255.0) / 12.92
         else:
-            blue = pow((float(blue) / 255 + 0.55) / 1.055, 2.4)
+            blue_f = pow((float(blue) / 255.0 + 0.55) / 1.055, 2.4)
     else:
-        red = (float(red) / 255)
-        green = (float(green) / 255)
-        blue = (float(blue) / 255)
+        red_f = (float(red) / 255.0)
+        green_f = (float(green) / 255.0)
+        blue_f = (float(blue) / 255.0)
 
-    alpha = float(alpha) / 255
+    alpha_f = float(alpha) / 255.0
 
-    return (red, green, blue, alpha)
+    return (red_f, green_f, blue_f, alpha_f)
 
 
 def read_wmo_face_flags(flag_in: int, func: Literal["is_transition", "is_color", "is_render", "is_collidable"]) -> bool:
