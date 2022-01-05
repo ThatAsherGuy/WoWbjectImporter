@@ -81,21 +81,29 @@ WMO_Shaders: List[WMOShader] = [
     WMOShader("Metal",	                 "MapObjSpecular_T1",	       "MapObjMetal"),
     WMOShader("Env",	                 "MapObjDiffuse_T1_Refl",	   "MapObjEnv"),
     WMOShader("Opaque",	                 "MapObjDiffuse_T1",	       "MapObjOpaque"),
+
+    # 5
     WMOShader("EnvMetal",	             "MapObjDiffuse_T1_Refl",	   "MapObjEnvMetal"),
     WMOShader("TwoLayerDiffuse",	     "MapObjDiffuse_Comp",	       "MapObjTwoLayerDiffuse"),
     WMOShader("TwoLayerEnvMetal",	     "MapObjDiffuse_T1",	       "MapObjTwoLayerEnvMetal"),
     WMOShader("TwoLayerTerrain",	     "MapObjDiffuse_Comp_Terrain", "MapObjTwoLayerTerrain"	),
     WMOShader("DiffuseEmissive",	     "MapObjDiffuse_Comp",	       "MapObjDiffuseEmissive"),
+
+    # 10
     WMOShader("waterWindow",	         "vxFFXWaterWindow",	       "FFXWaterWindow"),
     WMOShader("MaskedEnvMetal",	         "MapObjDiffuse_T1_Env_T2",	   "MapObjMaskedEnvMetal"),
     WMOShader("EnvMetalEmissive",	     "MapObjDiffuse_T1_Env_T2",	   "MapObjEnvMetalEmissive"),
     WMOShader("TwoLayerDiffuseOpaque",   "MapObjDiffuse_Comp",	       "MapObjTwoLayerDiffuseOpaque"),
     WMOShader("submarineWindow",	     "vxFFXSubmarineWindow",	   "FFXSubmarineWindow"),
+
+    # 15
     WMOShader("TwoLayerDiffuseEmissive", "MapObjDiffuse_Comp",	       "MapObjTwoLayerDiffuseEmissive"),
     WMOShader("DiffuseTerrain",	         "MapObjDiffuse_T1",	       "MapObjDiffuse"),
     WMOShader("AdditiveMaskedEnvMetal",  "MapObjDiffuse_T1_Env_T2",	   "MapObjAdditiveMaskedEnvMetal"),
     WMOShader("TwoLayerDiffuseMod2x",    "MapObjDiffuse_CompAlpha",	   "MapObjTwoLayerDiffuseMod2x"),
     WMOShader("TwoLayerDiffuseMod2xNA",  "MapObjDiffuse_Comp",	       "MapObjTwoLayerDiffuseMod2xNA"),
+
+    # 20
     WMOShader("TwoLayerDiffuseAlpha",    "MapObjDiffuse_CompAlpha",	   "MapObjTwoLayerDiffuseAlpha"),
     WMOShader("Lod",	                 "MapObjDiffuse_T1",	       "MapObjLod"),
     WMOShader("Parallax",	             "MapObjParallax",	           "MapObjParallax"),

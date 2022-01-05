@@ -637,7 +637,7 @@ def do_wmo_mats(**kwargs):
 
             baseColor = nodes.new('ShaderNodeRGB')
             baseColor.location += Vector((-1200.0, 400.0))
-            baseColor.outputs[0].default_value = wmo_read_color(mat.get("color2"), 'CArgb')
+            baseColor.outputs[0].default_value = wmo_read_color(mat.get("color2"), 'rgba')
             baseColor.label = 'BASE COLOR'
 
             tex_nodes = []
@@ -650,7 +650,7 @@ def do_wmo_mats(**kwargs):
                     tex_node.label = ("TEXTURE_%s" % str(i + 1))
                     tex_nodes.append(tex_node)
 
-            ambColor = wmo_read_color(config.get("ambientColor"), 'CImVector')
+            ambColor = wmo_read_color(config.get("ambientColor"), 'bgra')
 
             do_wmo_combiner(
                 tex_nodes=tex_nodes,

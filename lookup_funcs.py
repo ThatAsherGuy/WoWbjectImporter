@@ -20,6 +20,7 @@
 
 from typing import Dict, List, Set, Tuple, Union, Literal, Optional  # type: ignore # noqa: F401
 from .lookup_tables import shader_table, WMOShader, WMO_Shaders
+from .wbjtypes import fColor4
 
 
 # General flag parsing
@@ -93,8 +94,10 @@ def wmo_read_mat_flags(flags: int) -> Set[str]:
 
 wmo_root_flags: Dict[int, FlagSpec] = {
     0: (0, 'NO_ATTENUATE_PORTAL_DIST', None),
+    # "skip_base_color"
     1: (1, 'UNIFIED_RENDER_PATH', "Use unified render path for all objects in this WMO"),
     2: (2, 'LIQUID_FROM_DBC', "Liquid type is from DBC (see MLIQ)"),
+    # "lighten_interiors"
     3: (3, 'NO_FIX_VCOLOR_ALPHA', "Don't call FixColorVertexAlpha (and other effects)"),
     4: (4, 'LOD', None),
     5: (5, 'DEFAULT_MAX_LOD', None),
@@ -255,16 +258,16 @@ def get_interpolation_type(index: int) -> str:
 
 # FIXME: Come up with an easy 'color' vector type (mathutils.Color doesn't really
 # seem to count))
-def wmo_read_color(color: int, color_type: Literal["CImVector", "CArgb"]) -> Tuple[float, float, float, float]:
+def wmo_read_color(color: int, color_type: Literal["rgba", "bgra"]) -> fColor4:
     c_bytes = color.to_bytes(4, 'little')
 
-    if color_type == 'CImVector':
+    if color_type == 'bgra':
         red = c_bytes[2]
         green = c_bytes[1]
         blue = c_bytes[0]
         alpha = c_bytes[3]
 
-    elif color_type == 'CArgb':
+    elif color_type == 'rgba':
         red = c_bytes[0]
         green = c_bytes[1]
         blue = c_bytes[2]
@@ -297,7 +300,7 @@ def wmo_read_color(color: int, color_type: Literal["CImVector", "CArgb"]) -> Tup
 
     alpha_f = float(alpha) / 255.0
 
-    return (red_f, green_f, blue_f, alpha_f)
+    return fColor4(red_f, green_f, blue_f, alpha_f)
 
 
 def read_wmo_face_flags(flag_in: int, func: Literal["is_transition", "is_color", "is_render", "is_collidable"]) -> bool:

@@ -22,7 +22,7 @@
 # ...looks like mashumaro loads them in 2s and 1.36s, respectively, though.
 # Assuming we don't run into issues with it, we may have a winner!
 
-from typing import List, Dict, TypedDict, Tuple
+from typing import List, Dict, TypedDict, Tuple, NamedTuple
 import dataclasses
 from dataclasses import dataclass
 from .vendor.mashumaro import DataClassJSONMixin
@@ -54,8 +54,19 @@ Tri = Tuple[int, int, int]
 iColor3 = Tuple[int, int, int]
 iColor4 = Tuple[int, int, int, int]
 
-fColor3 = Tuple[float, float, float]
-fColor4 = Tuple[float, float, float, float]
+# fColor3 = Tuple[float, float, float]
+# fColor4 = Tuple[float, float, float, float]
+class fColor3(NamedTuple):
+    r: float
+    g: float
+    b: float
+
+class fColor4(NamedTuple):
+    r: float
+    g: float
+    b: float
+    a: float
+
 
 FDID = int
 
@@ -208,6 +219,7 @@ class JsonWmoRenderBatch(DataClassJSONMixin):
     materialID: int
     flags: int = 0
     lastVertex: int = -1
+    batchType: str = 'UNKNOWN'
 
 
 @dataclass
@@ -238,29 +250,6 @@ class JsonWmoGroupInformation(DataClassJSONMixin):
     boundingBox1: 'JsonVertex'
     boundingBox2: 'JsonVertex'
     nameIndex: int
-
-
-# MOMT / SMOMaterial
-# FIXME: make all the names here match up with kaitai-wow (or visa versa)
-# @dataclass
-# class WmoMaterialFlags(enum.Flag):
-#     F_UNLIT = 0x01
-#     """disable lighting logic in shader (but can still use vertex colors)"""
-#     F_UNFOGGED = 0x02
-#     """disable fog shading (rarely used)"""
-#     F_UNCULLED = 0x04
-#     """two-sided"""
-#     F_EXTLIGHT = 0x08
-#     """darkened (internal face of windows?)"""
-#     F_SIDN = 0x10
-#     """bright at night, unshaded (used on windows and lamps)"""
-#     F_WINDOW = 0x20
-#     """unknown (lighting related)"""
-#     F_CLAMP_S = 0x40
-#     """force this material's textures to use clamp s addressing"""
-#     F_CLAMP_T = 0x80
-#     """force this material's textures to use clamp t addressing"""
-#     flag_0x100 = 0x100
 
 
 @dataclass
@@ -322,7 +311,7 @@ class JsonWmoDoodad(DataClassJSONMixin):
 
 
 @dataclass
-class JsonWmoMetadata(DataClassJSONMixin):
+class JsonWmoRoot(DataClassJSONMixin):
     fileDataID: int
     fileName: str
     version: int

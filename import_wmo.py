@@ -26,14 +26,14 @@ from mathutils import Vector, Euler
 
 import dataclasses
 import json
-from math import radians
+from math import floor, radians
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
-from .lookup_funcs import wmo_read_color, wmo_read_group_flags, wmo_read_mat_flags, wmo_get_shader
+from .lookup_funcs import wmo_read_color, wmo_read_group_flags, wmo_read_root_flags, wmo_read_mat_flags, wmo_get_shader
 from .node_groups import get_utility_group
 from .preferences import WoWbject_ObjectProperties, WoWbject_MaterialProperties, get_prefs
-from .wbjtypes import JsonWmoGroup, JsonWmoMetadata, JsonWmoMaterial, JsonWmoRenderBatch, Vec2, Vec3, Vec4, Tri, iColor3, iColor4, fColor3, fColor4
+from .wbjtypes import JsonWmoGroup, JsonWmoRoot, JsonWmoMaterial, JsonWmoRenderBatch, Vec2, Vec3, Tri, fColor4
 
 from .vendor import mashumaro
 from .utilities import recursive_remove_doubles, tris_to_quads
@@ -100,7 +100,8 @@ class WmoGroup:
     batch_count: int = -1
     imported_submeshes: List[ImportedSubmesh] = dataclasses.field(default_factory=list)
     batches_metadata: List[JsonWmoRenderBatch] = dataclasses.field(default_factory=list)
-    vertex_colors: List[List[int]] = dataclasses.field(default_factory=list)
+    # vertex_colors: List[List[int]] = dataclasses.field(default_factory=list)
+    vertex_colors: List[List[fColor4]] = dataclasses.field(default_factory=list)
 
 
 # originally "initialize_mesh"
@@ -248,7 +249,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             raise ValueError("import_wmo called to import a non-WMO file")
 
         try:
-            metadata = JsonWmoMetadata.from_dict(metadata)  # type: ignore
+            metadata = JsonWmoRoot.from_dict(metadata)  # type: ignore
         # FIXME: Not sure why pylance can't figure out the types here
         except mashumaro.exceptions.MissingField as e:
             raise RuntimeError("missing field: " + str(e))
@@ -277,7 +278,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
             # ? Why was this all the way up here? Seems only needed much further down?
             # offset = 0
-
 
             # So, there's going to be more vertex colors than there are verts.
             # This is because the collision meshes (as definedd in MOBN and MOBR
@@ -320,8 +320,14 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                     # else:
                     #     vcol_count = len(group.vertexColours[0])
 
+            root_flags = wmo_read_root_flags(metadata.flags)
 
             wmo_groups: List[WmoGroup] = []
+
+            # not sure why we need the big flat vertex color list -- ask Asher,
+            # if he reappears Not sure why we need three, either, since there
+            # can only be two MOCV chunks.
+            flat_colors: List[List[fColor4]] = [[], []]
 
             # the obj is all the batches, each as a 'group' inside the obj,
             # which we will herein call submeshes. This counter lets us know
@@ -331,6 +337,8 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             for group_metadata in metadata.groups:
                 wmo_group = WmoGroup()
                 wmo_group.batch_count = len(group_metadata.renderBatches)
+
+                group_flags = wmo_read_group_flags(group_metadata.flags)
 
                 # print(f"numPortals: {group_metadata.numPortals}")
                 # print(f"numBatchesA: {group_metadata.numBatchesA}")
@@ -349,53 +357,60 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 wmo_group.group_metadata = group_metadata
                 wmo_group.batches_metadata = group_metadata.renderBatches
 
+                tmp_batchtypes: List[str] = []
+                tmp_batchtypes.extend(["TYPE_A"] * group_metadata.numBatchesA)
+                tmp_batchtypes.extend(["TYPE_B"] * group_metadata.numBatchesB)
+                tmp_batchtypes.extend(["TYPE_C"] * group_metadata.numBatchesC)
+
+                for (batchtype, batch_metadata) in zip(tmp_batchtypes, group_metadata.renderBatches):
+                    batch_metadata.batchType = batchtype
+
                 submesh_low = submesh_offset
                 submesh_high = submesh_low + wmo_group.batch_count - 1
 
-                batch_range = slice(submesh_low, submesh_high + 1)  # need + 1
                 wmo_group.imported_mesh = imported_mesh
 
                 # FIXME: Should we just make this a min/max value, rather than
                 # the entire submesh range, since we have the full mesh
                 # structure along for the ride anyhow?
+                batch_range = slice(submesh_low, submesh_high + 1)  # need + 1
                 wmo_group.imported_submeshes = imported_mesh.submeshes[batch_range]
-
-                # These are the vertex colors for the entire WMO group,
-                # which consists of multiple submeshes/render batches.
-                vcolors = group_metadata.vertexColours
 
                 # The last vertex in the last batch. lastVertex defaults to
                 # -1, so if there are no vertexes, count will be 0
                 group_vertex_count = group_metadata.renderBatches[-1].lastVertex + 1
 
-                # FIXME: Can/does this differ from the vertex count in
-                # the json metadata?
-                # for batch in wmo_group.import_submeshes:
-                #     group_vertex_count += len(batch.verts)
+                # These are the vertex colors for the entire WMO group,
+                # which consists of multiple submeshes/render batches.
+                vcolors = group_metadata.vertexColours
 
-                # if group_vertex_count != last_vertex:
-                #     print(
-                #         f"WARNING: vertex count mismatch: {group_vertex_count} != {last_vertex}")
+                ambColor = getAmbientColor(metadata, group_metadata)
 
-                # not sure why we need the big flat vertex color list -- ask Asher,
-                # if he reappears Not sure why we need three, either, since there
-                # can only be two MOCV chunks.
-                flat_colors: List[List[int]] = [[], [], []]
+                typeB_first_vert = group_metadata.renderBatches[group_metadata.numBatchesA].firstVertex
+                no_fix_vcolor_alpha = 'NO_FIX_VCOLOR_ALPHA' in root_flags
+                is_exterior_group = 'EXTERIOR' in group_flags
 
-                # Not sure why we're doing this, rather than just updating the
-                # group.vertexColours struct in place, or copying/updating
-                # to wmo_group.something   ... should we?
+                wrc = wmo_read_color  # Just to make the comprehensions easier to read
+                alphazero = wmo_read_color(0x00000000, 'bgra')
+                alphaone = wmo_read_color(0xff000000, 'bgra')
+
+                if len(vcolors) > 0:
+                    flat_colors_tmp = [wrc(c, 'bgra') for c in vcolors[0][0:group_vertex_count]]
+                    flat_colors[0] += fixColorVertexAlpha(
+                        flat_colors_tmp, typeB_first_vert, no_fix_vcolor_alpha,
+                        ambColor, is_exterior_group)
+
                 if len(vcolors) == 2:
-                    flat_colors[0] += vcolors[0][0:group_vertex_count]
-                    flat_colors[1] += vcolors[1][0:group_vertex_count]
+                    # flat_colors[0] += [wrc(c, 'bgra') for c in vcolors[0][0:group_vertex_count]]
+                    flat_colors[1] += [wrc(c, 'bgra') for c in vcolors[1][0:group_vertex_count]]
                 elif len(vcolors) == 1:
-                    flat_colors[0] += vcolors[0][0:group_vertex_count]
+                    # flat_colors[0] += [wrc(c, 'bgra') for c in vcolors[0][0:group_vertex_count]]
                     # black + alpha = 1.0
-                    flat_colors[1] += [0xff000000 for _ in range(group_vertex_count)]
+                    flat_colors[1] += [alphaone for _ in range(group_vertex_count)]
                 elif len(vcolors) == 0:
                     if group_vertex_count > 0:
-                        flat_colors[0] += [0x00000000 for _ in range(group_vertex_count)]
-                        flat_colors[1] += [0xff000000 for _ in range(group_vertex_count)]
+                        flat_colors[0] += [alphazero for _ in range(group_vertex_count)]
+                        flat_colors[1] += [alphaone for _ in range(group_vertex_count)]
 
                 # l1 = len(flat_colors[0])
                 # l2 = len(flat_colors[1])
@@ -432,12 +447,13 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
             print("Generating meshes")
             for i, wmo_group in enumerate(wmo_groups):
                 # sub = group.json_group.groupName or ""
-                #### print(f"Constructing object {i + 1}/{steps} | {group.json_group.groupName}")
+                # print(f"Constructing object {i + 1}/{steps} | {group.json_group.groupName}")
 
                 # FIXME: revisit -- should inline this probably, too... maybe
                 bl_obj = wmo_setup_blender_object(
                     # FIXME: make group num into metadata
                     base_name=f"{i:03d}_{basename}",
+                    wmo_root_meta=metadata,
                     wmo_group=wmo_group,
                     bl_materials=bl_materials,
                     # merge_verts=merge_verts,
@@ -549,7 +565,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                 baseColor = nodes.new('ShaderNodeRGB')
                 baseColor.location += Vector((-1200.0, 400.0))
                 baseColor.outputs["Color"].default_value = wmo_read_color(
-                    matmeta.color2, 'CArgb')
+                    matmeta.color2, 'rgba')
                 baseColor.label = 'BASE COLOR'
 
                 tex_nodes: List[bpy.types.ShaderNodeTexImage] = []
@@ -563,7 +579,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                         tex_node.label = ("TEXTURE_%s" % str(i))
                         tex_nodes.append(tex_node)
 
-                ambColor = wmo_read_color(metadata.ambientColor, 'CImVector')
+                ambColor = wmo_read_color(metadata.ambientColor, 'bgra')
 
                 do_wmo_combiner(
                     tex_nodes=tex_nodes,
@@ -579,7 +595,7 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
 
 # FIXME: Legit needs fewer arguments
-def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
+def wmo_setup_blender_object(base_name: str, wmo_root_meta: JsonWmoRoot, wmo_group: WmoGroup,
                              bl_materials: List[bpy.types.Material],
                              merge_verts: bool = False, make_quads: bool = False,
                              use_collections: bool = True) -> Optional[bpy.types.Object]:
@@ -639,7 +655,7 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
 
     # FIXME: I think we guarantee we have colors before calling here, so do we
     # need to check here?  (answer: yes, probably, when doing more than WMOs)
-    vertex_colors = [clist for clist in wmo_group.vertex_colors if len(clist) > 0]
+    vertex_colors = [c for c in wmo_group.vertex_colors if len(c) > 0]
     # do_colors = True if len(vertex_colors) > 0 else False
 
     # from pprint import pformat
@@ -688,7 +704,7 @@ def wmo_setup_blender_object(base_name: str, wmo_group: WmoGroup,
                 # if type(vertex_colors[0]) == list:
                 v_color: List[fColor4] = []
                 for sublist in vertex_colors:
-                    v_color.append(wmo_read_color(sublist[v - 1], 'CImVector'))
+                    v_color.append(sublist[v - 1])
 
                 # else:
                 #     # FIXME: What even -is- this?
@@ -1024,3 +1040,88 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
         tree.links.new(final_shader_out, out_node.inputs["Surface"])
 
         return
+
+
+# Fixme: This acts on a list of tuples of floats; would it be faster if we used
+# a tuple of ints or just start with a raw uint32? Benchmark this.
+def fixColorVertexAlpha(
+        input: List[fColor4], typeB_first_vert: int,
+        no_fix_vcolor_alpha: bool, ambColor: fColor4, exterior: bool) -> List[fColor4]:
+    return input
+    print(
+        f"fixing alpha:  ambient: {ambColor}  no_fix_vcolor_alpha: {no_fix_vcolor_alpha}  exterior: {exterior}")
+
+    output: List[fColor4] = []
+    int_ext_alpha = 1.0 if exterior else 0.0
+
+    if no_fix_vcolor_alpha:
+        # transition batches go through unchanged
+        output = input[0:typeB_first_vert]
+
+        # non-transition batches
+        for i in range(typeB_first_vert, len(input)):
+            o = fColor4(input[i].r, input[i].g, input[i].b, int_ext_alpha)
+            # print(f"{input[i]} -> {o}")
+            output.append(o)
+
+        return output
+
+    # else if not lighten_interiors
+    for i in range(0, typeB_first_vert):
+        r = input[i].r - ambColor.r
+        g = input[i].g - ambColor.g
+        b = input[i].b - ambColor.b
+
+        # alpha passes straight through for transition batches
+        a = input[i].a
+
+        v11 = r - (a * r)
+        v11 = max(0.0, floor(v11 / 2.0))
+
+        v13 = g - (a * g)
+        v13 = max(0.0, floor(v13 / 2.0))
+
+        v14 = b - (a * b)
+        v14 = max(0.0, floor(v14 / 2.0))
+
+        output.append(fColor4(v11, v13, v14, a))
+
+    for i in range(typeB_first_vert, len(input)):
+        r = input[i].r - ambColor.r
+        g = input[i].g - ambColor.g
+        b = input[i].b - ambColor.b
+        a = input[i].a
+
+        v19 = (r * a) / 64 + r - ambColor.r
+        v19 = min(255.0, max(v19 / 2.0, 0.0))
+
+        v30 = (g * a) / 64 + g - ambColor.g
+        v30 = min(255.0, max(v30 / 2.0, 0.0))
+
+        v33 = (b * a) / 64 + b - ambColor.b
+        v33 = min(255.0, max(v33 / 2.0, 0.0))
+
+        o = fColor4(v19, v30, v33, int_ext_alpha)
+        # print(f"{input[i]} -> {o}")
+
+        output.append(o)
+
+    assert len(input) == len(output)
+    return output
+
+
+def getAmbientColor(root: JsonWmoRoot, group: JsonWmoGroup) -> fColor4:
+    root_flags = wmo_read_root_flags(root.flags)
+    group_flags = wmo_read_group_flags(group.flags)
+
+    if 'EXTERIOR' in group_flags or 'EXTERIOR_LIT' in group_flags:
+        return fColor4(0.0, 0.0, 0.0, 0.0)
+
+    # else not EXTERIOR and not EXTERIOR_LIT
+    ambColor = wmo_read_color(root.ambientColor, 'bgra')
+
+    # FIXME: Not currently exported from wow.export, enable when available
+    # if group.replacement_for_header_color:
+    #     ambColor = wmo_read_color(group.replacement_for_header_color, 'bgra')
+
+    return ambColor

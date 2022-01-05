@@ -37,7 +37,7 @@ from .import_wmo import import_wmo
 # from .lookup_funcs import wmo_read_color, wmo_read_group_flags
 # from .node_groups import do_wmo_combiner, get_utility_group
 # from .preferences import WoWbject_ObjectProperties, get_prefs
-# from .wbjtypes import JsonWmoGroup, JsonWmoMetadata
+# from .wbjtypes import JsonWmoGroup, JsonWmoRoot
 from .preferences import get_prefs
 
 # FIXME: do we need to make this local/tweak this/etc?
