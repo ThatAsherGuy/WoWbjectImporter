@@ -276,9 +276,6 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
 
             # START def repack_wmo(import_container, groups: dict, obj_data: meshObject, config: dict):
 
-            # ? Why was this all the way up here? Seems only needed much further down?
-            # offset = 0
-
             # So, there's going to be more vertex colors than there are verts.
             # This is because the collision meshes (as definedd in MOBN and MOBR
             # chunks in the WMO) reference verts that are not actually included
@@ -1011,21 +1008,22 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
 
             elif node_input.name == "Blend Mode":
                 blendmode_value = nodes.new('ShaderNodeValue')
+                blendmode_value.label = "Blend Mode"
                 blendmode_value.outputs["Value"].default_value = blend_mode
                 tree.links.new(blendmode_value.outputs["Value"], mixer.inputs[i])
 
 
         final_color_out = mixer.outputs["Output RGB"]
-        if len(mixer.outputs) > 2:
-            mix_1 = nodes.new("ShaderNodeMixRGB")
-            mix_1.blend_type = 'ADD'
-            mix_1.label = "Mix 1"
-            mix_1.location = Vector((-275.0, 200.0))
-            mix_1.inputs["Fac"].default_value = 1.0
+        # if len(mixer.outputs) > 2:
+        #     mix_1 = nodes.new("ShaderNodeMixRGB")
+        #     mix_1.blend_type = 'ADD'
+        #     mix_1.label = "Mix 1"
+        #     mix_1.location = Vector((-275.0, 200.0))
+        #     mix_1.inputs["Fac"].default_value = 1.0
 
-            tree.links.new(mixer.outputs["Output RGB"], mix_1.inputs["Color1"])
-            tree.links.new(mixer.outputs["Environment RGB"], mix_1.inputs["Color2"])
-            final_color_out = mix_1.outputs["Color"]
+        #     tree.links.new(mixer.outputs["Output RGB"], mix_1.inputs["Color1"])
+        #     tree.links.new(mixer.outputs["Environment RGB"], mix_1.inputs["Color2"])
+        #     final_color_out = mix_1.outputs["Color"]
 
         tree.links.new(final_color_out, shader_out.inputs["Color"])
 
