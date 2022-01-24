@@ -21,7 +21,7 @@
 import bpy
 from .lookup_funcs import wmo_read_root_flags, wmo_read_group_flags, wmo_read_mat_flags
 from typing import cast
-from .preferences import WoWbject_MaterialProperties, WoWbject_ObjectProperties
+from .properties import WoWbject_MaterialProperties, WoWbject_ObjectProperties
 
 
 class VIEW3D_PT_wowbject_scene_panel(bpy.types.Panel):
@@ -95,12 +95,12 @@ class VIEW3D_PT_wowbject_object_panel(bpy.types.Panel):
         if WBJ.wow_model_type == 'WMO':
             if WBJ.wmo_root_fdid > 0:
                 block.label(text=f"Root FDID: {WBJ.wmo_root_fdid}")
-            block.label(text=f"Lighting: {WBJ.wmo_lighting_type}")
+            # block.label(text=f"Lighting: {WBJ.wmo_lighting_type}")
             block.label(text=f"Flags: {WBJ.wmo_group_flags}")
-            block.label(text="")
-            block.label(text=f"Trans batches: {WBJ.wmo_group_batches_a}")
-            block.label(text=f"Int batches: {WBJ.wmo_group_batches_b}")
-            block.label(text=f"Ext batches: {WBJ.wmo_group_batches_c}")
+            # block.label(text="")
+            # block.label(text=f"Trans batches: {WBJ.wmo_group_batches_a}")
+            # block.label(text=f"Int batches: {WBJ.wmo_group_batches_b}")
+            # block.label(text=f"Ext batches: {WBJ.wmo_group_batches_c}")
 
             block = layout.column(align=True)
 

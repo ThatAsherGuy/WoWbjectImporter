@@ -22,7 +22,7 @@
 # ...looks like mashumaro loads them in 2s and 1.36s, respectively, though.
 # Assuming we don't run into issues with it, we may have a winner!
 
-from typing import List, Dict, TypedDict, Tuple, NamedTuple
+from typing import List, Dict, TypedDict, Tuple, NamedTuple, Optional
 import dataclasses
 from dataclasses import dataclass
 from .vendor.mashumaro import DataClassJSONMixin
@@ -234,6 +234,7 @@ class JsonWmoGroup(DataClassJSONMixin):
     numBatchesC: int = 0
     liquidType: int = 0
     flags: int = 0
+    ambientColor: Optional[int] = None
     materialInfo: List['JsonWmoMaterialInformation'] = dataclasses.field(default_factory=list)
     renderBatches: List['JsonWmoRenderBatch'] = dataclasses.field(default_factory=list)
     vertexColours: List['JsonVertexColorLayer'] = dataclasses.field(default_factory=list)

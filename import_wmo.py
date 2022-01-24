@@ -32,7 +32,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 from .lookup_funcs import wmo_read_color, wmo_read_group_flags, wmo_read_root_flags, wmo_read_mat_flags, wmo_get_shader
 from .node_groups import get_utility_group
-from .preferences import WoWbject_ObjectProperties, WoWbject_MaterialProperties, get_prefs
+from .preferences import get_prefs
+from .properties import WoWbject_ObjectProperties, WoWbject_MaterialProperties
 from .wbjtypes import JsonWmoGroup, JsonWmoRoot, JsonWmoMaterial, JsonWmoRenderBatch, Vec2, Vec3, Tri, fColor4
 
 from .vendor import mashumaro
@@ -398,11 +399,8 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                         ambColor, is_exterior_group)
 
                 if len(vcolors) == 2:
-                    # flat_colors[0] += [wrc(c, 'bgra') for c in vcolors[0][0:group_vertex_count]]
                     flat_colors[1] += [wrc(c, 'bgra') for c in vcolors[1][0:group_vertex_count]]
                 elif len(vcolors) == 1:
-                    # flat_colors[0] += [wrc(c, 'bgra') for c in vcolors[0][0:group_vertex_count]]
-                    # black + alpha = 1.0
                     flat_colors[1] += [alphaone for _ in range(group_vertex_count)]
                 elif len(vcolors) == 0:
                     if group_vertex_count > 0:
@@ -576,14 +574,11 @@ def import_wmo(context: bpy.types.Context, filepath: str, reuse_mats: bool, base
                         tex_node.label = ("TEXTURE_%s" % str(i))
                         tex_nodes.append(tex_node)
 
-                ambColor = wmo_read_color(metadata.ambientColor, 'bgra')
-
                 do_wmo_combiner(
                     tex_nodes=tex_nodes,
                     bl_mat=bl_mat,
                     shader_out=shader,
                     mat_info=matmeta,
-                    ambient=ambColor,
                 )
 
                 configured_mats.add(bl_mat)
@@ -613,9 +608,9 @@ def wmo_setup_blender_object(base_name: str, wmo_root_meta: JsonWmoRoot, wmo_gro
     WBJ = cast(WoWbject_ObjectProperties, bl_obj.WBJ)  # type: ignore
     WBJ.initialized = True
     WBJ.wow_model_type = 'WMO'
-    WBJ.wmo_group_batches_a = metadata.numBatchesA
-    WBJ.wmo_group_batches_b = metadata.numBatchesB
-    WBJ.wmo_group_batches_c = metadata.numBatchesC
+    # WBJ.wmo_group_batches_a = metadata.numBatchesA
+    # WBJ.wmo_group_batches_b = metadata.numBatchesB
+    # WBJ.wmo_group_batches_c = metadata.numBatchesC
 
     # blender IntProperty fields, even when subtype='UNSIGNED', won't accept
     # a value over 2147483647. In our case, that top bit is an unknown flag
@@ -623,17 +618,23 @@ def wmo_setup_blender_object(base_name: str, wmo_root_meta: JsonWmoRoot, wmo_gro
     # than go through gymnastics to make blender happy with the full value
     WBJ.wmo_group_flags = metadata.flags & 0x7fffffff
 
+    flags = wmo_read_group_flags(metadata.flags)
+    WBJ.wmo_group_interior = 1 if 'INTERIOR' in flags else 0
+    WBJ.wmo_group_exterior = 1 if 'EXTERIOR' in flags else 0
+    WBJ.wmo_group_exterior_lit = 1 if 'EXTERIOR_LIT' in flags else 0
+
+    WBJ.wmo_interior_ambient_color = getAmbientColor(wmo_root_meta, metadata)[0:3]
+    WBJ.wmo_interior_direct_color = (0.0, 0.0, 0.0)
 
     # FIXME: may need more logic here
-    flags = wmo_read_group_flags(metadata.flags)
-    if 'INTERIOR' in flags and 'EXTERIOR' in flags:
-        WBJ.wmo_lighting_type = 'TRANSITION'
-    elif 'INTERIOR' in flags:
-        WBJ.wmo_lighting_type = 'INTERIOR'
-    elif 'EXTERIOR' in flags:
-        WBJ.wmo_lighting_type = 'EXTERIOR'
-    else:
-        WBJ.wmo_lighting_type = 'UNLIT'
+    # if 'INTERIOR' in flags and 'EXTERIOR' in flags:
+    #     WBJ.wmo_lighting_type = 'TRANSITION'
+    # elif 'INTERIOR' in flags:
+    #     WBJ.wmo_lighting_type = 'INTERIOR'
+    # elif 'EXTERIOR' in flags:
+    #     WBJ.wmo_lighting_type = 'EXTERIOR'
+    # else:
+    #     WBJ.wmo_lighting_type = 'UNLIT'
 
 
     bm = bmesh.new()
@@ -866,11 +867,10 @@ def wmo_setup_blender_object(base_name: str, wmo_root_meta: JsonWmoRoot, wmo_gro
 #     mat_info=mat,         # JsonMaterial
 #     ambient=ambColor,     # Tuple[float, float, float, float]
 # )
-# FIXME: Make 'ambient' a proper data type
 # FIXME: Can we actually hold a reference to the texture nodes?
 def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
                     bl_mat: bpy.types.Material, shader_out: bpy.types.ShaderNode,
-                    mat_info: JsonWmoMaterial, ambient: Tuple[float, float, float, float]) -> None:
+                    mat_info: JsonWmoMaterial) -> None:
     # use_combiner_nodes = True
     # do_vertex_lighting = False
 
@@ -899,7 +899,6 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
     bl_mat.use_backface_culling = False
 
     flags = wmo_read_mat_flags(mat_info.flags)
-
     for flag in flags:
         if flag == 'TWO_SIDED':
             bl_mat.use_backface_culling = False  # FIXME: make this optional again
@@ -909,6 +908,27 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
         bl_mat.blend_method = 'BLEND'
     elif blend_mode == 1:
         bl_mat.blend_method = 'CLIP'
+
+    lighting_attr_node = nodes.new('ShaderNodeGroup')
+    lighting_attr_node.node_tree = get_utility_group(name="WMO_Lighting_Attrs")
+    lighting_attr_node.location = Vector((-1400.0, -300.0))
+
+    group_attr_node = nodes.new('ShaderNodeGroup')
+    group_attr_node.node_tree = get_utility_group(name="WMO_Group_Attrs")
+    group_attr_node.location = Vector((-1400.0, -300.0))
+
+    calc_light_node = nodes.new('ShaderNodeGroup')
+    calc_light_node.node_tree = get_utility_group(name="WMO_Calc_Light")
+    calc_light_node.location = Vector((-1400.0, -300.0))
+
+    # apply_light_node = nodes.new('ShaderNodeValue')
+    # apply_light_node.label = "applyLight"
+    # apply_light_node.outputs["Value"].default_value = 1.0  # always 1.0 for WMOs
+    # tree.links.new(apply_light_node.outputs["Value"], calc_light_node.inputs["applyLight"])
+    calc_light_node.inputs["applyLight"].default_value = 1.0
+    calc_light_node.inputs["accumLight"].default_value = (0.0, 0.0, 0.0, 1.0)
+
+    nodes_link_matching(tree, lighting_attr_node, calc_light_node)
 
     out_node = None
     for node in nodes:
@@ -942,24 +962,36 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
     mixer.node_tree = get_utility_group(name=shader_info.pixel)
     mixer.location = Vector((-575.0, 30.0))
 
-    # offset = 0
+    if blend_mode == 1:
+        mixer.inputs["Blend Mode"].default_value = 1.0
+    else:
+        mixer.inputs["Blend Mode"].default_value = 0.0
+
+    # we'll always -have- two vertex color layers, though one might not have
+    # much in it. Go ahead and create them so we can link them to the lighting
+    # node, then link to other things when needed.
+    vcolors_1_node = nodes.new("ShaderNodeVertexColor")
+    vcolors_1_node.layer_name = 'vcols_0'
+    vcolors_1_node.location = Vector((-975.0, 200.0))
+
+    tree.links.new(vcolors_1_node.outputs["Color"], calc_light_node.inputs["precomputedLight"])
+    tree.links.new(vcolors_1_node.outputs["Alpha"],
+                   calc_light_node.inputs["interiorExteriorBlend"])
+
+    vcolors_2_node = nodes.new("ShaderNodeVertexColor")
+    vcolors_2_node.layer_name = 'vcols_1'
+    vcolors_2_node.location = Vector((-975.0, 30.0))
+
 
     # FIXME: Would we ever -not- want to use combiner nodes?
     # if use_combiner_nodes:
     if True:
-        v_colors = None
-        v_colors2 = None
-
         for i, node_input in enumerate(mixer.inputs):
             # FIXME: instead of calling these vcols_0 and vcols_1, make them
             # use 1 and 2 instead, to match other things? Maybe.
             if node_input.name == "Vertex RGB":
                 # if do_vertex_lighting:
                 if True:
-                    v_colors = nodes.new("ShaderNodeVertexColor")
-                    v_colors.layer_name = 'vcols_0'
-                    v_colors.location = Vector((-975.0, 200.0))
-
                     # lighting = nodes.new('ShaderNodeGroup')
                     # lighting.node_tree = get_utility_group(name="WMO_VertexLighting")
                     # lighting.node_tree = get_utility_group(name="WMO_VertexLightingFancy")
@@ -970,15 +1002,12 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
 
                     # tree.links.new(lighting.outputs["Lit Color"], mixer.inputs[i])
                     # tree.links.new(v_colors.outputs["Color"], lighting.inputs["Vertex Color"])
-                    tree.links.new(v_colors.outputs["Color"], mixer.inputs[i])
-                    tree.links.new(v_colors.outputs["Alpha"], mixer.inputs[i + 1])
+                    tree.links.new(vcolors_1_node.outputs["Color"], mixer.inputs[i])
+                    tree.links.new(vcolors_1_node.outputs["Alpha"], mixer.inputs[i + 1])
 
             elif node_input.name == "Vertex2 RGB":
-                v_colors2 = nodes.new("ShaderNodeVertexColor")
-                v_colors2.layer_name = 'vcols_1'
-                v_colors2.location = Vector((-975.0, 30.0))
-                tree.links.new(v_colors2.outputs["Color"], mixer.inputs[i])
-                tree.links.new(v_colors2.outputs["Alpha"], mixer.inputs[i + 1])
+                tree.links.new(vcolors_2_node.outputs["Color"], mixer.inputs[i])
+                tree.links.new(vcolors_2_node.outputs["Alpha"], mixer.inputs[i + 1])
 
             elif node_input.name == "Tex0 RGB":
                 tex_nodes[0].location = Vector((-975.0, 200.0))
@@ -1006,14 +1035,9 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
                     tree.links.new(tex_nodes[2].outputs["Color"], mixer.inputs[i])
                     tree.links.new(tex_nodes[2].outputs["Alpha"], mixer.inputs[i + 1])
 
-            elif node_input.name == "Blend Mode":
-                blendmode_value = nodes.new('ShaderNodeValue')
-                blendmode_value.label = "Blend Mode"
-                blendmode_value.outputs["Value"].default_value = blend_mode
-                tree.links.new(blendmode_value.outputs["Value"], mixer.inputs[i])
 
-
-        final_color_out = mixer.outputs["Output RGB"]
+        nodes_link_matching(tree, mixer, calc_light_node)
+        final_color_out = calc_light_node.outputs["Output RGB"]
         # if len(mixer.outputs) > 2:
         #     mix_1 = nodes.new("ShaderNodeMixRGB")
         #     mix_1.blend_type = 'ADD'
@@ -1039,15 +1063,24 @@ def do_wmo_combiner(tex_nodes: List[bpy.types.ShaderNodeTexImage],
 
         return
 
+def nodes_link_matching(tree: bpy.types.NodeTree, left: bpy.types.Node, right: bpy.types.Node) -> None:
+    # return a list of sockets we connected, by name
+    connections: Set[str] = set()
+
+    for socket in right.inputs:
+        if not socket.name.startswith("-") and socket.name in left.outputs:
+            tree.links.new(left.outputs[socket.name], socket)
+            connections.add(socket.name)
+
 
 # Fixme: This acts on a list of tuples of floats; would it be faster if we used
 # a tuple of ints or just start with a raw uint32? Benchmark this.
 def fixColorVertexAlpha(
         input: List[fColor4], typeB_first_vert: int,
         no_fix_vcolor_alpha: bool, ambColor: fColor4, exterior: bool) -> List[fColor4]:
-    return input
-    print(
-        f"fixing alpha:  ambient: {ambColor}  no_fix_vcolor_alpha: {no_fix_vcolor_alpha}  exterior: {exterior}")
+    # return input
+    # print(
+    #     f"fixing alpha:  ambient: {ambColor}  no_fix_vcolor_alpha: {no_fix_vcolor_alpha}  exterior: {exterior}")
 
     output: List[fColor4] = []
     int_ext_alpha = 1.0 if exterior else 0.0
@@ -1112,14 +1145,12 @@ def getAmbientColor(root: JsonWmoRoot, group: JsonWmoGroup) -> fColor4:
     root_flags = wmo_read_root_flags(root.flags)
     group_flags = wmo_read_group_flags(group.flags)
 
+    # inverse of "if !EXTERIOR && !EXTERIOR_LIT"
     if 'EXTERIOR' in group_flags or 'EXTERIOR_LIT' in group_flags:
         return fColor4(0.0, 0.0, 0.0, 0.0)
 
-    # else not EXTERIOR and not EXTERIOR_LIT
-    ambColor = wmo_read_color(root.ambientColor, 'bgra')
-
     # FIXME: Not currently exported from wow.export, enable when available
-    # if group.replacement_for_header_color:
-    #     ambColor = wmo_read_color(group.replacement_for_header_color, 'bgra')
-
-    return ambColor
+    if group.ambientColor is not None:
+        return wmo_read_color(group.ambientColor, 'bgra')
+    else:
+        return wmo_read_color(root.ambientColor, 'bgra')

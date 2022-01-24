@@ -41,11 +41,12 @@ from .operators import WOWBJ_OT_LoadCombiner
 from .operators import WOWBJ_OT_SetDefaultDir
 
 from .preferences import wowbjectAddonPrefs
-from .preferences import WoWbject_SceneProperties
-from .preferences import WoWbject_ObjectProperties
-from .preferences import WoWbject_MaterialProperties
-from .preferences import WoWbject_NodeGroupProperties
-from .preferences import WoWbject_texture
+
+from .properties import WoWbject_SceneProperties
+from .properties import WoWbject_ObjectProperties
+from .properties import WoWbject_MaterialProperties
+from .properties import WoWbject_NodeGroupProperties
+from .properties import WoWbject_texture
 
 from .ui import VIEW3D_PT_wowbject_scene_panel
 from .ui import VIEW3D_PT_wowbject_object_panel
