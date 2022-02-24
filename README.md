@@ -1,3 +1,13 @@
+## Status
+
+Probably won't get further updates. Asher is MIA, Alinsa shouldn't be around people, and it's unlikely anyone really used it anyways. If you actually *do* use this and want to see changes/improvements, please feel free to reach out to @alinsa on Twitter and she'll see what she can do.
+
+(no promises, but it might make her feel useful)
+
+.
+
+.
+
 # WoWbject: A World of Warcraft Model Importer
 
 TL;DR: This Blender add-on + WoW.Export = Streamlined import and material assignment with accurate shaders and animated UVs, with more features to come. This add-on *requires* files exported via wow.export and will not work with files exported from WoW via other methods. Be sure to read *Using*, below.
